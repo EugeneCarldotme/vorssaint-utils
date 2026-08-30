@@ -95,8 +95,13 @@ struct SwitcherItem: Identifiable, Equatable {
     /// redraws it, so the switcher stayed on the bundled icon (issue #801).
     var appIcon: NSImage? {
         guard let app = NSRunningApplication(processIdentifier: pid) else { return nil }
-        guard let bundlePath = app.bundleURL?.path else { return app.icon }
-        return NSWorkspace.shared.icon(forFile: bundlePath)
+        let icon = app.bundleURL.map { NSWorkspace.shared.icon(forFile: $0.path) } ?? app.icon
+        guard let icon else { return nil }
+        var pixels: CGImage?
+        NSApplication.shared.effectiveAppearance.performAsCurrentDrawingAppearance {
+            pixels = icon.cgImage(forProposedRect: nil, context: nil, hints: nil)
+        }
+        return pixels.map { NSImage(cgImage: $0, size: icon.size) } ?? icon
     }
 
     func withMinimized(_ minimized: Bool) -> SwitcherItem {

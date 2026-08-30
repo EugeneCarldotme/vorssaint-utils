@@ -330,6 +330,8 @@ if (( TEST )); then
         Sources/Vorssaint/Services/SuperKey/SuperKeySupport.swift \
         Sources/Vorssaint/Services/SuperKey/SuperKeyMappingGuard.swift \
         Sources/Vorssaint/Core/SuperKeyStrings.swift \
+        Sources/Vorssaint/Services/SessionActivity.swift \
+        Sources/Vorssaint/Services/SessionActivitySupport.swift \
         Sources/Vorssaint/Services/ScrollWheelSupport.swift \
         Sources/Vorssaint/Services/SmoothScrollSupport.swift \
         Sources/Vorssaint/Services/FocusFollowsMouse/FocusFollowsMouseSupport.swift \

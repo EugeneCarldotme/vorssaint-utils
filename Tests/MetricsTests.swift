@@ -1076,6 +1076,58 @@ struct MetricsTests {
         ) == ScrollWheelInversionPlan(vertical: false, horizontal: false),
         "a continuous wheel stays vertical because Shift does not redirect that event type")
 
+        // A scroll tap belongs in the chain only while this login session is
+        // the one on screen: fast user switching leaves the process running
+        // behind another account, where the tap still takes every scroll event
+        // and stalls it (issue #1075).
+        expect(SessionActivitySupport.tapShouldRun(featureWanted: true,
+                                                   accessibilityGranted: true,
+                                                   sessionIsActive: true),
+               "a wanted scroll tap runs in the session on screen")
+        expect(!SessionActivitySupport.tapShouldRun(featureWanted: true,
+                                                    accessibilityGranted: true,
+                                                    sessionIsActive: false),
+               "a wanted scroll tap is handed back while its session is switched away")
+        expect(!SessionActivitySupport.tapShouldRun(featureWanted: false,
+                                                    accessibilityGranted: true,
+                                                    sessionIsActive: true),
+               "an unwanted scroll tap stays off in the session on screen")
+        expect(!SessionActivitySupport.tapShouldRun(featureWanted: true,
+                                                    accessibilityGranted: false,
+                                                    sessionIsActive: true),
+               "a scroll tap needs Accessibility even in the session on screen")
+
+        // Launching into a session that is already switched away is announced
+        // before the tap owners exist to hear it, so the state is read rather
+        // than assumed. Anything unreadable counts as on screen because a
+        // wrong off state would never be corrected.
+        let onConsoleKey = kCGSessionOnConsoleKey as String
+        expect(SessionActivitySupport.isOnConsole([onConsoleKey: true]),
+               "a session dictionary saying it holds the console reads as on screen")
+        expect(!SessionActivitySupport.isOnConsole([onConsoleKey: false]),
+               "a session dictionary saying it does not hold the console reads as off screen")
+        expect(SessionActivitySupport.isOnConsole([onConsoleKey: NSNumber(value: 1)]),
+               "the console flag is read when it arrives as a number")
+        expect(SessionActivitySupport.isOnConsole(nil),
+               "an unreadable session reads as on screen because a wrong off would never be corrected")
+        expect(SessionActivitySupport.isOnConsole([:]),
+               "a session without the console flag reads as on screen because a wrong off would never be corrected")
+        expect(SessionActivitySupport.isOnConsole([onConsoleKey: "unexpected"]),
+               "an unexpected console flag reads as on screen because a wrong off would never be corrected")
+
+        let privateCenter = NotificationCenter()
+        let activity = SessionActivity(center: privateCenter, initialIsActive: { true })
+        var observedTransitions: [Bool] = []
+        activity.onChange { observedTransitions.append($0) }
+        expect(activity.isActive, "session activity starts with the injected initial state")
+        privateCenter.post(name: NSWorkspace.sessionDidResignActiveNotification, object: nil)
+        expect(!activity.isActive, "session activity transitions to inactive on resign")
+        privateCenter.post(name: NSWorkspace.sessionDidResignActiveNotification, object: nil)
+        privateCenter.post(name: NSWorkspace.sessionDidBecomeActiveNotification, object: nil)
+        expect(activity.isActive, "session activity transitions to active on become-active")
+        expect(observedTransitions == [false, true],
+               "the session activity handler records each state change and ignores duplicate notifications")
+
         expect(MouseNavigationSupport.direction(
             forButtonNumber: MouseNavigationSupport.backButtonNumber) == .back,
                "the first standard mouse side button maps to Back")
@@ -20488,6 +20540,37 @@ struct MetricsTests {
             .joined(separator: "\n")
         expect(!signingSetupCode.contains("-legacy"),
                "setup-signing.sh avoids the -legacy flag the stock LibreSSL openssl rejects")
+
+        // MARK: Both scroll taps are handed back across a session switch
+        // The tap owners cannot be reached from this list (they need the event
+        // chain), so the wiring is pinned as text: each service follows the
+        // session and asks before re-arming a tap the window server disabled.
+        // Comments are stripped so prose naming the API cannot answer for it.
+        let sessionActivitySource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/SessionActivity.swift",
+            encoding: .utf8)) ?? ""
+        expect(sessionActivitySource.contains("sessionDidResignActiveNotification")
+                && sessionActivitySource.contains("sessionDidBecomeActiveNotification"),
+               "the session watcher follows both halves of a fast user switch")
+        for tapOwner in ["Sources/Vorssaint/Services/ScrollInverter.swift",
+                         "Sources/Vorssaint/Services/SmoothScrollService.swift"] {
+            let source = (try? String(contentsOfFile: tapOwner, encoding: .utf8)) ?? ""
+            expect(!source.isEmpty, "\(tapOwner) reads back for its session-switch check")
+            let code = source.components(separatedBy: "\n")
+                .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
+                .joined(separator: "\n")
+            expect(code.contains("SessionActivity.shared.onChange"),
+                   "\(tapOwner) rebuilds its tap when the session comes back")
+            let rearm = code.components(separatedBy: "tapDisabledByTimeout")
+                .dropFirst().first?.components(separatedBy: "return").first ?? ""
+            expect(rearm.contains("SessionActivity.shared.isActive"),
+                   "\(tapOwner) does not re-arm a disabled tap into a switched-away session")
+            // Switching a tap off leaves the process owning it, which is what
+            // the window server waits on; the ten other tap owners already
+            // invalidate the port on the way out.
+            expect(code.contains("CFMachPortInvalidate"),
+                   "\(tapOwner) hands its tap back rather than only disabling it")
+        }
 
         // MARK: Uninstallation paths stay aligned across SelfUninstall and Tools/uninstall.sh
         let selfUninstallSource = (try? String(contentsOfFile: "Sources/Vorssaint/Services/SelfUninstall.swift",

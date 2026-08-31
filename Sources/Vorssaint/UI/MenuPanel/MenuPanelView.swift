@@ -404,6 +404,9 @@ struct MenuPanelView: View {
             footerButton(l10n.s.panelSettings,
                          systemImage: "gearshape",
                          horizontalPadding: 7) {
+                // The hosted utility's own page, or the general one from the
+                // panel's lists: the router is sticky, so it is set every time.
+                SettingsRouter.shared.page = PanelInteractionState.shared.hostedSettingsPage ?? .general
                 appDelegate()?.openSettingsWindow()
             }
 
@@ -625,9 +628,32 @@ struct UtilitiesSection: View {
         .onChange(of: hostedUtilityKeepsPopoverOpen) { _, keepsOpen in
             PanelInteractionState.shared.viewKeepsPopoverOpen = keepsOpen
         }
-        .onDisappear {
-            PanelInteractionState.shared.viewKeepsPopoverOpen = false
+        .onChange(of: hostedSettingsPage) { _, page in
+            PanelInteractionState.shared.hostedSettingsPage = page
         }
+        .onDisappear {
+            // Another section, or a metric, replacing this one takes the
+            // tool off screen with it; a closed panel does not, and keeps it.
+            PanelInteractionState.shared.viewKeepsPopoverOpen = false
+            PanelInteractionState.shared.hostedSettingsPage = nil
+        }
+    }
+
+    /// The Settings page that belongs to whichever tool the section is
+    /// showing, derived from the same state as `isHostingUtility` so every
+    /// hosted tool is covered by the one list. Mirrored by the `onChange`
+    /// beside it, and cleared only where this section leaves the screen.
+    private var hostedSettingsPage: SettingsPage? {
+        if showUninstaller { return .uninstaller }
+        if showCleanerPanel { return .cleaner }
+        if showURLCleaner { return .urlCleaner }
+        if showHomebrewPanel { return .homebrew }
+        if showMediaPanel { return .media }
+        if showClipboardPanel { return .clipboard }
+        if showRecentCapturesPanel { return .screenshot }
+        if showWindowLayoutPanel { return .windowLayout }
+        if showAppUpdatesPanel { return .appUpdates }
+        return nil
     }
 
     /// True while the section is showing one of the tools instead of its own

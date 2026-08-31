@@ -2973,6 +2973,8 @@ struct MetricsTests {
                "keyboard debounce per-key windows start empty")
         expect(registeredDefaults[DefaultsKey.panelUtilityCleaning] as? Bool == true,
                "panel cleaning utility is visible by default")
+        expect(registeredDefaults[DefaultsKey.cleaningModeKeepScreenVisible] as? Bool == false,
+               "cleaning mode keep screen visible is disabled by default")
         expect(registeredDefaults[DefaultsKey.panelUtilityURLCleaner] as? Bool == true,
                "panel URL cleaner utility is visible by default")
         expect(registeredDefaults[DefaultsKey.panelUtilityUninstaller] as? Bool == true,
@@ -11200,6 +11202,12 @@ struct MetricsTests {
                               strings.qrResultTitle, strings.qrResultCopy, strings.qrResultOpen]
             expect(ocrStrings.allSatisfy { !$0.isEmpty && !$0.contains("—") },
                    "\(prefix) screen OCR strings are present without em dash")
+            let cleaningStrings = [strings.cleaningKeepScreenVisibleToggle, strings.cleaningKeepScreenVisibleCaption,
+                                   strings.cleaningStartNow, strings.cleaningOverlayTitle,
+                                   strings.cleaningOverlaySubtitle, strings.cleaningOverlayUnlock,
+                                   strings.cleaningOverlayMouseHint, strings.cleaningPanelCaption]
+            expect(cleaningStrings.allSatisfy { !$0.isEmpty && !$0.contains("—") },
+                   "\(prefix) cleaning mode strings are present without em dash")
             let highlightsStrings = [strings.highlightsTitle, strings.highlightsTitleClipboardRedesign,
                                      strings.highlightsCaptionDockPreview,
                                      strings.highlightsCaptionScreenshot,
@@ -13052,10 +13060,11 @@ struct MetricsTests {
         expect(AppFeature.windowMaximizer.settingsDestination
                 == FeatureSettingsDestination(.general, sectionAnchor: .panelConfiguration)
                 && AppFeature.mixer.settingsDestination
-                == FeatureSettingsDestination(.general, sectionAnchor: .panelConfiguration)
-                && AppFeature.cleaningMode.settingsDestination
                 == FeatureSettingsDestination(.general, sectionAnchor: .panelConfiguration),
                "panel-oriented features land on General panel configuration")
+        expect(AppFeature.cleaningMode.settingsDestination
+                == FeatureSettingsDestination(.quickTools, sectionAnchor: .cleaningMode),
+               "cleaning mode lands on Quick Tools cleaning mode section")
         expect(AppFeature.musicBlock.settingsDestination
                 == FeatureSettingsDestination(.general, sectionAnchor: .musicBlocking)
                 && AppFeature.soundOutputSwitcher.settingsDestination
@@ -15035,6 +15044,37 @@ struct MetricsTests {
             encoding: .utf8)) ?? ""
         expect(!captureServiceSource.contains("replaceSelection"),
                "the capture service does not cancel and recreate selection controllers when changing modes")
+        // The preview appears unasked for, so presenting it must not take the
+        // keyboard away from whatever the person is typing into. Its shortcuts
+        // read a local monitor, which is delivered nothing until the panel is
+        // key. Presenting stays silent and hover takes nothing either; a click
+        // hands the keyboard over in the panel's sendEvent because hosted
+        // SwiftUI content answers presses that never reach mouseDown. Comments
+        // are stripped so prose naming the API cannot answer for the code.
+        let quickPreviewSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/QuickTools/ScreenshotQuickPreviewController.swift",
+            encoding: .utf8)) ?? ""
+        expect(!quickPreviewSource.isEmpty, "the screenshot preview source reads back for its shape check")
+        let quickPreviewCode = quickPreviewSource.components(separatedBy: "\n")
+            .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
+            .joined(separator: "\n")
+        // Split at the hosting controller: the hover closure is built above it,
+        // so the presentation statements are what remains.
+        let presentBody = quickPreviewCode.components(separatedBy: "let host = NSHostingController")
+            .dropFirst().first?.components(separatedBy: "private func").first ?? ""
+        expect(presentBody.contains("orderFrontRegardless()"),
+               "the screenshot preview is presented without activating the app")
+        // A click is the hand-off, and it is read in sendEvent because the
+        // hosted SwiftUI content answers presses that never reach mouseDown.
+        let panelBody = quickPreviewCode.components(separatedBy: "class ScreenshotQuickPreviewPanel")
+            .dropFirst().first?.components(separatedBy: "\n}").first ?? ""
+        let makeKeyCount = quickPreviewCode.components(separatedBy: "makeKey").count - 1
+        let panelMakeKeyCount = panelBody.components(separatedBy: "makeKey").count - 1
+        expect(makeKeyCount == panelMakeKeyCount && panelMakeKeyCount >= 1,
+               "presentation and hover never take key focus; only the panel's own click hand-off may")
+        expect(panelBody.contains("sendEvent") && panelBody.contains("leftMouseDown")
+                && panelBody.contains("makeKey") && panelBody.contains("super.sendEvent"),
+               "clicking the screenshot preview takes key focus and still delivers every preview button")
 
         let cocoa = ScreenshotSupport.cocoaRect(fromWindowServer: CGRect(x: 10, y: 30, width: 200, height: 100),
                                                 mainScreenHeight: 900)
@@ -17424,6 +17464,8 @@ struct MetricsTests {
                "backup carries preferences, menu bar pins, Keep Awake appearance, language and hub availability")
         expect(backupKeys.contains(DefaultsKey.launchAtLoginWanted),
                "the launch at login choice travels with the settings backup")
+        expect(backupKeys.contains(DefaultsKey.cleaningModeKeepScreenVisible),
+               "the cleaning mode keep screen visible choice travels with the settings backup")
         expect(backupKeys.contains(DefaultsKey.appearance),
                "the light or dark choice travels with the settings backup")
         expect(Set([
@@ -20586,6 +20628,22 @@ struct MetricsTests {
         }
         expect(uninstallScriptSource.contains("Library/Preferences/ByHost"),
                "script uninstall sweeps ByHost preferences")
+        // Restoring sleep used to be fired and forgotten at both exits. A
+        // failure there leaves `pmset disablesleep 1` set system-wide, and
+        // removal deletes the flag that launch-time recovery reads before it
+        // reads the setting, so nothing repairs it afterwards — a reinstall
+        // included.
+        let uninstallerSource = (try? String(contentsOfFile: "Sources/Vorssaint/Support/Uninstaller.swift",
+                                             encoding: .utf8)) ?? ""
+        expect(!uninstallerSource.isEmpty,
+               "uninstaller entry point reads back for the sleep restore check")
+        expect(!selfUninstallSource.contains("_ = Sudoers.pmsetDisableSleep")
+                && !uninstallerSource.contains("_ = Sudoers.pmsetDisableSleep"),
+               "neither uninstall path discards the result of restoring sleep")
+        expect(selfUninstallSource.contains("adminPromptRecover"),
+               "in-app uninstall escalates a failed sleep restore to the password prompt")
+        expect(uninstallScriptSource.contains("SleepDisabled"),
+               "script uninstall reads the sleep setting back for itself")
 
         // MARK: Detached command reruns (counted last, so a late rerun still fails)
         // The `||` form reran the whole installer — as root — on every non-zero

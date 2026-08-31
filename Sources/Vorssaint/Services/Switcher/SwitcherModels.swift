@@ -97,11 +97,12 @@ struct SwitcherItem: Identifiable, Equatable {
         guard let app = NSRunningApplication(processIdentifier: pid) else { return nil }
         let icon = app.bundleURL.map { NSWorkspace.shared.icon(forFile: $0.path) } ?? app.icon
         guard let icon else { return nil }
-        var pixels: CGImage?
-        NSApplication.shared.effectiveAppearance.performAsCurrentDrawingAppearance {
-            pixels = icon.cgImage(forProposedRect: nil, context: nil, hints: nil)
+        return NSImage(size: icon.size, flipped: false) { rect in
+            NSApplication.shared.effectiveAppearance.performAsCurrentDrawingAppearance {
+                icon.draw(in: rect)
+            }
+            return true
         }
-        return pixels.map { NSImage(cgImage: $0, size: icon.size) } ?? icon
     }
 
     func withMinimized(_ minimized: Bool) -> SwitcherItem {

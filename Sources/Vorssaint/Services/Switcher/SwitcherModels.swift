@@ -97,8 +97,9 @@ struct SwitcherItem: Identifiable, Equatable {
         guard let app = NSRunningApplication(processIdentifier: pid) else { return nil }
         let icon = app.bundleURL.map { NSWorkspace.shared.icon(forFile: $0.path) } ?? app.icon
         guard let icon else { return nil }
+        let appearance = NSApplication.shared.effectiveAppearance
         return NSImage(size: icon.size, flipped: false) { rect in
-            NSApplication.shared.effectiveAppearance.performAsCurrentDrawingAppearance {
+            appearance.performAsCurrentDrawingAppearance {
                 icon.draw(in: rect)
             }
             return true

@@ -25,6 +25,7 @@ Vorssaint expands screen text recognition, clipboard, Super key, Dock Preview, A
 - Text snippets now include a visual date and time variable builder to configure formatting and timezones with live previews. Thanks to @tenbux.
 
 ### Changed
+- The docked shelf now uses a calibrated trigger area and requires a brief hover over the collapsed pill before expanding, preventing fast drags across the menu bar from opening the full card.
 - Smooth scrolling now feels consistent on standard and high-refresh displays, with adjustable speed and response and no lost wheel distance.
 - The menu panel's Settings button now opens the settings page of whichever hosted utility is currently on screen. Thanks to @andreisuslov.
 - Settings sidebar search and the Command Bar now group results beneath their main page, support arrow key navigation and deep-link directly to exact section anchors and Feature Hub rows. Thanks to @pergioa.

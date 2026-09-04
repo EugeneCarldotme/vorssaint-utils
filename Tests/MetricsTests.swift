@@ -9699,6 +9699,17 @@ struct MetricsTests {
         expect(switcherCardSource.contains("ScrollingTitle(")
                && dockPreviewCardSource.contains("ScrollingTitle("),
                "the App Switcher and the Dock preview both draw their name through it")
+        // One view, hung differently by each panel. Pinning it to the leading
+        // edge in both left a grid card's name and the app name under it on two
+        // different axes, which reads as a broken card rather than a choice.
+        expect(scrollingTitleSource.contains(".frame(width: width, alignment: alignment)"),
+               "the shared name view is told where to sit instead of always taking the leading edge")
+        expect(sourceBody(of: switcherCardSource, from: "ScrollingTitle(", to: "scrolls:")
+                .contains("alignment: .center"),
+               "a grid card centres the window's name over the app name under it")
+        expect(sourceBody(of: dockPreviewCardSource, from: "ScrollingTitle(", to: "scrolls:")
+                .contains("alignment: .leading"),
+               "a Dock preview card keeps the name on the leading edge, beside its two buttons")
         expect(!DockPreviewSupport.showsPanelHeader(isPinned: false),
                "a hovered panel draws no header, whatever it is showing")
         expect(DockPreviewSupport.showsPanelHeader(isPinned: true),
@@ -10549,6 +10560,36 @@ struct MetricsTests {
         expectEqual(QuickToolsSupport.colorString(red: 0.2, green: 0.4, blue: 0.6, format: .rgb, bareHex: true),
                     "rgb(51, 102, 153)",
                     "bare hex option leaves the other copy formats untouched")
+
+        // Sample known pixels, including an ICC profile, through the same
+        // path used by color confirmation and the magnifier's readout/copy.
+        for profile in [CGColorSpace.sRGB, CGColorSpace.displayP3] {
+            let space = CGColorSpace(name: profile)!
+            let bytes: [UInt8] = [0, 0, 255, 255, 153, 102, 51, 255]
+            let image = CGImage(width: 2, height: 1, bitsPerComponent: 8, bitsPerPixel: 32,
+                                bytesPerRow: 8, space: space,
+                                bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedFirst.rawValue)
+                                    .union(.byteOrder32Little),
+                                provider: CGDataProvider(data: Data(bytes) as CFData)!,
+                                decode: nil, shouldInterpolate: false, intent: .defaultIntent)!
+            let sampled = QuickToolsSupport.sampledColor(in: image, x: 1, y: 0)?.usingColorSpace(.sRGB)
+            let expected = NSColor(cgColor: CGColor(colorSpace: space,
+                                                   components: [0.2, 0.4, 0.6, 1])!)!
+                .usingColorSpace(.sRGB)!
+            expect(sampled != nil, "color picker reads the chosen pixel in \(profile)")
+            if let sampled {
+                expectClose(sampled.redComponent, expected.redComponent, "sampled red respects \(profile)")
+                expectClose(sampled.greenComponent, expected.greenComponent, "sampled green respects \(profile)")
+                expectClose(sampled.blueComponent, expected.blueComponent, "sampled blue respects \(profile)")
+                if profile == CGColorSpace.sRGB {
+                    expectEqual(QuickToolsSupport.colorString(red: sampled.redComponent,
+                                                             green: sampled.greenComponent,
+                                                             blue: sampled.blueComponent,
+                                                             format: .hex),
+                                "#336699", "color picker preserves a known sRGB hex")
+                }
+            }
+        }
 
         let ocrLines = [
             QuickToolsSupport.RecognizedLine(text: "world", x: 0.5, y: 0.8),

@@ -59,6 +59,7 @@ FAN_HELPER_ID="$APP_BUNDLE_ID.fan-control"
 # Sources/NowPlayingAdapter. Staged under Contents/Frameworks, signed on its own.
 NOW_PLAYING_ADAPTER_ID="$APP_BUNDLE_ID.now-playing"
 NOW_PLAYING_ADAPTER="libVorssaintNowPlaying.dylib"
+DOCK_ICON_HELPER="DockIconResolver"
 TARGET="arm64-apple-macosx14.0"
 ENTITLEMENTS="Resources/Vorssaint.entitlements"
 LEGACY_IDENTITY="Vorssaint Utils Signing"
@@ -150,6 +151,7 @@ finalize_installed_bundle_after_child() {
     local bundle="$1"
     local helper="$bundle/Contents/Library/LaunchServices/$FAN_HELPER_ID"
     local adapter="$bundle/Contents/Frameworks/$NOW_PLAYING_ADAPTER"
+    local dock_icon_helper="$bundle/Contents/Helpers/$DOCK_ICON_HELPER"
     local devid
     devid="$(developer_id_identity)"
 
@@ -160,6 +162,9 @@ finalize_installed_bundle_after_child() {
             --options runtime --timestamp --identifier "$FAN_HELPER_ID" --sign "$devid" "$helper"
         [[ -f "$adapter" ]] && codesign_with_timestamp_retry --force --strip-disallowed-xattrs \
             --options runtime --timestamp --identifier "$NOW_PLAYING_ADAPTER_ID" --sign "$devid" "$adapter"
+        [[ -f "$dock_icon_helper" ]] && codesign_with_timestamp_retry --force --strip-disallowed-xattrs \
+            --options runtime --timestamp --identifier "$APP_BUNDLE_ID.dock-icon-resolver" \
+            --sign "$devid" "$dock_icon_helper"
         codesign_with_timestamp_retry --force --strip-disallowed-xattrs --options runtime --timestamp \
             --entitlements "$ENTITLEMENTS" --sign "$devid" "$bundle"
     elif legacy_identity_installed; then
@@ -167,16 +172,21 @@ finalize_installed_bundle_after_child() {
             --identifier "$FAN_HELPER_ID" --sign "$LEGACY_IDENTITY" "$helper"
         [[ -f "$adapter" ]] && /usr/bin/codesign --force --strip-disallowed-xattrs \
             --identifier "$NOW_PLAYING_ADAPTER_ID" --sign "$LEGACY_IDENTITY" "$adapter"
+        [[ -f "$dock_icon_helper" ]] && /usr/bin/codesign --force --strip-disallowed-xattrs \
+            --identifier "$APP_BUNDLE_ID.dock-icon-resolver" --sign "$LEGACY_IDENTITY" "$dock_icon_helper"
         /usr/bin/codesign --force --strip-disallowed-xattrs --sign "$LEGACY_IDENTITY" "$bundle"
     else
         [[ -f "$helper" ]] && /usr/bin/codesign --force --strip-disallowed-xattrs \
             --identifier "$FAN_HELPER_ID" --sign - "$helper"
         [[ -f "$adapter" ]] && /usr/bin/codesign --force --strip-disallowed-xattrs \
             --identifier "$NOW_PLAYING_ADAPTER_ID" --sign - "$adapter"
+        [[ -f "$dock_icon_helper" ]] && /usr/bin/codesign --force --strip-disallowed-xattrs \
+            --identifier "$APP_BUNDLE_ID.dock-icon-resolver" --sign - "$dock_icon_helper"
         /usr/bin/codesign --force --strip-disallowed-xattrs --sign - "$bundle"
     fi
     [[ -f "$helper" ]] && /usr/bin/codesign --verify --strict "$helper"
     [[ -f "$adapter" ]] && /usr/bin/codesign --verify --strict "$adapter"
+    [[ -f "$dock_icon_helper" ]] && /usr/bin/codesign --verify --strict "$dock_icon_helper"
     /usr/bin/codesign --verify --deep --strict "$bundle"
     echo "✓ Signature ready: $bundle"
 }
@@ -452,6 +462,11 @@ swiftc -O -target "$TARGET" -sdk "$SDK" "${SDK_COMPAT_FLAGS[@]}" -emit-library \
     Sources/NowPlayingAdapter/NowPlayingAdapter.swift \
     -o "build/$NOW_PLAYING_ADAPTER"
 
+echo "▸ Compiling Dock icon resolver…"
+swiftc -O -target "$TARGET" -sdk "$SDK" "${SDK_COMPAT_FLAGS[@]}" \
+    Sources/DockIconResolver/main.swift \
+    -o "build/$DOCK_ICON_HELPER"
+
 echo "▸ Generating app icon…"
 swift Tools/MakeIcon.swift build/AppIcon.iconset
 xattr -c -r build/AppIcon.iconset build/AppIcon.icns build/MenuBarIcon.png build/MenuBarIcon@2x.png build/BrandMark.png 2>/dev/null || true
@@ -488,11 +503,13 @@ echo "▸ Assembling and signing bundle…"
 STAGE_TMP="$(mktemp -d)"
 STAGE="$STAGE_TMP/$APP_NAME.app"
 mkdir -p "$STAGE/Contents/MacOS" "$STAGE/Contents/Resources" \
-    "$STAGE/Contents/Library/LaunchDaemons" "$STAGE/Contents/Library/LaunchServices"
+    "$STAGE/Contents/Library/LaunchDaemons" "$STAGE/Contents/Library/LaunchServices" \
+    "$STAGE/Contents/Helpers"
 cp "build/$EXECUTABLE" "$STAGE/Contents/MacOS/$EXECUTABLE"
 cp "build/$FAN_HELPER_ID" "$STAGE/Contents/Library/LaunchServices/$FAN_HELPER_ID"
 mkdir -p "$STAGE/Contents/Frameworks"
 cp "build/$NOW_PLAYING_ADAPTER" "$STAGE/Contents/Frameworks/$NOW_PLAYING_ADAPTER"
+cp "build/$DOCK_ICON_HELPER" "$STAGE/Contents/Helpers/$DOCK_ICON_HELPER"
 cp Resources/now-playing.pl "$STAGE/Contents/Resources/now-playing.pl"
 cp Resources/com.vorssaint.utils.fan-control.plist \
     "$STAGE/Contents/Library/LaunchDaemons/$FAN_HELPER_ID.plist"
@@ -596,11 +613,26 @@ codesign_now_playing_adapter() {
     fi
 }
 
+codesign_dock_icon_helper() {
+    local target="$1"
+    if [[ -n "$DEVID" ]]; then
+        codesign_with_timestamp_retry --force --strip-disallowed-xattrs --options runtime --timestamp \
+            --identifier "$APP_BUNDLE_ID.dock-icon-resolver" --sign "$DEVID" "$target"
+    elif legacy_identity_installed; then
+        codesign --force --strip-disallowed-xattrs --identifier "$APP_BUNDLE_ID.dock-icon-resolver" \
+            --sign "$LEGACY_IDENTITY" "$target"
+    else
+        codesign --force --strip-disallowed-xattrs --identifier "$APP_BUNDLE_ID.dock-icon-resolver" \
+            --sign - "$target"
+    fi
+}
+
 sign_bundle() {
     local bundle="$1"
     local executable="$bundle/Contents/MacOS/$EXECUTABLE"
     local helper="$bundle/Contents/Library/LaunchServices/$FAN_HELPER_ID"
     local adapter="$bundle/Contents/Frameworks/$NOW_PLAYING_ADAPTER"
+    local dock_icon_helper="$bundle/Contents/Helpers/$DOCK_ICON_HELPER"
 
     if [[ -n "$DEVID" ]]; then
         echo "  signing with Developer ID (hardened runtime): $DEVID"
@@ -611,6 +643,7 @@ sign_bundle() {
     fi
     [[ -f "$helper" ]] && codesign_fan_helper "$helper"
     [[ -f "$adapter" ]] && codesign_now_playing_adapter "$adapter"
+    [[ -f "$dock_icon_helper" ]] && codesign_dock_icon_helper "$dock_icon_helper"
     codesign_app "$bundle"
 
     # If local filesystem metadata invalidates the first signature, sign once
@@ -625,6 +658,7 @@ sign_bundle() {
     [[ -f "$executable" ]] && codesign --verify --strict "$executable"
     [[ -f "$helper" ]] && codesign --verify --strict "$helper"
     [[ -f "$adapter" ]] && codesign --verify --strict "$adapter"
+    [[ -f "$dock_icon_helper" ]] && codesign --verify --strict "$dock_icon_helper"
     codesign --verify --deep --strict "$bundle"
 }
 

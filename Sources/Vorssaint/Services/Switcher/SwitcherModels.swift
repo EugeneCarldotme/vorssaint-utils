@@ -4,6 +4,143 @@
 import AppKit
 import CoreGraphics
 
+enum SwitcherAppIconCache {
+    private static let lock = NSLock()
+    private static var icons: [pid_t: NSImage] = [:]
+    private static var generation: UInt64 = 0
+
+    static func beginSession(items: [SwitcherItem], appearance: NSAppearance) -> UInt64 {
+        let pids = Set(items.map(\.pid))
+        let resolved = Dictionary(uniqueKeysWithValues: pids.compactMap { pid in
+            stableBundleIcon(pid: pid, appearance: appearance).map { (pid, $0) }
+        })
+        return lock.withLock {
+            generation &+= 1
+            icons = resolved
+            return generation
+        }
+    }
+
+    static func icon(for pid: pid_t) -> NSImage? {
+        if let cached = lock.withLock({ icons[pid] }) { return cached }
+        guard let resolved = stableBundleIcon(pid: pid,
+                                              appearance: NSApplication.shared.effectiveAppearance)
+        else { return nil }
+        lock.withLock { icons[pid] = resolved }
+        return resolved
+    }
+
+    static func refreshDockPluginIcons(items: [SwitcherItem],
+                                       darkMode: Bool,
+                                       generation expectedGeneration: UInt64,
+                                       onUpdate: @escaping (pid_t) -> Void) {
+        let targets = items.reduce(into: [pid_t: URL]()) { result, item in
+            guard result[item.pid] == nil else { return }
+            guard let app = NSRunningApplication(processIdentifier: item.pid),
+                  let bundleURL = app.bundleURL,
+                  let bundle = Bundle(url: bundleURL),
+                  let pluginName = bundle.object(forInfoDictionaryKey: "NSDockTilePlugIn") as? String
+            else { return }
+            let pluginURL = bundleURL.appendingPathComponent("Contents/PlugIns")
+                .appendingPathComponent(pluginName)
+            guard FileManager.default.fileExists(atPath: pluginURL.path) else { return }
+            result[item.pid] = pluginURL
+        }
+        guard !targets.isEmpty else { return }
+
+        DispatchQueue.global(qos: .userInitiated).async {
+            for (pid, pluginURL) in targets {
+                guard let image = dockPluginIcon(pluginURL: pluginURL, darkMode: darkMode) else { continue }
+                let stored = lock.withLock { () -> Bool in
+                    guard generation == expectedGeneration else { return false }
+                    icons[pid] = image
+                    return true
+                }
+                guard stored else { return }
+                DispatchQueue.main.async { onUpdate(pid) }
+            }
+        }
+    }
+
+    static func declaredDockIconURL(bundleURL: URL,
+                                    resourceName: String?,
+                                    darkMode: Bool) -> URL? {
+        guard let resourceName = resourceName?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !resourceName.isEmpty,
+              !resourceName.hasPrefix("/") else { return nil }
+        let replacements: [(String, String)] = darkMode
+            ? [("-light.", "-dark-color."), ("-light.", "-dark.")]
+            : [("-dark-color.", "-light."), ("-dark.", "-light.")]
+        let names = replacements.compactMap { source, destination in
+            resourceName.contains(source)
+                ? resourceName.replacingOccurrences(of: source, with: destination)
+                : nil
+        } + [resourceName]
+
+        let resources = bundleURL.appendingPathComponent("Contents/Resources", isDirectory: true)
+            .resolvingSymlinksInPath().standardizedFileURL
+        for name in names {
+            let candidate = resources.appendingPathComponent(name)
+                .resolvingSymlinksInPath().standardizedFileURL
+            guard candidate.path.hasPrefix(resources.path + "/") else { continue }
+            var isDirectory: ObjCBool = false
+            if FileManager.default.fileExists(atPath: candidate.path, isDirectory: &isDirectory),
+               !isDirectory.boolValue {
+                return candidate
+            }
+        }
+        return nil
+    }
+
+    private static func stableBundleIcon(pid: pid_t, appearance: NSAppearance) -> NSImage? {
+        guard let app = NSRunningApplication(processIdentifier: pid) else { return nil }
+        let darkMode = appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+        let declaredIcon = app.bundleURL.flatMap { bundleURL -> NSImage? in
+            guard let bundleIdentifier = app.bundleIdentifier,
+                  let resourceName = CFPreferencesCopyAppValue(
+                      "DockIconResourceName" as CFString,
+                      bundleIdentifier as CFString
+                  ) as? String,
+                  let resourceURL = declaredDockIconURL(bundleURL: bundleURL,
+                                                        resourceName: resourceName,
+                                                        darkMode: darkMode)
+            else { return nil }
+            return NSImage(contentsOf: resourceURL)
+        }
+        let source = declaredIcon
+            ?? app.bundleURL.map { NSWorkspace.shared.icon(forFile: $0.path) }
+            ?? app.icon
+        guard let source else { return nil }
+        return NSImage(size: source.size, flipped: false) { rect in
+            appearance.performAsCurrentDrawingAppearance { source.draw(in: rect) }
+            return true
+        }
+    }
+
+    private static func dockPluginIcon(pluginURL: URL, darkMode: Bool) -> NSImage? {
+        let helper = Bundle.main.bundleURL.appendingPathComponent("Contents/Helpers/DockIconResolver")
+        guard FileManager.default.isExecutableFile(atPath: helper.path) else { return nil }
+        let output = FileManager.default.temporaryDirectory
+            .appendingPathComponent("vorssaint-dock-icon-\(UUID().uuidString).png")
+        defer { try? FileManager.default.removeItem(at: output) }
+        let process = Process()
+        process.executableURL = helper
+        process.arguments = [pluginURL.path, darkMode ? "dark" : "light", output.path]
+        process.standardOutput = FileHandle.nullDevice
+        process.standardError = FileHandle.nullDevice
+        let finished = DispatchSemaphore(value: 0)
+        process.terminationHandler = { _ in finished.signal() }
+        guard (try? process.run()) != nil else { return nil }
+        if finished.wait(timeout: .now() + 1) == .timedOut {
+            process.terminate()
+            return nil
+        }
+        guard process.terminationStatus == 0 else { return nil }
+        guard let data = try? Data(contentsOf: output) else { return nil }
+        return NSImage(data: data)
+    }
+}
+
 enum WindowSwitchMinimizedPlacement: String, CaseIterable {
     case normal
     case end
@@ -102,16 +239,7 @@ struct SwitcherItem: Identifiable, Equatable {
     /// NSImage for the app's whole life, and a view that already drew it never
     /// redraws it, so the switcher stayed on the bundled icon (issue #801).
     var appIcon: NSImage? {
-        guard let app = NSRunningApplication(processIdentifier: pid) else { return nil }
-        let icon = app.bundleURL.map { NSWorkspace.shared.icon(forFile: $0.path) } ?? app.icon
-        guard let icon else { return nil }
-        let appearance = NSApplication.shared.effectiveAppearance
-        return NSImage(size: icon.size, flipped: false) { rect in
-            appearance.performAsCurrentDrawingAppearance {
-                icon.draw(in: rect)
-            }
-            return true
-        }
+        SwitcherAppIconCache.icon(for: pid)
     }
 
     func withMinimized(_ minimized: Bool) -> SwitcherItem {

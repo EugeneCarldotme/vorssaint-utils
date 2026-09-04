@@ -2507,6 +2507,28 @@ struct MetricsTests {
         expect(embeddedWindow.windowLabel(noOpenWindow: "No open window") == "Project"
                && windowlessEntry.windowLabel(noOpenWindow: "No open window") == "No open window",
                "App Switcher preview labels name a window or explain that there is none")
+        let dockIconBundle = FileManager.default.temporaryDirectory
+            .appendingPathComponent("vorssaint-dock-icon-\(UUID().uuidString).app")
+        let dockIconResources = dockIconBundle.appendingPathComponent("Contents/Resources")
+        try? FileManager.default.createDirectory(at: dockIconResources,
+                                                 withIntermediateDirectories: true)
+        let lightDockIcon = dockIconResources.appendingPathComponent("chosen-light.png")
+        let darkDockIcon = dockIconResources.appendingPathComponent("chosen-dark-color.png")
+        FileManager.default.createFile(atPath: lightDockIcon.path, contents: Data([0]))
+        FileManager.default.createFile(atPath: darkDockIcon.path, contents: Data([1]))
+        expect(SwitcherAppIconCache.declaredDockIconURL(bundleURL: dockIconBundle,
+                                                       resourceName: "chosen-light.png",
+                                                       darkMode: true) == darkDockIcon,
+               "App Switcher uses the dark sibling of an explicitly declared Dock icon")
+        expect(SwitcherAppIconCache.declaredDockIconURL(bundleURL: dockIconBundle,
+                                                       resourceName: "chosen-light.png",
+                                                       darkMode: false) == lightDockIcon,
+               "App Switcher keeps the declared Dock icon in its matching appearance")
+        expect(SwitcherAppIconCache.declaredDockIconURL(bundleURL: dockIconBundle,
+                                                       resourceName: "../../outside.png",
+                                                       darkMode: true) == nil,
+               "App Switcher rejects declared Dock icon paths outside the app bundle")
+        try? FileManager.default.removeItem(at: dockIconBundle)
         let hiddenSpaceWindow = embeddedWindow.withHiddenSpaceState(true)
         let minimizedHiddenSpaceWindow = hiddenSpaceWindow.withMinimized(true)
         expect(hiddenSpaceWindow.isOnHiddenSpace

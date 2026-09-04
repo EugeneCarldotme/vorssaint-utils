@@ -303,13 +303,16 @@ final class BrightnessService: ObservableObject {
         let enabled = AppFeature.brightness.isAvailable
             && UserDefaults.standard.bool(forKey: DefaultsKey.keyboardBrightnessShortcutsEnabled)
             && keyboardLightBridge != nil
+        let decreaseShortcut = GlobalShortcutRole.keyboardBrightnessDecrease.savedShortcut
+        let increaseShortcut = GlobalShortcutRole.keyboardBrightnessIncrease.savedShortcut
+        let decreaseConflicts = enabled && decreaseShortcut.conflictsWithSystemShortcut
+        let increaseConflicts = enabled && increaseShortcut.conflictsWithSystemShortcut
         let decreaseRegistered = keyboardBrightnessDecreaseHotkey.sync(
-            enabled: enabled,
-            shortcut: GlobalShortcutRole.keyboardBrightnessDecrease.savedShortcut)
+            enabled: enabled && !decreaseConflicts, shortcut: decreaseShortcut)
         let increaseRegistered = keyboardBrightnessIncreaseHotkey.sync(
-            enabled: enabled,
-            shortcut: GlobalShortcutRole.keyboardBrightnessIncrease.savedShortcut)
-        keyboardBrightnessShortcutRegistrationFailed = !(decreaseRegistered && increaseRegistered)
+            enabled: enabled && !increaseConflicts, shortcut: increaseShortcut)
+        keyboardBrightnessShortcutRegistrationFailed = decreaseConflicts || increaseConflicts
+            || !(decreaseRegistered && increaseRegistered)
     }
 
     private func start() {

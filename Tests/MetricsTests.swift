@@ -2507,6 +2507,56 @@ struct MetricsTests {
         expect(embeddedWindow.windowLabel(noOpenWindow: "No open window") == "Project"
                && windowlessEntry.windowLabel(noOpenWindow: "No open window") == "No open window",
                "App Switcher preview labels name a window or explain that there is none")
+        let dockIconBundle = FileManager.default.temporaryDirectory
+            .appendingPathComponent("vorssaint-dock-icon-\(UUID().uuidString).app")
+        let dockIconResources = dockIconBundle.appendingPathComponent("Contents/Resources")
+        try? FileManager.default.createDirectory(at: dockIconResources,
+                                                 withIntermediateDirectories: true)
+        let lightDockIcon = dockIconResources.appendingPathComponent("chosen-light.png")
+        let darkDockIcon = dockIconResources.appendingPathComponent("chosen-dark-color.png")
+        FileManager.default.createFile(atPath: lightDockIcon.path, contents: Data([0]))
+        FileManager.default.createFile(atPath: darkDockIcon.path, contents: Data([1]))
+        expect(SwitcherAppIconCache.declaredDockIconURL(bundleURL: dockIconBundle,
+                                                       resourceName: "chosen-light.png",
+                                                       darkMode: true) == darkDockIcon,
+               "App Switcher uses the dark sibling of an explicitly declared Dock icon")
+        expect(SwitcherAppIconCache.declaredDockIconURL(bundleURL: dockIconBundle,
+                                                       resourceName: "chosen-light.png",
+                                                       darkMode: false) == lightDockIcon,
+               "App Switcher keeps the declared Dock icon in its matching appearance")
+        expect(SwitcherAppIconCache.declaredDockIconURL(bundleURL: dockIconBundle,
+                                                       resourceName: "chosen-dark-color.png",
+                                                       darkMode: false) == lightDockIcon,
+               "App Switcher finds the light sibling when the declared icon is dark")
+        let outsideDockIcon = dockIconBundle.appendingPathComponent("outside.png")
+        expect(FileManager.default.createFile(atPath: outsideDockIcon.path, contents: Data([2])),
+               "the rejected icon exists so confinement is actually exercised")
+        try? FileManager.default.createSymbolicLink(
+            at: dockIconResources.appendingPathComponent("escape.png"),
+            withDestinationURL: outsideDockIcon)
+        for unsafeName in ["../../outside.png", outsideDockIcon.path, "escape.png", ".", "", "missing.png"] {
+            expect(SwitcherAppIconCache.declaredDockIconURL(bundleURL: dockIconBundle,
+                                                           resourceName: unsafeName,
+                                                           darkMode: true) == nil,
+                   "App Switcher rejects an invalid or out-of-resources icon: \(unsafeName)")
+        }
+        try? FileManager.default.removeItem(at: darkDockIcon)
+        expect(SwitcherAppIconCache.declaredDockIconURL(bundleURL: dockIconBundle,
+                                                       resourceName: "chosen-light.png",
+                                                       darkMode: true) == lightDockIcon,
+               "App Switcher preserves the declared icon when no appearance sibling exists")
+        let linkedDockIconBundle = dockIconBundle.appendingPathComponent("Linked.app")
+        try? FileManager.default.createDirectory(
+            at: linkedDockIconBundle.appendingPathComponent("Contents"),
+            withIntermediateDirectories: true)
+        try? FileManager.default.createSymbolicLink(
+            at: linkedDockIconBundle.appendingPathComponent("Contents/Resources"),
+            withDestinationURL: dockIconResources)
+        expect(SwitcherAppIconCache.declaredDockIconURL(bundleURL: linkedDockIconBundle,
+                                                       resourceName: "chosen-light.png",
+                                                       darkMode: false) == nil,
+               "App Switcher rejects a Resources directory pointing outside its app bundle")
+        try? FileManager.default.removeItem(at: dockIconBundle)
         let hiddenSpaceWindow = embeddedWindow.withHiddenSpaceState(true)
         let minimizedHiddenSpaceWindow = hiddenSpaceWindow.withMinimized(true)
         expect(hiddenSpaceWindow.isOnHiddenSpace
@@ -3708,6 +3758,21 @@ struct MetricsTests {
                 && registeredDefaults[DefaultsKey.keyboardBrightnessIncreaseShortcut] as? String
                 == GlobalShortcut.keyboardBrightnessIncreaseDefault.storageValue,
                "keyboard brightness shortcuts ship with distinct defaults")
+        expect(registeredDefaults[DefaultsKey.keyboardBrightnessShortcutsEnabled] as? Bool == false,
+               "keyboard brightness shortcuts arrive switched off")
+        let keyboardShortcutSettings: [String: Any] = [
+            DefaultsKey.keyboardBrightnessShortcutsEnabled: true,
+            DefaultsKey.keyboardBrightnessDecreaseShortcut: "control+command:27",
+            DefaultsKey.keyboardBrightnessIncreaseShortcut: "control+command:24",
+        ]
+        let keyboardShortcutBackup = SettingsBackupSupport.payload(appVersion: "test") {
+            keyboardShortcutSettings[$0]
+        }
+        let restoredKeyboardShortcuts = SettingsBackupSupport.sanitizedSettings(from: keyboardShortcutBackup)
+        expect(keyboardShortcutSettings.allSatisfy { key, value in
+            (restoredKeyboardShortcuts?[key] as? NSObject) == (value as? NSObject)
+        }, "keyboard brightness opt-in and custom shortcuts survive a settings backup")
+
         expect(registeredDefaults[DefaultsKey.screenshotOpenEditorDirectly] as? Bool == false,
                "capture keeps showing the preview unless the user opts into the editor")
         expect(registeredDefaults[DefaultsKey.screenshotDefaultAction] as? String == "",
@@ -9682,6 +9747,17 @@ struct MetricsTests {
         expect(switcherCardSource.contains("ScrollingTitle(")
                && dockPreviewCardSource.contains("ScrollingTitle("),
                "the App Switcher and the Dock preview both draw their name through it")
+        // One view, hung differently by each panel. Pinning it to the leading
+        // edge in both left a grid card's name and the app name under it on two
+        // different axes, which reads as a broken card rather than a choice.
+        expect(scrollingTitleSource.contains(".frame(width: width, alignment: alignment)"),
+               "the shared name view is told where to sit instead of always taking the leading edge")
+        expect(sourceBody(of: switcherCardSource, from: "ScrollingTitle(", to: "scrolls:")
+                .contains("alignment: .center"),
+               "a grid card centres the window's name over the app name under it")
+        expect(sourceBody(of: dockPreviewCardSource, from: "ScrollingTitle(", to: "scrolls:")
+                .contains("alignment: .leading"),
+               "a Dock preview card keeps the name on the leading edge, beside its two buttons")
         expect(!DockPreviewSupport.showsPanelHeader(isPinned: false),
                "a hovered panel draws no header, whatever it is showing")
         expect(DockPreviewSupport.showsPanelHeader(isPinned: true),
@@ -10532,6 +10608,36 @@ struct MetricsTests {
         expectEqual(QuickToolsSupport.colorString(red: 0.2, green: 0.4, blue: 0.6, format: .rgb, bareHex: true),
                     "rgb(51, 102, 153)",
                     "bare hex option leaves the other copy formats untouched")
+
+        // Sample known pixels, including an ICC profile, through the same
+        // path used by color confirmation and the magnifier's readout/copy.
+        for profile in [CGColorSpace.sRGB, CGColorSpace.displayP3] {
+            let space = CGColorSpace(name: profile)!
+            let bytes: [UInt8] = [0, 0, 255, 255, 153, 102, 51, 255]
+            let image = CGImage(width: 2, height: 1, bitsPerComponent: 8, bitsPerPixel: 32,
+                                bytesPerRow: 8, space: space,
+                                bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedFirst.rawValue)
+                                    .union(.byteOrder32Little),
+                                provider: CGDataProvider(data: Data(bytes) as CFData)!,
+                                decode: nil, shouldInterpolate: false, intent: .defaultIntent)!
+            let sampled = QuickToolsSupport.sampledColor(in: image, x: 1, y: 0)?.usingColorSpace(.sRGB)
+            let expected = NSColor(cgColor: CGColor(colorSpace: space,
+                                                   components: [0.2, 0.4, 0.6, 1])!)!
+                .usingColorSpace(.sRGB)!
+            expect(sampled != nil, "color picker reads the chosen pixel in \(profile)")
+            if let sampled {
+                expectClose(sampled.redComponent, expected.redComponent, "sampled red respects \(profile)")
+                expectClose(sampled.greenComponent, expected.greenComponent, "sampled green respects \(profile)")
+                expectClose(sampled.blueComponent, expected.blueComponent, "sampled blue respects \(profile)")
+                if profile == CGColorSpace.sRGB {
+                    expectEqual(QuickToolsSupport.colorString(red: sampled.redComponent,
+                                                             green: sampled.greenComponent,
+                                                             blue: sampled.blueComponent,
+                                                             format: .hex),
+                                "#336699", "color picker preserves a known sRGB hex")
+                }
+            }
+        }
 
         let ocrLines = [
             QuickToolsSupport.RecognizedLine(text: "world", x: 0.5, y: 0.8),
@@ -13545,6 +13651,63 @@ struct MetricsTests {
         )
         expect(mouseJournal.entry(registryID: 42, identity: reusedRegistryIdentity) == nil,
                "a reused registry id can never receive another mouse's saved value")
+        expect(mouseJournal.entriesToRestore(preserving: [42: mouseIdentity]).isEmpty
+                && mouseJournal.entry(registryID: 42, identity: mouseIdentity) == mouseRecovery,
+               "hotplug retries preserve a connected mouse's original value without restoring acceleration between attempts")
+        expect(mouseJournal.entriesToRestore(preserving: [43: mouseIdentity]) == [mouseRecovery],
+               "a reconnected mouse with a new registry id still needs recovery before recapture")
+        expect(mouseJournal.entriesToRestore(preserving: [42: reusedRegistryIdentity]) == [mouseRecovery],
+               "an unrelated mouse reusing a registry id cannot hide a pending recovery")
+        expect(mouseJournal.entriesToRestore(preserving: [:]) == [mouseRecovery],
+               "stopping acceleration control still restores every saved entry")
+
+        var mouseReapplication = MouseAccelerationReapplySchedule()
+        let initialMouseConnection = mouseReapplication.restart()
+        expect(mouseReapplication.nextDelay(for: initialMouseConnection) == 0,
+               "hotplug requests the first acceleration refresh without blocking the device callback")
+        let reconnectedMouse = mouseReapplication.restart()
+        expect(!mouseReapplication.isCurrent(initialMouseConnection)
+                && mouseReapplication.nextDelay(for: initialMouseConnection) == nil,
+               "a newer hotplug event invalidates the previous retry window")
+
+        var mouseReapplyTime: TimeInterval = 0
+        var mouseReapplyAttempts = 0
+        var lateMouseValue: MouseAccelerationStoredValue?
+        var lateMouseReset = false
+        for _ in 0..<20 {
+            guard let delay = mouseReapplication.nextDelay(for: reconnectedMouse) else { break }
+            mouseReapplyTime += delay
+            mouseReapplyAttempts += 1
+            // The event-system service appears after the physical callback, then
+            // receives the system's initial acceleration setting later still.
+            if mouseReapplyTime >= 0.75, lateMouseValue == nil {
+                lateMouseValue = mouseRecovery.original
+            }
+            if mouseReapplyTime >= 2, !lateMouseReset {
+                lateMouseValue = mouseRecovery.original
+                lateMouseReset = true
+            }
+            if lateMouseValue != nil {
+                lateMouseValue = MouseAccelerationSupport.targetValue(
+                    for: mouseRecovery.key, originalIsBoolean: mouseRecovery.original.isBoolean)
+            }
+        }
+        expect(lateMouseReset && lateMouseValue?.rawValue == -1,
+               "acceleration is reapplied when a mouse service and its settings arrive after the physical callback")
+        expect(mouseReapplyAttempts > 1 && mouseReapplyAttempts < 20
+                && mouseReapplyTime > 2 && mouseReapplyTime <= 5
+                && !mouseReapplication.isCurrent(reconnectedMouse),
+               "hotplug reapplication finishes within five seconds and leaves no idle retry")
+        let cancelledMouseConnection = mouseReapplication.restart()
+        _ = mouseReapplication.nextDelay(for: cancelledMouseConnection)
+        mouseReapplication.cancel()
+        expect(!mouseReapplication.isCurrent(cancelledMouseConnection)
+                && mouseReapplication.nextDelay(for: cancelledMouseConnection) == nil,
+               "turning the feature off or pausing the session invalidates queued acceleration writes")
+        let resumedMouseConnection = mouseReapplication.restart()
+        expect(mouseReapplication.nextDelay(for: resumedMouseConnection) == 0
+                && !mouseReapplication.isCurrent(cancelledMouseConnection),
+               "resuming creates a fresh retry window without reviving cancelled callbacks")
         expect(mouseIdentity.canMatchAcrossRegistryIDs,
                "a stable physical identity can recover after a device receives a new registry id")
         let anonymousMouseIdentity = MouseAccelerationDeviceIdentity(
@@ -14303,10 +14466,16 @@ struct MetricsTests {
                 && GlobalShortcutRole.keyboardBrightnessIncrease.group == .mouseKeyboard,
                "keyboard brightness stays owned by the brightness service but appears with keyboard controls")
         expect(GlobalShortcutRole.keyboardBrightnessDecrease.requiredEnableKeys
-                == [AppFeature.brightness.availabilityKey]
+                == [DefaultsKey.keyboardBrightnessShortcutsEnabled]
                 && GlobalShortcutRole.keyboardBrightnessIncrease.requiredEnableKeys
-                == [AppFeature.brightness.availabilityKey],
-               "keyboard brightness shortcuts follow the installed brightness feature")
+                == [DefaultsKey.keyboardBrightnessShortcutsEnabled],
+               "keyboard brightness shortcuts require explicit opt-in")
+        expect(!GlobalShortcutRole.activeRoles(isOn: { _ in false })
+                .contains(where: \.isKeyboardBrightness),
+               "keyboard brightness shortcuts reserve no combination before opt-in")
+        expect(!GlobalShortcutRole.activeRoles(isOn: { _ in true }, isAvailable: { $0 != .brightness })
+                .contains(where: \.isKeyboardBrightness),
+               "removing the brightness feature releases both keyboard shortcuts")
 
         let superSpace = GlobalShortcut(keyCode: Int64(kVK_Space), modifiers: .validMask)
         let customSuperSpace = GlobalShortcut(keyCode: Int64(kVK_Space),

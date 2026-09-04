@@ -10,6 +10,7 @@ struct ShortcutsSettings: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var features = FeatureRuntime.shared
     @ObservedObject private var superKey = SuperKeyService.shared
+    @AppStorage(DefaultsKey.keyboardBrightnessShortcutsEnabled) private var keyboardBrightnessShortcutsEnabled = false
     @State private var expandedFeatures: Set<AppFeature> = [.screenshot]
 
     private var text: ShortcutSettingsStrings { FeatureStrings.shortcuts(l10n.language) }
@@ -115,6 +116,10 @@ struct ShortcutsSettings: View {
                         .disclosureIndent()
                     }
                 } else {
+                    if feature == .brightness {
+                        KeyboardBrightnessShortcutToggle(isEnabled: $keyboardBrightnessShortcutsEnabled)
+                            .disclosureIndent()
+                    }
                     ForEach(roles) { role in
                         roleRow(role, showsFeatureContext: false)
                             .disclosureIndent()
@@ -170,6 +175,7 @@ struct ShortcutsSettings: View {
         }
         return ShortcutPreferenceRow(
             role: role,
+            isEnabled: !role.isKeyboardBrightness || keyboardBrightnessShortcutsEnabled,
             label: title,
             symbolName: role.isKeyboardBrightness ? "keyboard" : role.feature.symbolName,
             contextLabel: showsFeatureContext && title != featureTitle ? featureTitle : nil,
@@ -220,6 +226,25 @@ struct ShortcutsSettings: View {
         case .energyDisplay: return hub.groupEnergyDisplay
         case .tools: return hub.groupTools
         case .monitor: return hub.groupMonitor
+        }
+    }
+}
+
+private struct KeyboardBrightnessShortcutToggle: View {
+    @ObservedObject private var l10n = L10n.shared
+    @ObservedObject private var brightness = BrightnessService.shared
+    @Binding var isEnabled: Bool
+
+    var body: some View {
+        Toggle(FeatureStrings.brightness(l10n.language).keyboardBrightnessShortcuts,
+               isOn: $isEnabled)
+            .onChange(of: isEnabled) { _, _ in
+                brightness.syncWithPreferences()
+            }
+        if isEnabled, brightness.keyboardBrightnessShortcutRegistrationFailed {
+            Text(l10n.s.shortcutUnavailable)
+                .font(.caption)
+                .foregroundStyle(.orange)
         }
     }
 }

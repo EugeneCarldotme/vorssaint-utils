@@ -115,7 +115,7 @@ The rest bends the same way: panel sections reorder and hide, the compact layout
 - **Extra click filter.** Ignore rapid accidental extra clicks from worn primary, secondary and middle mouse buttons without delaying normal clicks.
 - **Key debounce.** Filters the double letters a worn keyboard invents.
 - **Super key.** Hold Caps Lock or a right-side modifier key and it counts as the modifier combination you choose, so one key can drive your shortcuts. A tap on its own can switch input sources, switch capitals, press Escape, or do nothing. Keep the selected key at its default action in System Settings › Keyboard › Modifier Keys.
-- **Keyboard shortcuts.** Edit every installed feature's global shortcut from one categorized page, see what is active and use the shorter Super key combination when available.
+- **Keyboard shortcuts.** Edit every installed feature's global shortcut from one categorized page, see what is active and use the shorter Super key combination when available. On supported Macs, enable optional keyboard backlight shortcuts under Mouse and keyboard › Keyboard light to adjust it one step at a time.
 
 ### Clipboard, files and links
 

@@ -215,8 +215,8 @@ final class BrightnessService: ObservableObject {
     private var keyboardLightLevel: Float?
     private var lastKeyboardLightLevel: Float = BrightnessSupport.defaultKeyboardLightLevel
     private var keyboardLightBridge: KeyboardLightBridge? { Self.sharedKeyboardLightBridge }
-    private let keyboardBrightnessDecreaseHotkey = QuickToolHotkey(id: 25)
-    private let keyboardBrightnessIncreaseHotkey = QuickToolHotkey(id: 26)
+    private let keyboardBrightnessDecreaseHotkey = QuickToolHotkey(id: 57)
+    private let keyboardBrightnessIncreaseHotkey = QuickToolHotkey(id: 58)
     /// Stale rebuilds (an unplug mid-scan) must not overwrite fresh state.
     private var rebuildGeneration = 0
     /// The topology a queued or running rebuild already covers. Opening the
@@ -262,7 +262,9 @@ final class BrightnessService: ObservableObject {
     }
 
     func stepKeyboardLight(direction: Int) {
-        guard direction != 0,
+        guard AppFeature.brightness.isAvailable,
+              UserDefaults.standard.bool(forKey: DefaultsKey.keyboardBrightnessShortcutsEnabled),
+              direction != 0,
               let keyboardLightBridge,
               let current = keyboardLightLevel(using: keyboardLightBridge)
         else { return }
@@ -298,7 +300,9 @@ final class BrightnessService: ObservableObject {
     }
 
     private func syncKeyboardBrightnessHotkeys() {
-        let enabled = AppFeature.brightness.isAvailable && keyboardLightBridge != nil
+        let enabled = AppFeature.brightness.isAvailable
+            && UserDefaults.standard.bool(forKey: DefaultsKey.keyboardBrightnessShortcutsEnabled)
+            && keyboardLightBridge != nil
         let decreaseRegistered = keyboardBrightnessDecreaseHotkey.sync(
             enabled: enabled,
             shortcut: GlobalShortcutRole.keyboardBrightnessDecrease.savedShortcut)

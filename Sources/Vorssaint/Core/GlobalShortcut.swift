@@ -821,7 +821,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .commandBar: return [DefaultsKey.commandBarShortcutEnabled]
         case .screenRecorder: return [DefaultsKey.recorderShortcutEnabled]
         case .keyboardBrightnessDecrease, .keyboardBrightnessIncrease:
-            return [AppFeature.brightness.availabilityKey]
+            return [DefaultsKey.keyboardBrightnessShortcutsEnabled]
         }
     }
 

@@ -154,6 +154,7 @@ enum DefaultsKey {
     static let brightnessControlEnabled = "brightnessControlEnabled" // sliders for every display
     static let brightnessKeysEnabled = "brightnessKeysEnabled" // brightness keys act on the display under the pointer
     static let brightnessOSDEnabled = "brightnessOSDEnabled" // brightness adjustment overlay
+    static let keyboardBrightnessShortcutsEnabled = "keyboardBrightnessShortcutsEnabled"
     static let keyboardBrightnessDecreaseShortcut = "keyboardBrightnessDecreaseShortcut"
     static let keyboardBrightnessIncreaseShortcut = "keyboardBrightnessIncreaseShortcut"
     // Per-monitor connection paths that accept brightness writes but never
@@ -943,6 +944,7 @@ enum Defaults {
         DefaultsKey.brightnessControlEnabled: false,
         DefaultsKey.brightnessKeysEnabled: false,
         DefaultsKey.brightnessOSDEnabled: false,
+        DefaultsKey.keyboardBrightnessShortcutsEnabled: false,
         DefaultsKey.keyboardBrightnessDecreaseShortcut: "option+command:27",
         DefaultsKey.keyboardBrightnessIncreaseShortcut: "option+command:24",
         DefaultsKey.bluetoothSleepEnabled: false,

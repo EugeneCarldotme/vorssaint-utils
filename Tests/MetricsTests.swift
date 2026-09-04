@@ -8712,6 +8712,67 @@ struct MetricsTests {
         expect(!GlobalShortcut.matchesSystemShortcut(optionShiftS, symbolicHotKeys: nil),
                "an unreadable system list reserves nothing")
 
+        // The WindowServer table stores Carbon modifier bits. Arrow and F keys
+        // carry the function-key bit there as well; it is a property of the key,
+        // not a modifier the recorder ever records, so it must drop out.
+        expect(GlobalShortcutModifiers(
+                    cgFlags: SpaceHopSupport.eventFlags(fromCarbonModifiers: 0x20000 | 0x100000))
+               == [.shift, .command],
+               "Carbon shift and command bits convert to the recorder's modifiers")
+        expect(GlobalShortcutModifiers(
+                    cgFlags: SpaceHopSupport.eventFlags(fromCarbonModifiers: 0x40000 | 0x800000))
+               == [.control],
+               "the function-key bit on arrow and F keys is not a recorded modifier")
+
+        // The live table is the authority. The preferences plist only lists
+        // customised entries, so a factory ⌘⇧4 is absent from it and used to
+        // pass the check while macOS still answered the key.
+        let liveAreaShot = LiveSystemShortcut(
+            id: 30, shortcut: GlobalShortcut(keyCode: 21, modifiers: [.command, .shift]), enabled: true)
+        let liveSpotlightOff = LiveSystemShortcut(
+            id: 64, shortcut: GlobalShortcut(keyCode: 49, modifiers: [.command]), enabled: false)
+        // An unassigned row never reaches a real snapshot, but the matcher must refuse it even if one did.
+        let liveUnassigned = LiveSystemShortcut(
+            id: 99, shortcut: GlobalShortcut(keyCode: 0xFFFF, modifiers: [.command, .shift]), enabled: true)
+        let liveTable = [liveAreaShot, liveSpotlightOff, liveUnassigned]
+        expect(GlobalShortcut.matchesLiveSystemShortcut(
+                    GlobalShortcut(keyCode: 21, modifiers: [.command, .shift]), entries: liveTable),
+               "a factory screenshot key macOS still answers is reported as taken")
+        expect(!GlobalShortcut.matchesLiveSystemShortcut(
+                    GlobalShortcut(keyCode: 49, modifiers: [.command]), entries: liveTable),
+               "a system shortcut switched off in the live table is not in the way")
+        expect(!GlobalShortcut.matchesLiveSystemShortcut(
+                    GlobalShortcut(keyCode: 21, modifiers: [.command, .shift, .control]), entries: liveTable),
+               "the same key with other modifiers is a different shortcut in the live table")
+        expect(!GlobalShortcut.matchesLiveSystemShortcut(
+                    GlobalShortcut(keyCode: 0xFFFF, modifiers: [.command, .shift]), entries: liveTable),
+               "an unassigned key code never matches a live entry")
+        expect(!GlobalShortcut.matchesLiveSystemShortcut(.screenshotDefault, entries: liveTable),
+               "the default screenshot shortcut stays clear of the live table")
+        expect(!GlobalShortcut.matchesLiveSystemShortcut(
+                    GlobalShortcut(keyCode: 21, modifiers: [.command, .shift]), entries: []),
+               "an empty live table reserves nothing")
+
+        // The decision between the two sources: a populated live table is the
+        // authority; a missing or empty one hands the question to the plist.
+        expect(GlobalShortcut.conflictsWithSystemShortcut(optionShiftS,
+                                                          liveEntries: nil,
+                                                          symbolicHotKeys: systemAreaShot),
+               "without the private calls the plist still answers")
+        expect(GlobalShortcut.conflictsWithSystemShortcut(optionShiftS,
+                                                          liveEntries: [],
+                                                          symbolicHotKeys: systemAreaShot),
+               "an empty live read falls back to the plist instead of clearing everything")
+        expect(!GlobalShortcut.conflictsWithSystemShortcut(optionShiftS,
+                                                           liveEntries: liveTable,
+                                                           symbolicHotKeys: systemAreaShot),
+               "a populated live table is the authority even where the plist disagrees")
+        expect(GlobalShortcut.conflictsWithSystemShortcut(
+                    GlobalShortcut(keyCode: 21, modifiers: [.command, .shift]),
+                    liveEntries: liveTable,
+                    symbolicHotKeys: nil),
+               "a live match needs no plist at all")
+
         expect(UpdateInstallerSupport.progressStepAdvanced(from: nil, to: 0.004),
                "the first known download fraction always publishes")
         expect(!UpdateInstallerSupport.progressStepAdvanced(from: 0.011, to: 0.019),
@@ -11539,6 +11600,41 @@ struct MetricsTests {
                     nativeShortcuts: remappedNativeShortcuts)
                == Set(SwitcherNativeSymbolicHotKey.allCases),
                "takeover follows the current macOS shortcut mappings instead of hardcoded keys")
+
+        // The ids come from the WindowServer's own table: 27 and 220 are the
+        // two window-cycling keys, 28 is "save picture of screen as a file".
+        // Mapping from raw ids the way `configuredShortcuts()` does keeps a
+        // wrong id from silently pointing the take-over at the wrong key.
+        let liveSwitcherTable: [Int32: GlobalShortcut] = [
+            1: .switcherDefault,
+            2: GlobalShortcut(keyCode: Int64(kVK_Tab), modifiers: [.command, .shift]),
+            27: .switcherWindowDefault,
+            28: GlobalShortcut(keyCode: Int64(kVK_ANSI_3), modifiers: [.command, .shift]),
+            220: GlobalShortcut(keyCode: Int64(kVK_ANSI_Grave), modifiers: [.command, .shift]),
+        ]
+        let mappedSwitcherShortcuts = Dictionary(uniqueKeysWithValues:
+            SwitcherNativeSymbolicHotKey.allCases.compactMap { id in
+                liveSwitcherTable[id.rawValue].map { (id, $0) }
+            })
+        let screenshotToFile = GlobalShortcut(keyCode: Int64(kVK_ANSI_3), modifiers: [.command, .shift])
+        expect(mappedSwitcherShortcuts[.previousWindow]
+               == GlobalShortcut(keyCode: Int64(kVK_ANSI_Grave), modifiers: [.command, .shift]),
+               "the reverse window switcher resolves to Command-Shift-Backtick in the live table")
+        expect(SwitcherSupport.nativeHotkeysToSuppress(
+                    takeOverSystemShortcuts: true,
+                    appsShortcut: .switcherDefault,
+                    windowShortcut: .switcherWindowDefault,
+                    nativeShortcuts: mappedSwitcherShortcuts)
+               == Set(SwitcherNativeSymbolicHotKey.allCases),
+               "with the real ids, Command-Shift-Backtick is taken over together with Command-Backtick")
+        let threeKeyTakeover = SwitcherSupport.nativeHotkeysToSuppress(
+            takeOverSystemShortcuts: true,
+            appsShortcut: GlobalShortcut(keyCode: Int64(kVK_ANSI_3), modifiers: [.command]),
+            windowShortcut: .switcherWindowDefault,
+            nativeShortcuts: mappedSwitcherShortcuts)
+        expect(threeKeyTakeover == [.nextWindow, .previousWindow]
+               && !threeKeyTakeover.contains { mappedSwitcherShortcuts[$0] == screenshotToFile },
+               "a switcher shortcut on the 3 key takes over only the two window-cycling keys, never the screenshot key")
         expect(SwitcherSupport.nativeHotkeyTransition(
                     from: [],
                     to: Set(SwitcherNativeSymbolicHotKey.allCases),
@@ -11551,6 +11647,72 @@ struct MetricsTests {
                == SwitcherNativeHotkeyTransition(suppress: [],
                                                  restore: Set(SwitcherNativeSymbolicHotKey.allCases)),
                "native takeover leaves pre-disabled keys alone and restores only owned keys")
+        let staleMarker = SwitcherSupport.storedNativeHotkeys([27, 28, 220, 99_999_999_999])
+        expect(staleMarker.known == [.nextWindow, .previousWindow] && staleMarker.orphaned == [28],
+               "a marker written by an earlier build hands back the ids this build no longer owns")
+        var nativeMarker = [28, 999]
+        var nativeEnabled: Set<Int32> = [1, 2, 27, 220]
+        var nativeRestoreFailures: Set<Int32> = [28]
+        var nativeSuppressFailures: Set<Int32> = []
+        var nativeWriteAheadMissing = false
+        var nativeCalls: [Int32] = []
+        var nativeState = SwitcherNativeHotkeyState(stored: nativeMarker)
+        func setNativeHotkey(_ id: Int32, _ enabled: Bool) -> Bool {
+            nativeCalls.append(id)
+            if enabled {
+                guard !nativeRestoreFailures.contains(id) else { return false }
+                nativeEnabled.insert(id)
+            } else {
+                if !nativeMarker.contains(Int(id)) { nativeWriteAheadMissing = true }
+                guard !nativeSuppressFailures.contains(id) else { return false }
+                nativeEnabled.remove(id)
+            }
+            return true
+        }
+        func applyNativeHotkeys(_ desired: Set<SwitcherNativeSymbolicHotKey>) {
+            nativeState.apply(desired, isEnabled: { nativeEnabled.contains($0) },
+                              setEnabled: setNativeHotkey, persist: { nativeMarker = $0 })
+        }
+        nativeState.recoverOrphans(setEnabled: setNativeHotkey, persist: { nativeMarker = $0 })
+        expect(nativeMarker == [28], "a partial legacy hotkey repair retains only failed ids")
+        applyNativeHotkeys([.commandTab])
+        expect(nativeMarker == [1, 28], "taking over a current hotkey preserves a failed legacy repair")
+        applyNativeHotkeys([])
+        expect(nativeMarker == [28], "restoring current hotkeys preserves a failed legacy repair")
+        expect(nativeCalls.filter { $0 == 999 }.count == 1,
+               "successfully recovered hotkeys are not enabled again during retries")
+        nativeState = SwitcherNativeHotkeyState(stored: nativeMarker)
+        nativeRestoreFailures = []
+        nativeState.recoverOrphans(setEnabled: setNativeHotkey, persist: { nativeMarker = $0 })
+        expect(nativeMarker.isEmpty && nativeEnabled.contains(28),
+               "a new process can finish a legacy hotkey repair from the persisted marker")
+        nativeEnabled.remove(28)
+        let nativeCallsBeforeUserDisable = nativeCalls.count
+        applyNativeHotkeys([])
+        expect(!nativeEnabled.contains(28) && nativeCalls.count == nativeCallsBeforeUserDisable,
+               "a user's later disable survives after a legacy repair completes")
+        nativeEnabled.remove(1)
+        applyNativeHotkeys([.commandTab])
+        expect(nativeMarker.isEmpty && !nativeEnabled.contains(1),
+               "a pre-disabled current hotkey never becomes owned")
+        nativeEnabled.insert(1)
+        nativeSuppressFailures = [1]
+        applyNativeHotkeys([.commandTab])
+        expect(nativeMarker.isEmpty && nativeEnabled.contains(1),
+               "a failed hotkey suppression rolls back newly recorded ownership")
+        nativeSuppressFailures = []
+        applyNativeHotkeys([.commandTab])
+        nativeRestoreFailures = [1]
+        applyNativeHotkeys([])
+        expect(nativeMarker == [1] && !nativeEnabled.contains(1),
+               "a failed current hotkey restore keeps its ownership marker")
+        nativeState = SwitcherNativeHotkeyState(stored: nativeMarker)
+        nativeRestoreFailures = []
+        applyNativeHotkeys([])
+        expect(nativeMarker.isEmpty && nativeEnabled.contains(1),
+               "a new process restores a current hotkey left owned after a failure")
+        expect(!nativeWriteAheadMissing, "hotkey ownership is persisted before every suppression")
+
         expect(SwitcherSupport.isCurrentActivationGeneration(12, current: 12)
                && !SwitcherSupport.isCurrentActivationGeneration(11, current: 12),
                "App Switcher ignores retries left by an older activation")
@@ -13243,27 +13405,33 @@ struct MetricsTests {
         // one more worker doing it. Waiting on the child itself is immune, so
         // the pool the runner starved can no longer starve the runner.
         let poolGate = DispatchSemaphore(value: 0)
-        let poolOccupied = DispatchSemaphore(value: 0)
-        // The dispatch pool's soft limit is 64 threads blocked in synchronous
-        // work; one block per thread takes every one of them.
-        for _ in 0..<64 {
-            DispatchQueue.global(qos: .utility).async {
-                poolOccupied.signal()
-                poolGate.wait()
+        // How many threads the pool lets block in synchronous work before it
+        // stops serving anything follows the machine rather than a documented
+        // number, so the blocks ramp until a probe submitted to the pool times
+        // out. A fixed count leaves this check passing without ever reaching
+        // the starvation it needs on a Mac whose ceiling is higher.
+        var blockedWorkers = 0
+        var poolIsStarved = false
+        var starvedProbe: DispatchSemaphore?
+        while !poolIsStarved && blockedWorkers < 256 {
+            for _ in 0..<32 {
+                blockedWorkers += 1
+                DispatchQueue.global(qos: .utility).async { poolGate.wait() }
             }
+            let probe = DispatchSemaphore(value: 0)
+            DispatchQueue.global(qos: .utility).async { probe.signal() }
+            starvedProbe = probe
+            poolIsStarved = probe.wait(timeout: .now() + 0.5) == .timedOut
         }
-        var occupiedWorkers = 0
-        for _ in 0..<64 where poolOccupied.wait(timeout: .now() + 5) == .success { occupiedWorkers += 1 }
-        let starvedProbe = DispatchSemaphore(value: 0)
-        DispatchQueue.global(qos: .utility).async { starvedProbe.signal() }
-        let poolIsStarved = starvedProbe.wait(timeout: .now() + 0.5) == .timedOut
         let starvedStarted = Date()
         let starvedPoolProcess = BoundedProcessRunner.run(
             "/bin/echo", ["ready"], timeout: 1, maxOutputBytes: 1_024)
         let starvedPoolElapsed = Date().timeIntervalSince(starvedStarted)
-        for _ in 0..<64 { poolGate.signal() }
-        _ = starvedProbe.wait(timeout: .now() + 5)
-        expect(occupiedWorkers == 64 && poolIsStarved,
+        // One signal per block submitted, running or still queued, so the rest
+        // of this file never runs against workers parked on the gate.
+        for _ in 0..<blockedWorkers { poolGate.signal() }
+        _ = starvedProbe?.wait(timeout: .now() + 5)
+        expect(poolIsStarved,
                "the dispatch pool starvation this check needs was actually reached")
         expect(!starvedPoolProcess.timedOut && starvedPoolProcess.status == 0
                 && String(decoding: starvedPoolProcess.output, as: UTF8.self) == "ready\n"

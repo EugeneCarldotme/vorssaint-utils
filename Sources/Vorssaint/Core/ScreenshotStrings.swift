@@ -142,6 +142,7 @@ struct ScreenshotFeatureStrings {
     let clipboardImageMissing: String
     let screenCaptureTitle: String
     let dragOutHandleLabel: String
+    let loupeStartsOnToggle: String
 }
 
 extension FeatureStrings {
@@ -302,7 +303,8 @@ extension ScreenshotFeatureStrings {
         editClipboardImage: "Edit clipboard image",
         clipboardImageMissing: "Copy an image first",
         screenCaptureTitle: "Screen capture",
-        dragOutHandleLabel: "Drag and drop"
+        dragOutHandleLabel: "Drag and drop",
+        loupeStartsOnToggle: "Start selection with the magnifier on"
     )
 
     static let ptBR = ScreenshotFeatureStrings(
@@ -442,7 +444,8 @@ extension ScreenshotFeatureStrings {
         editClipboardImage: "Editar imagem copiada",
         clipboardImageMissing: "Copie uma imagem primeiro",
         screenCaptureTitle: "Ferramentas de captura",
-        dragOutHandleLabel: "Arraste e solte"
+        dragOutHandleLabel: "Arraste e solte",
+        loupeStartsOnToggle: "Iniciar a seleção com a lupa ativada"
     )
 
     static let tr = ScreenshotFeatureStrings(
@@ -476,7 +479,7 @@ extension ScreenshotFeatureStrings {
         editorTitle: "Ekran görüntüsü",
         toolShortcutsTitle: "Düzenleyici araçları",
         toolShortcutsToggle: "Sayı kısayollarını kullan",
-        toolShortcutsCaption: "Okları kullanın veya bir sayı seçin. İlk dokuz araç 1 ile 9'u kullanır. Diğerlerinin kısayolu yoktur.",
+        toolShortcutsCaption: "Okları kullanın veya bir sayı seçin. İlk dokuz araç 1 ile 9’u kullanır. Diğerlerinin kısayolu yoktur.",
         toolSelect: "Seç",
         toolArrow: "Ok",
         toolLine: "Çizgi",
@@ -536,7 +539,7 @@ extension ScreenshotFeatureStrings {
         backdropBlurLabel: "Bulanıklık",
         scrollingCaptureButton: "Kaydırmalı yakalama",
         scrollingCaptureTitle: "Kaydırmalı ekran görüntüsü",
-        scrollingCaptureProgressHUD: "Fare veya izleme dörtgeniyle kaydırın. Enter'a basın veya Bitti'yi seçin.",
+        scrollingCaptureProgressHUD: "Fare veya izleme dörtgeniyle kaydırın. Enter’a basın veya Bitti’yi seçin.",
         scrollingCaptureHintOff: "S kaydırmayı açar",
         scrollingCaptureHintOn: "Kaydırma açık",
         scrollingCaptureTooLongHUD: "Yakalama güvenli sınırda durdu",
@@ -565,10 +568,10 @@ extension ScreenshotFeatureStrings {
         done: "Bitti",
         sharePrivacyButton: "Gizlilik",
         sharePrivacyTitle: "Geçici bağlantı gizliliği",
-        sharePrivacyData: "Vorssaint yalnızca işlenmiş görüntüyü ve seçtiğiniz süreyi gönderir. Adınızı, hesabınızı, aygıt tanımlayıcınızı veya MAC adresinizi göndermez. Bu Mac'te bağlantı etkinken yalnızca bağlantı, sona erme zamanı ve özel silme anahtarı saklanır.",
+        sharePrivacyData: "Vorssaint yalnızca işlenmiş görüntüyü ve seçtiğiniz süreyi gönderir. Adınızı, hesabınızı, aygıt tanımlayıcınızı veya MAC adresinizi göndermez. Bu Mac’te bağlantı etkinken yalnızca bağlantı, sona erme zamanı ve özel silme anahtarı saklanır.",
         sharePrivacyStorage: "Ağ sağlayıcıları ve hizmet, kötüye kullanımı önlemek için genel IP adresinizi geçici olarak işler. Görüntü ve bağlantı meta verileri, bağlantıyı sildiğinizde veya süre dolduğunda kalıcı olarak silinir. Hizmet ekran görüntüsü yedeği oluşturmaz.",
         sharePrivacyAccess: "Bağlantıya sahip herkes görüntüyü görebilir, indirebilir, kaydedebilir veya yeniden dağıtabilir. Etkin bağlantılar kötüye kullanım denetimi için hizmet operatörü tarafından görülebilir. Yalnızca güvendiğiniz kişilerle paylaşın.",
-        scrollingCaptureCaption: "Bir alan seçin, fare veya izleme dörtgeniyle kaydırın, ardından birleştirmek için Enter'a basın veya Bitti'yi seçin.",
+        scrollingCaptureCaption: "Bir alan seçin, fare veya izleme dörtgeniyle kaydırın, ardından birleştirmek için Enter’a basın veya Bitti’yi seçin.",
         scrollingCaptureSelectionHint: "Sayfanın yalnızca kayan bölümünü seçin.",
         scrollingCapturePartialHUD: "Sayfa değişti. Tamamlanan bölüm korundu.",
         previewPositionLabel: "Önizleme konumu",
@@ -582,7 +585,8 @@ extension ScreenshotFeatureStrings {
         editClipboardImage: "Panodaki resmi düzenle",
         clipboardImageMissing: "Önce bir resim kopyalayın",
         screenCaptureTitle: "Ekran yakalama",
-        dragOutHandleLabel: "Sürükle ve bırak"
+        dragOutHandleLabel: "Sürükle ve bırak",
+        loupeStartsOnToggle: "Seçime büyüteç açık başla"
     )
 
     static let ru = ScreenshotFeatureStrings(
@@ -722,7 +726,8 @@ extension ScreenshotFeatureStrings {
         editClipboardImage: "Редактировать изображение из буфера",
         clipboardImageMissing: "Сначала скопируйте изображение",
         screenCaptureTitle: "Захват экрана",
-        dragOutHandleLabel: "Перетащить"
+        dragOutHandleLabel: "Перетащить",
+        loupeStartsOnToggle: "Начинать выделение с включённой лупой"
     )
 
     static let es = ScreenshotFeatureStrings(
@@ -862,7 +867,8 @@ extension ScreenshotFeatureStrings {
         editClipboardImage: "Editar imagen copiada",
         clipboardImageMissing: "Copia una imagen primero",
         screenCaptureTitle: "Herramientas de captura",
-        dragOutHandleLabel: "Arrastrar y soltar"
+        dragOutHandleLabel: "Arrastrar y soltar",
+        loupeStartsOnToggle: "Empezar la selección con la lupa activada"
     )
 
     static let de = ScreenshotFeatureStrings(
@@ -1002,38 +1008,39 @@ extension ScreenshotFeatureStrings {
         editClipboardImage: "Kopiertes Bild bearbeiten",
         clipboardImageMissing: "Kopiere zuerst ein Bild",
         screenCaptureTitle: "Bildschirm erfassen",
-        dragOutHandleLabel: "Ziehen und ablegen"
+        dragOutHandleLabel: "Ziehen und ablegen",
+        loupeStartsOnToggle: "Auswahl mit aktivierter Lupe starten"
     )
 
     static let fr = ScreenshotFeatureStrings(
-        pageTitle: "Capture d'écran",
-        hubDescription: "Capture une zone, une fenêtre ou l'écran et permet de l'annoter",
+        pageTitle: "Capture d’écran",
+        hubDescription: "Capture une zone, une fenêtre ou l’écran et permet de l’annoter",
         captureButton: "Capturer maintenant",
-        panelCaption: "Capturez une zone, une fenêtre ou tout l'écran",
-        fileNamePrefix: "Capture d'écran",
+        panelCaption: "Capturez une zone, une fenêtre ou tout l’écran",
+        fileNamePrefix: "Capture d’écran",
         hintDrag: "Faites glisser pour sélectionner une zone",
         hintClick: "Cliquez sur une fenêtre pour la capturer",
-        hintFullScreen: "Return capture tout l'écran",
+        hintFullScreen: "Return capture tout l’écran",
         hintCancel: "Esc annule",
         hintRepeat: "R répète la dernière zone",
-        freezeToggle: "Figer l'écran pendant la sélection",
-        freezeCaption: "L'image s'arrête pendant que vous choisissez la zone, donc rien ne bouge ni ne change pendant la sélection.",
+        freezeToggle: "Figer l’écran pendant la sélection",
+        freezeCaption: "L’image s’arrête pendant que vous choisissez la zone, donc rien ne bouge ni ne change pendant la sélection.",
         folderLabel: "Enregistrer dans",
         folderChoose: "Choisir…",
         subfolderLabel: "Motif de sous-dossier",
         subfolderCaption: "Facultatif. Crée des sous-dossiers datés dans le dossier ci-dessus avec %y, %year, %mo, %month, %d, %h, %mi et %s, par exemple %y-%mo pour 24-03.",
         fileNamePatternLabel: "Nom du fichier",
-        fileNamePatternCaption: "Facultatif. Remplace le nom par défaut avec les mêmes jetons %y, %year, %mo, %month, %d, %h, %mi et %s, plus %# pour un numéro qui s'incrémente automatiquement (%## le remplit sur 2 chiffres, %### sur 3, etc.).",
+        fileNamePatternCaption: "Facultatif. Remplace le nom par défaut avec les mêmes jetons %y, %year, %mo, %month, %d, %h, %mi et %s, plus %# pour un numéro qui s’incrémente automatiquement (%## le remplit sur 2 chiffres, %### sur 3, etc.).",
         fileNumberStartLabel: "Commence à",
         fileNumberResetButton: "Réinitialiser",
-        fileNumberNextFormat: "Suivant : %d",
+        fileNumberNextFormat: "Suivant\u{00A0}: %d",
         delayLabel: "Délai",
         delayOff: "Désactivé",
         delaySecondsFormat: "%d s",
         pointerToggle: "Inclure le pointeur",
         downscaleToggle: "Enregistrer en taille 1x",
         downscaleCaption: "Les captures Retina sont enregistrées avec moitié moins de pixels, ce qui donne des fichiers plus petits.",
-        editorTitle: "Capture d'écran",
+        editorTitle: "Capture d’écran",
         toolShortcutsTitle: "Outils de l’éditeur",
         toolShortcutsToggle: "Utiliser les raccourcis numériques",
         toolShortcutsCaption: "Utilisez les flèches ou choisissez un numéro. Les neuf premiers outils utilisent 1 à 9. Les autres n’ont pas de raccourci.",
@@ -1062,24 +1069,24 @@ extension ScreenshotFeatureStrings {
         copyButton: "Copier",
         saveButton: "Enregistrer",
         saveAsButton: "Enregistrer sous…",
-        pinButton: "Épingler à l'écran",
+        pinButton: "Épingler à l’écran",
         copyTextButton: "Copier le texte",
-        discardTitle: "Abandonner cette capture ?",
-        discardMessage: "Elle n'a pas encore été copiée ni enregistrée.",
+        discardTitle: "Abandonner cette capture\u{00A0}?",
+        discardMessage: "Elle n’a pas encore été copiée ni enregistrée.",
         discardConfirm: "Abandonner",
         copiedHUD: "Capture copiée",
         savedHUDFormat: "Enregistrée dans %@",
         savedAndCopiedHUDFormat: "Enregistrée dans %@ et copiée",
         defaultActionLabel: "Action par défaut",
-        defaultActionCaption: "S'exécute automatiquement juste après la capture. La confirmation s'affiche quand même, ce qui permet ensuite de modifier ou de supprimer.",
+        defaultActionCaption: "S’exécute automatiquement juste après la capture. La confirmation s’affiche quand même, ce qui permet ensuite de modifier ou de supprimer.",
         defaultActionNone: "Demander à chaque fois",
         defaultActionSaveAndCopy: "Enregistrer et copier",
-        captureFailed: "Impossible de capturer l'écran",
+        captureFailed: "Impossible de capturer l’écran",
         pinOpacity: "Opacité",
         pinClickThrough: "Ignorer les clics",
         pinCloseAll: "Fermer toutes les épingles",
         backdropPaddingLabel: "Marge",
-        backdropWallpaperLabel: "Fond d'écran",
+        backdropWallpaperLabel: "Fond d’écran",
         backdropImageButton: "Image…",
         backdropSolidLabel: "Unie",
         backdropGradientLabel: "Dégradé",
@@ -1087,10 +1094,10 @@ extension ScreenshotFeatureStrings {
         backdropSavePreset: "Enregistrer le fond",
         backdropDeletePreset: "Supprimer",
         backdropCustomLabel: "Personnalisé",
-        openEditorToggle: "Ouvrir l'éditeur juste après la capture",
-        openEditorCaption: "La capture ignore l'aperçu flottant et s'ouvre prête à être annotée.",
+        openEditorToggle: "Ouvrir l’éditeur juste après la capture",
+        openEditorCaption: "La capture ignore l’aperçu flottant et s’ouvre prête à être annotée.",
         autoCopyToggle: "Copier automatiquement dans le presse-papiers",
-        autoCopyCaption: "Chaque capture va dans le presse-papiers dès qu'elle est prise, prête à être collée. Enregistrer un fichier reste un choix distinct.",
+        autoCopyCaption: "Chaque capture va dans le presse-papiers dès qu’elle est prise, prête à être collée. Enregistrer un fichier reste un choix distinct.",
         hintLoupe: "Z active la loupe",
         lastRegionToggle: "Afficher le contour de la dernière capture",
         backdropBlurLabel: "Flou",
@@ -1099,9 +1106,9 @@ extension ScreenshotFeatureStrings {
         scrollingCaptureProgressHUD: "Faites défiler avec la souris ou le trackpad. Appuyez sur Entrée ou choisissez Terminé.",
         scrollingCaptureHintOff: "S active le défilement",
         scrollingCaptureHintOn: "Défilement activé",
-        scrollingCaptureTooLongHUD: "La capture s'est arrêtée à la limite sûre",
+        scrollingCaptureTooLongHUD: "La capture s’est arrêtée à la limite sûre",
         editLastCapture: "Modifier la dernière capture",
-        lastCaptureMissing: "Prenez d'abord une capture d'écran",
+        lastCaptureMissing: "Prenez d’abord une capture d’écran",
         fullScreenShortcutTitle: "Capturer tout l’écran",
         bringForward: "Avancer",
         sendBackward: "Reculer",
@@ -1142,22 +1149,23 @@ extension ScreenshotFeatureStrings {
         editClipboardImage: "Modifier l’image copiée",
         clipboardImageMissing: "Copiez d’abord une image",
         screenCaptureTitle: "Outils de capture",
-        dragOutHandleLabel: "Glisser-déposer"
+        dragOutHandleLabel: "Glisser-déposer",
+        loupeStartsOnToggle: "Démarrer la sélection avec la loupe activée"
     )
 
     static let it = ScreenshotFeatureStrings(
         pageTitle: "Istantanea schermo",
-        hubDescription: "Cattura un'area, una finestra o lo schermo e permette di annotarla",
+        hubDescription: "Cattura un’area, una finestra o lo schermo e permette di annotarla",
         captureButton: "Cattura ora",
-        panelCaption: "Cattura un'area, una finestra o l'intero schermo",
+        panelCaption: "Cattura un’area, una finestra o l’intero schermo",
         fileNamePrefix: "Istantanea",
-        hintDrag: "Trascina per selezionare un'area",
+        hintDrag: "Trascina per selezionare un’area",
         hintClick: "Fai clic su una finestra per catturarla",
-        hintFullScreen: "Return cattura l'intero schermo",
+        hintFullScreen: "Return cattura l’intero schermo",
         hintCancel: "Esc annulla",
-        hintRepeat: "R ripete l'ultima area",
+        hintRepeat: "R ripete l’ultima area",
         freezeToggle: "Congela lo schermo durante la selezione",
-        freezeCaption: "L'immagine si ferma mentre scegli l'area, quindi niente si muove o cambia durante la selezione.",
+        freezeCaption: "L’immagine si ferma mentre scegli l’area, quindi niente si muove o cambia durante la selezione.",
         folderLabel: "Salva in",
         folderChoose: "Scegli…",
         subfolderLabel: "Modello sottocartella",
@@ -1227,12 +1235,12 @@ extension ScreenshotFeatureStrings {
         backdropSavePreset: "Salva sfondo",
         backdropDeletePreset: "Rimuovi",
         backdropCustomLabel: "Personalizzato",
-        openEditorToggle: "Apri l'editor subito dopo la cattura",
-        openEditorCaption: "La cattura salta l'anteprima flottante e si apre pronta per le annotazioni.",
+        openEditorToggle: "Apri l’editor subito dopo la cattura",
+        openEditorCaption: "La cattura salta l’anteprima flottante e si apre pronta per le annotazioni.",
         autoCopyToggle: "Copia automaticamente negli appunti",
         autoCopyCaption: "Ogni cattura va negli appunti appena viene fatta, pronta da incollare. Salvare un file resta una scelta a parte.",
         hintLoupe: "Z attiva la lente",
-        lastRegionToggle: "Mostra il contorno dell'ultima cattura",
+        lastRegionToggle: "Mostra il contorno dell’ultima cattura",
         backdropBlurLabel: "Sfocatura",
         scrollingCaptureButton: "Cattura con scorrimento",
         scrollingCaptureTitle: "Screenshot con scorrimento",
@@ -1240,8 +1248,8 @@ extension ScreenshotFeatureStrings {
         scrollingCaptureHintOff: "S attiva scorrimento",
         scrollingCaptureHintOn: "Scorrimento attivo",
         scrollingCaptureTooLongHUD: "La cattura si è fermata al limite sicuro",
-        editLastCapture: "Modifica l'ultima cattura",
-        lastCaptureMissing: "Prima acquisisci un'istantanea",
+        editLastCapture: "Modifica l’ultima cattura",
+        lastCaptureMissing: "Prima acquisisci un’istantanea",
         fullScreenShortcutTitle: "Acquisisci l’intero schermo",
         bringForward: "Porta avanti",
         sendBackward: "Porta indietro",
@@ -1280,9 +1288,10 @@ extension ScreenshotFeatureStrings {
         hideVorssaintWindowsToggle: "Nascondi le finestre di Vorssaint",
         shareEnabledToggle: "Consenti link temporanei",
         editClipboardImage: "Modifica immagine copiata",
-        clipboardImageMissing: "Copia prima un'immagine",
+        clipboardImageMissing: "Copia prima un’immagine",
         screenCaptureTitle: "Acquisizione schermo",
-        dragOutHandleLabel: "Trascina e rilascia"
+        dragOutHandleLabel: "Trascina e rilascia",
+        loupeStartsOnToggle: "Avvia la selezione con la lente attiva"
     )
 
     static let ja = ScreenshotFeatureStrings(
@@ -1422,7 +1431,8 @@ extension ScreenshotFeatureStrings {
         editClipboardImage: "コピーした画像を編集",
         clipboardImageMissing: "先に画像をコピーしてください",
         screenCaptureTitle: "画面キャプチャ",
-        dragOutHandleLabel: "ドラッグ＆ドロップ"
+        dragOutHandleLabel: "ドラッグ＆ドロップ",
+        loupeStartsOnToggle: "選択開始時に拡大鏡をオンにする"
     )
 
     static let ko = ScreenshotFeatureStrings(
@@ -1562,7 +1572,8 @@ extension ScreenshotFeatureStrings {
         editClipboardImage: "복사한 이미지 편집",
         clipboardImageMissing: "먼저 이미지를 복사하세요",
         screenCaptureTitle: "화면 캡처",
-        dragOutHandleLabel: "드래그 앤 드롭"
+        dragOutHandleLabel: "드래그 앤 드롭",
+        loupeStartsOnToggle: "선택 시작 시 돋보기 켜기"
     )
 
     static let zhHans = ScreenshotFeatureStrings(
@@ -1702,7 +1713,8 @@ extension ScreenshotFeatureStrings {
         editClipboardImage: "编辑已拷贝的图像",
         clipboardImageMissing: "请先拷贝一张图像",
         screenCaptureTitle: "屏幕捕捉",
-        dragOutHandleLabel: "拖放"
+        dragOutHandleLabel: "拖放",
+        loupeStartsOnToggle: "开始选择时启用放大镜"
     )
 
     static let zhTW = ScreenshotFeatureStrings(
@@ -1842,7 +1854,8 @@ extension ScreenshotFeatureStrings {
         editClipboardImage: "編輯已複製的影像",
         clipboardImageMissing: "請先複製一張影像",
         screenCaptureTitle: "螢幕擷取",
-        dragOutHandleLabel: "拖放"
+        dragOutHandleLabel: "拖放",
+        loupeStartsOnToggle: "開始選取時啟用放大鏡"
     )
 
     static let zhHK = ScreenshotFeatureStrings(
@@ -1982,6 +1995,7 @@ extension ScreenshotFeatureStrings {
         editClipboardImage: "編輯已複製的影像",
         clipboardImageMissing: "請先複製一張影像",
         screenCaptureTitle: "螢幕擷取",
-        dragOutHandleLabel: "拖放"
+        dragOutHandleLabel: "拖放",
+        loupeStartsOnToggle: "開始選取時啟用放大鏡"
     )
 }

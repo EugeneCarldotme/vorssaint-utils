@@ -119,8 +119,12 @@ enum SettingsBackupSupport {
         DefaultsKey.settingsWindowWidth,
         DefaultsKey.settingsWindowHeight,
         DefaultsKey.screenshotSharingDeveloperEndpoint,
+        // Whether the audio system let a recording hear the Mac's sound is a
+        // grant this Mac gave, not a setting.
+        DefaultsKey.recorderSystemAudioTapVerified,
         DefaultsKey.fanControlRecoveryNeeded,
         DefaultsKey.fanControlHelperVersion,
+        DefaultsKey.switcherNativeHotkeysSuppressed,
         // DDC capability belongs to one physical monitor on one Mac port.
         DefaultsKey.brightnessDDCWriteOnlyPaths,
     ]
@@ -293,7 +297,9 @@ enum SettingsBackupSupport {
     }
 
     private static func isNumber(_ value: Any) -> Bool {
-        guard let value = number(value) else { return false }
-        return CFGetTypeID(value) != CFBooleanGetTypeID()
+        guard let value = number(value), CFGetTypeID(value) != CFBooleanGetTypeID() else {
+            return false
+        }
+        return value.doubleValue.isFinite
     }
 }

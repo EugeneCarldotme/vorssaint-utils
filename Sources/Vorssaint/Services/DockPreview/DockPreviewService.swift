@@ -182,7 +182,11 @@ final class DockPreviewService: ObservableObject {
 
         DockPreviewSupport.performCloseAction(
             quitAppOnClose: UserDefaults.standard.bool(forKey: DefaultsKey.dockPreviewQuitAppOnClose),
-            requestQuit: { requestDockPreviewApplicationQuit(item) },
+            requestQuit: { [weak self] in
+                let accepted = requestDockPreviewApplicationQuit(item)
+                if accepted { self?.endSession() }
+                return accepted
+            },
             closeWindow: {
                 WindowActivator.closeWindowIncludingHiddenState(item) { [weak self] didClose in
                     guard didClose, let self else { return }
@@ -341,6 +345,7 @@ final class DockPreviewService: ObservableObject {
         if let runLoopSource {
             CFRunLoopRemoveSource(CFRunLoopGetMain(), runLoopSource, .commonModes)
         }
+        if let tap { CFMachPortInvalidate(tap) }
         tap = nil
         runLoopSource = nil
         cancelPendingHover()
@@ -383,7 +388,9 @@ final class DockPreviewService: ObservableObject {
     /// switch re-confirmations read these) — everything else falls through to
     /// the full handler.
     private func discardFarMouseMove(axPoint: CGPoint) -> Bool {
-        guard isRunning, !isVisible, pendingHover == nil else { return false }
+        // Nothing checks whether the tap is running: the only caller is the tap
+        // callback, which cannot run unless it is.
+        guard !isVisible, pendingHover == nil else { return false }
         let point = appKitPoint(fromAX: axPoint)
         guard !isNearDock(point) else { return false }
         lastAXMousePoint = axPoint
@@ -1464,7 +1471,11 @@ final class DockPreviewPinnedPanel: ObservableObject, Identifiable {
 
         DockPreviewSupport.performCloseAction(
             quitAppOnClose: UserDefaults.standard.bool(forKey: DefaultsKey.dockPreviewQuitAppOnClose),
-            requestQuit: { requestDockPreviewApplicationQuit(item) },
+            requestQuit: { [weak self] in
+                let accepted = requestDockPreviewApplicationQuit(item)
+                if accepted { self?.closePreviewPanel() }
+                return accepted
+            },
             closeWindow: {
                 WindowActivator.closeWindowIncludingHiddenState(item) { [weak self] didClose in
                     guard didClose else { return }

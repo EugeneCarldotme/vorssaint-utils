@@ -912,19 +912,8 @@ final class AppSwitcher: ObservableObject {
         totalWindowCount = list.count
         searchQuery = ""
         isSearchPinned = false
-        let iconAppearance = NSApplication.shared.effectiveAppearance
-        let iconGeneration = SwitcherAppIconCache.beginSession(items: list,
-                                                               appearance: iconAppearance)
+        SwitcherAppIconCache.beginSession()
         self.windows = list
-        SwitcherAppIconCache.refreshDockPluginIcons(
-            items: list,
-            darkMode: iconAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua,
-            generation: iconGeneration
-        ) { [weak self] pid in
-            guard let self, self.sessionActive,
-                  self.sessionItems.contains(where: { $0.pid == pid }) else { return }
-            self.objectWillChange.send()
-        }
         // Optional.map: a session that starts with no source clears the
         // context instead of keeping the previous session's.
         sessionSourceContext = source.map { source in
@@ -1409,6 +1398,7 @@ final class AppSwitcher: ObservableObject {
     }
 
     private func endSession() {
+        SwitcherAppIconCache.endSession()
         sessionActive = false
         pendingShow?.cancel()
         pendingShow = nil

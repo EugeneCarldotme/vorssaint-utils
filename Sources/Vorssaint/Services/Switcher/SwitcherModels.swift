@@ -6,60 +6,24 @@ import CoreGraphics
 
 enum SwitcherAppIconCache {
     private static let lock = NSLock()
-    private static var icons: [pid_t: NSImage] = [:]
-    private static var generation: UInt64 = 0
+    private static var icons: [pid_t: NSImage]?
 
-    static func beginSession(items: [SwitcherItem], appearance: NSAppearance) -> UInt64 {
-        let pids = Set(items.map(\.pid))
-        let resolved = Dictionary(uniqueKeysWithValues: pids.compactMap { pid in
-            stableBundleIcon(pid: pid, appearance: appearance).map { (pid, $0) }
-        })
-        return lock.withLock {
-            generation &+= 1
-            icons = resolved
-            return generation
-        }
+    static func beginSession() {
+        lock.withLock { icons = [:] }
+    }
+
+    static func endSession() {
+        lock.withLock { icons = nil }
     }
 
     static func icon(for pid: pid_t) -> NSImage? {
-        if let cached = lock.withLock({ icons[pid] }) { return cached }
+        if let cached = lock.withLock({ icons?[pid] }) { return cached }
         guard let resolved = stableBundleIcon(pid: pid,
                                               appearance: NSApplication.shared.effectiveAppearance)
         else { return nil }
-        lock.withLock { icons[pid] = resolved }
+        // Outside a switcher session, Dock previews must resolve the current icon.
+        lock.withLock { icons?[pid] = resolved }
         return resolved
-    }
-
-    static func refreshDockPluginIcons(items: [SwitcherItem],
-                                       darkMode: Bool,
-                                       generation expectedGeneration: UInt64,
-                                       onUpdate: @escaping (pid_t) -> Void) {
-        let targets = items.reduce(into: [pid_t: URL]()) { result, item in
-            guard result[item.pid] == nil else { return }
-            guard let app = NSRunningApplication(processIdentifier: item.pid),
-                  let bundleURL = app.bundleURL,
-                  let bundle = Bundle(url: bundleURL),
-                  let pluginName = bundle.object(forInfoDictionaryKey: "NSDockTilePlugIn") as? String
-            else { return }
-            let pluginURL = bundleURL.appendingPathComponent("Contents/PlugIns")
-                .appendingPathComponent(pluginName)
-            guard FileManager.default.fileExists(atPath: pluginURL.path) else { return }
-            result[item.pid] = pluginURL
-        }
-        guard !targets.isEmpty else { return }
-
-        DispatchQueue.global(qos: .userInitiated).async {
-            for (pid, pluginURL) in targets {
-                guard let image = dockPluginIcon(pluginURL: pluginURL, darkMode: darkMode) else { continue }
-                let stored = lock.withLock { () -> Bool in
-                    guard generation == expectedGeneration else { return false }
-                    icons[pid] = image
-                    return true
-                }
-                guard stored else { return }
-                DispatchQueue.main.async { onUpdate(pid) }
-            }
-        }
     }
 
     static func declaredDockIconURL(bundleURL: URL,
@@ -79,6 +43,8 @@ enum SwitcherAppIconCache {
 
         let resources = bundleURL.appendingPathComponent("Contents/Resources", isDirectory: true)
             .resolvingSymlinksInPath().standardizedFileURL
+        let bundle = bundleURL.resolvingSymlinksInPath().standardizedFileURL
+        guard resources.path.hasPrefix(bundle.path + "/") else { return nil }
         for name in names {
             let candidate = resources.appendingPathComponent(name)
                 .resolvingSymlinksInPath().standardizedFileURL
@@ -115,29 +81,6 @@ enum SwitcherAppIconCache {
             appearance.performAsCurrentDrawingAppearance { source.draw(in: rect) }
             return true
         }
-    }
-
-    private static func dockPluginIcon(pluginURL: URL, darkMode: Bool) -> NSImage? {
-        let helper = Bundle.main.bundleURL.appendingPathComponent("Contents/Helpers/DockIconResolver")
-        guard FileManager.default.isExecutableFile(atPath: helper.path) else { return nil }
-        let output = FileManager.default.temporaryDirectory
-            .appendingPathComponent("vorssaint-dock-icon-\(UUID().uuidString).png")
-        defer { try? FileManager.default.removeItem(at: output) }
-        let process = Process()
-        process.executableURL = helper
-        process.arguments = [pluginURL.path, darkMode ? "dark" : "light", output.path]
-        process.standardOutput = FileHandle.nullDevice
-        process.standardError = FileHandle.nullDevice
-        let finished = DispatchSemaphore(value: 0)
-        process.terminationHandler = { _ in finished.signal() }
-        guard (try? process.run()) != nil else { return nil }
-        if finished.wait(timeout: .now() + 1) == .timedOut {
-            process.terminate()
-            return nil
-        }
-        guard process.terminationStatus == 0 else { return nil }
-        guard let data = try? Data(contentsOf: output) else { return nil }
-        return NSImage(data: data)
     }
 }
 
@@ -233,11 +176,8 @@ struct SwitcherItem: Identifiable, Equatable {
         return label
     }
 
-    /// Read from the bundle on disk, the same icon Finder and the Dock draw,
-    /// so an app whose user picked one of its alternate icons shows the one
-    /// they picked. Asking the running process instead hands back one cached
-    /// NSImage for the app's whole life, and a view that already drew it never
-    /// redraws it, so the switcher stayed on the bundled icon (issue #801).
+    /// Prefer an explicitly declared alternate icon, otherwise use the system
+    /// bundle icon. Reuse the image only while a switcher session is open.
     var appIcon: NSImage? {
         SwitcherAppIconCache.icon(for: pid)
     }

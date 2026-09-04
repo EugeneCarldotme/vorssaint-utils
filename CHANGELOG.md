@@ -7,7 +7,7 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Summary
-Vorssaint adds edge snap controls and a shortcut for recent captures, refines the radial menu, and improves color picking, readability, localization and input behavior.
+Vorssaint adds edge snap controls and a shortcut for recent captures, refines the radial menu, and improves color picking, app icons, readability, localization and input behavior.
 
 ### Added
 - Switching Spaces by dragging a button can follow your hand, the way a trackpad swipe does, in Mouse settings.
@@ -20,6 +20,7 @@ Vorssaint adds edge snap controls and a shortcut for recent captures, refines th
 - Panel outlines answer the system's Increase Contrast, which they were ignoring while already following reduced motion and transparency.
 
 ### Fixed
+- The App Switcher shows supported alternate app icons without flickering during navigation. Thanks to @EugeneCarldotme and @hash00.
 - Color picking copies the sampled pixel's correct color and shows matching values in the magnifier. Thanks to @MaksimEgorov.
 - Installing a build you compiled yourself keeps its system permissions across rebuilds, where only the Developer variant was protected. Thanks to @hash00 and @PathGao.
 - The Keep Awake option for no icon shows the crossed-out circle it promised, where the bar across it was never drawn.

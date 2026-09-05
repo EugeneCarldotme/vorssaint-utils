@@ -67,6 +67,19 @@ enum ScreenCaptureTool: String, CaseIterable {
         }
     }
 
+    var showCaptureMenuOnShortcutKey: String {
+        switch self {
+        case .screenshot: return DefaultsKey.screenshotShowCaptureMenuOnShortcut
+        case .recording: return DefaultsKey.recorderShowCaptureMenuOnShortcut
+        case .text: return DefaultsKey.screenOCRShowCaptureMenuOnShortcut
+        case .color: return DefaultsKey.colorPickerShowCaptureMenuOnShortcut
+        }
+    }
+
+    func showsCaptureMenu(fromShortcut: Bool, defaults: UserDefaults = .standard) -> Bool {
+        !fromShortcut || (defaults.object(forKey: showCaptureMenuOnShortcutKey) as? Bool ?? true)
+    }
+
     var systemImageName: String {
         switch self {
         case .screenshot: return "camera.viewfinder"

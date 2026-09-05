@@ -140,6 +140,7 @@ struct ScreenshotFeatureStrings {
     let shareEnabledToggle: String
     let editClipboardImage: String
     let clipboardImageMissing: String
+    let showCaptureMenuOnShortcut: String
     let screenCaptureTitle: String
     let dragOutHandleLabel: String
     let loupeStartsOnToggle: String
@@ -302,6 +303,7 @@ extension ScreenshotFeatureStrings {
         shareEnabledToggle: "Allow temporary links",
         editClipboardImage: "Edit clipboard image",
         clipboardImageMissing: "Copy an image first",
+        showCaptureMenuOnShortcut: "Show capture menu when using keyboard shortcut",
         screenCaptureTitle: "Screen capture",
         dragOutHandleLabel: "Drag and drop",
         loupeStartsOnToggle: "Start selection with the magnifier on"
@@ -443,6 +445,7 @@ extension ScreenshotFeatureStrings {
         shareEnabledToggle: "Permitir links temporários",
         editClipboardImage: "Editar imagem copiada",
         clipboardImageMissing: "Copie uma imagem primeiro",
+        showCaptureMenuOnShortcut: "Mostrar menu de captura ao usar o atalho de teclado",
         screenCaptureTitle: "Ferramentas de captura",
         dragOutHandleLabel: "Arraste e solte",
         loupeStartsOnToggle: "Iniciar a seleção com a lupa ativada"
@@ -584,6 +587,7 @@ extension ScreenshotFeatureStrings {
         shareEnabledToggle: "Geçici bağlantılara izin ver",
         editClipboardImage: "Panodaki resmi düzenle",
         clipboardImageMissing: "Önce bir resim kopyalayın",
+        showCaptureMenuOnShortcut: "Klavye kısayolu kullanıldığında yakalama menüsünü göster",
         screenCaptureTitle: "Ekran yakalama",
         dragOutHandleLabel: "Sürükle ve bırak",
         loupeStartsOnToggle: "Seçime büyüteç açık başla"
@@ -725,6 +729,7 @@ extension ScreenshotFeatureStrings {
         shareEnabledToggle: "Разрешить временные ссылки",
         editClipboardImage: "Редактировать изображение из буфера",
         clipboardImageMissing: "Сначала скопируйте изображение",
+        showCaptureMenuOnShortcut: "Показывать меню захвата при использовании сочетания клавиш",
         screenCaptureTitle: "Захват экрана",
         dragOutHandleLabel: "Перетащить",
         loupeStartsOnToggle: "Начинать выделение с включённой лупой"
@@ -866,6 +871,7 @@ extension ScreenshotFeatureStrings {
         shareEnabledToggle: "Permitir enlaces temporales",
         editClipboardImage: "Editar imagen copiada",
         clipboardImageMissing: "Copia una imagen primero",
+        showCaptureMenuOnShortcut: "Mostrar el menú de captura al usar el atajo de teclado",
         screenCaptureTitle: "Herramientas de captura",
         dragOutHandleLabel: "Arrastrar y soltar",
         loupeStartsOnToggle: "Empezar la selección con la lupa activada"
@@ -1007,6 +1013,7 @@ extension ScreenshotFeatureStrings {
         shareEnabledToggle: "Temporäre Links erlauben",
         editClipboardImage: "Kopiertes Bild bearbeiten",
         clipboardImageMissing: "Kopiere zuerst ein Bild",
+        showCaptureMenuOnShortcut: "Aufnahmemenü bei Verwendung des Tastaturkurzbefehls anzeigen",
         screenCaptureTitle: "Bildschirm erfassen",
         dragOutHandleLabel: "Ziehen und ablegen",
         loupeStartsOnToggle: "Auswahl mit aktivierter Lupe starten"
@@ -1148,6 +1155,7 @@ extension ScreenshotFeatureStrings {
         shareEnabledToggle: "Autoriser les liens temporaires",
         editClipboardImage: "Modifier l’image copiée",
         clipboardImageMissing: "Copiez d’abord une image",
+        showCaptureMenuOnShortcut: "Afficher le menu de capture avec le raccourci clavier",
         screenCaptureTitle: "Outils de capture",
         dragOutHandleLabel: "Glisser-déposer",
         loupeStartsOnToggle: "Démarrer la sélection avec la loupe activée"
@@ -1289,6 +1297,7 @@ extension ScreenshotFeatureStrings {
         shareEnabledToggle: "Consenti link temporanei",
         editClipboardImage: "Modifica immagine copiata",
         clipboardImageMissing: "Copia prima un’immagine",
+        showCaptureMenuOnShortcut: "Mostra il menu di acquisizione quando usi la scorciatoia da tastiera",
         screenCaptureTitle: "Acquisizione schermo",
         dragOutHandleLabel: "Trascina e rilascia",
         loupeStartsOnToggle: "Avvia la selezione con la lente attiva"
@@ -1430,6 +1439,7 @@ extension ScreenshotFeatureStrings {
         shareEnabledToggle: "一時リンクを許可",
         editClipboardImage: "コピーした画像を編集",
         clipboardImageMissing: "先に画像をコピーしてください",
+        showCaptureMenuOnShortcut: "キーボードショートカット使用時にキャプチャメニューを表示",
         screenCaptureTitle: "画面キャプチャ",
         dragOutHandleLabel: "ドラッグ＆ドロップ",
         loupeStartsOnToggle: "選択開始時に拡大鏡をオンにする"
@@ -1571,6 +1581,7 @@ extension ScreenshotFeatureStrings {
         shareEnabledToggle: "임시 링크 허용",
         editClipboardImage: "복사한 이미지 편집",
         clipboardImageMissing: "먼저 이미지를 복사하세요",
+        showCaptureMenuOnShortcut: "키보드 단축키 사용 시 캡처 메뉴 표시",
         screenCaptureTitle: "화면 캡처",
         dragOutHandleLabel: "드래그 앤 드롭",
         loupeStartsOnToggle: "선택 시작 시 돋보기 켜기"
@@ -1712,6 +1723,7 @@ extension ScreenshotFeatureStrings {
         shareEnabledToggle: "允许临时链接",
         editClipboardImage: "编辑已拷贝的图像",
         clipboardImageMissing: "请先拷贝一张图像",
+        showCaptureMenuOnShortcut: "使用键盘快捷键时显示捕捉菜单",
         screenCaptureTitle: "屏幕捕捉",
         dragOutHandleLabel: "拖放",
         loupeStartsOnToggle: "开始选择时启用放大镜"
@@ -1853,6 +1865,7 @@ extension ScreenshotFeatureStrings {
         shareEnabledToggle: "允許暫時連結",
         editClipboardImage: "編輯已複製的影像",
         clipboardImageMissing: "請先複製一張影像",
+        showCaptureMenuOnShortcut: "使用鍵盤快捷鍵時顯示擷取選單",
         screenCaptureTitle: "螢幕擷取",
         dragOutHandleLabel: "拖放",
         loupeStartsOnToggle: "開始選取時啟用放大鏡"
@@ -1994,6 +2007,7 @@ extension ScreenshotFeatureStrings {
         shareEnabledToggle: "允許暫時連結",
         editClipboardImage: "編輯已複製的影像",
         clipboardImageMissing: "請先複製一張影像",
+        showCaptureMenuOnShortcut: "使用鍵盤快捷鍵時顯示擷取選單",
         screenCaptureTitle: "螢幕擷取",
         dragOutHandleLabel: "拖放",
         loupeStartsOnToggle: "開始選取時啟用放大鏡"

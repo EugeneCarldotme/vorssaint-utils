@@ -17269,6 +17269,31 @@ struct MetricsTests {
         expect(!ScreenshotSupport.selectionAcceptsPointerInput(sessionIsOver: true,
                                                                capturePending: true),
                "both at once still ignores the pointer")
+        let captureMenuSuite = "com.vorssaint.tests.capture-menu.\(UUID().uuidString)"
+        let captureMenuDefaults = UserDefaults(suiteName: captureMenuSuite)!
+        defer { captureMenuDefaults.removePersistentDomain(forName: captureMenuSuite) }
+        for tool in ScreenCaptureTool.allCases {
+            expect(tool.showsCaptureMenu(fromShortcut: true, defaults: captureMenuDefaults),
+                   "an existing install keeps the capture menu for \(tool)")
+            expect(Defaults.registeredDefaults[tool.showCaptureMenuOnShortcutKey] as? Bool == true
+                    && SettingsBackupSupport.exportKeys().contains(tool.showCaptureMenuOnShortcutKey),
+                   "capture menu preferences default on and travel with settings backups")
+        }
+        captureMenuDefaults.register(defaults: Defaults.registeredDefaults)
+        for hiddenTool in ScreenCaptureTool.allCases {
+            captureMenuDefaults.set(false, forKey: hiddenTool.showCaptureMenuOnShortcutKey)
+            let reopenedDefaults = UserDefaults(suiteName: captureMenuSuite)!
+            for tool in ScreenCaptureTool.allCases {
+                expect(tool.showsCaptureMenu(fromShortcut: true, defaults: reopenedDefaults)
+                        == (tool != hiddenTool),
+                       "hiding the menu for \(hiddenTool) persists without changing \(tool)'s preference")
+                expect(tool.showsCaptureMenu(fromShortcut: false, defaults: reopenedDefaults),
+                       "buttons still open the capture menu even when a shortcut hides it")
+            }
+            captureMenuDefaults.set(true, forKey: hiddenTool.showCaptureMenuOnShortcutKey)
+            expect(hiddenTool.showsCaptureMenu(fromShortcut: true, defaults: captureMenuDefaults),
+                   "turning the setting back on restores the shortcut menu")
+        }
         let recordingOnly: Set<AppFeature> = [.screenRecorder]
         expect(ScreenCaptureTool.available(isAvailable: recordingOnly.contains) == [.recording],
                "the capture chooser hides every uninstalled mode")
@@ -17372,7 +17397,7 @@ struct MetricsTests {
             "override func mouseExited(with event: NSEvent) {\n        refreshPointerState()\n        refreshGuideVisibility()"),
                "system chrome cannot hide the capture chooser while the pointer remains on its display")
         expect(captureSelectionSource.contains(
-            "let height: CGFloat = screenCaptureOptions != nil\n            ? 146\n            : 72")
+            "screenCaptureOptions?.showsCaptureMenu == false ? 82 : 146")
                 && captureSelectionSource.contains(
                     ".opacity(options.selectedTool == .recording ? 1 : 0)"),
                "capture modes reserve the recording controls' height so the chooser never jumps")

@@ -903,7 +903,7 @@ private final class ScreenshotOverlayView: NSView {
         let width = min(screenCaptureOptions == nil ? 680 : 620,
                         max(280, bounds.width - 32))
         let height: CGFloat = screenCaptureOptions != nil
-            ? 146
+            ? (screenCaptureOptions?.showsCaptureMenu == false ? 82 : 146)
             : 72
         guideHost.frame = CGRect(x: bounds.midX - width / 2,
                                  y: bounds.maxY - height - 32,
@@ -1572,11 +1572,18 @@ private struct UnifiedCaptureGuideContent: View {
 
     var body: some View {
         VStack(spacing: 8) {
-            HStack(spacing: 8) {
-                captureModePalette
-                escapeHint
+            if options.showsCaptureMenu {
+                HStack(spacing: 8) {
+                    captureModePalette
+                    escapeHint
+                }
             }
-            contextualGuide
+            HStack(spacing: 8) {
+                contextualGuide
+                if !options.showsCaptureMenu {
+                    escapeHint
+                }
+            }
             RecorderSelectionAudioControls(options: options.recorderAudio)
                 .opacity(options.selectedTool == .recording ? 1 : 0)
                 .allowsHitTesting(options.selectedTool == .recording)
@@ -1625,7 +1632,7 @@ private struct UnifiedCaptureGuideContent: View {
         }
         .foregroundStyle(.secondary)
         .padding(.horizontal, 10)
-        .frame(height: 56)
+        .frame(height: options.showsCaptureMenu ? 56 : 30)
         .background(CaptureChromeBackdrop(
             material: .regularMaterial,
             shape: RoundedRectangle(cornerRadius: 14, style: .continuous)))

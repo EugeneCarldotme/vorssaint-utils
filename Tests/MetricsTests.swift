@@ -17308,8 +17308,8 @@ struct MetricsTests {
         expect(captureSettingsSource.contains("selectedTool")
                 && captureSettingsSource.contains(".pickerStyle(.segmented)")
                 && captureSettingsSource.contains("ToolShortcutRows(tool: currentTool")
-                && captureSettingsSource.contains("RecentCapturesShortcutRows()"),
-               "the capture page keeps tool and shared-history shortcuts in the top section")
+                && !captureSettingsSource.contains("RecentCapturesShortcutRows"),
+               "the capture page keeps only the selected tool shortcut in the top section")
         let recentCaptureServiceSource = (try? String(
             contentsOfFile: "Sources/Vorssaint/Services/QuickTools/RecentCaptureService.swift",
             encoding: .utf8)) ?? ""

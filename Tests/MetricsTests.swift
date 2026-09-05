@@ -17308,8 +17308,8 @@ struct MetricsTests {
         expect(captureSettingsSource.contains("selectedTool")
                 && captureSettingsSource.contains(".pickerStyle(.segmented)")
                 && captureSettingsSource.contains("ToolShortcutRows(tool: currentTool")
-                && !captureSettingsSource.contains("RecentCapturesShortcutRows"),
-               "the capture page keeps only the selected tool shortcut in the top section")
+                && captureSettingsSource.contains("RecentCapturesShortcutRows()"),
+               "the capture page keeps tool and shared-history shortcuts in the top section")
         let recentCaptureServiceSource = (try? String(
             contentsOfFile: "Sources/Vorssaint/Services/QuickTools/RecentCaptureService.swift",
             encoding: .utf8)) ?? ""
@@ -18094,6 +18094,51 @@ struct MetricsTests {
                "an empty sample leaves the loupe highlight harmless instead of dividing by zero")
         expectClose(ScreenshotSupport.captureLoupeZoom(1, adjustedBy: 1), 1.15,
                     "scrolling up zooms the capture loupe in")
+        expectClose(ScreenshotSupport.captureLoupeInitialZoom(
+            rememberLast: false, defaultZoom: 2, lastZoom: 4), 2,
+                    "the capture loupe starts at its chosen default zoom")
+        expectClose(ScreenshotSupport.captureLoupeInitialZoom(
+            rememberLast: true, defaultZoom: 2, lastZoom: 4), 4,
+                    "the capture loupe can restore its last zoom")
+        expectClose(ScreenshotSupport.captureLoupeInitialZoom(
+            rememberLast: false, defaultZoom: .nan, lastZoom: 4), 1,
+                    "an invalid saved magnifier zoom falls back safely")
+        expectClose(ScreenshotSupport.captureLoupeWheelDelta(
+            scrollingDelta: 0, lineDelta: 0, fixedPointDelta: 0.25), 0.25,
+                    "fractional mouse-wheel notches do not disappear when AppKit rounds to zero")
+        expectClose(ScreenshotSupport.captureLoupeWheelDelta(
+            scrollingDelta: 0, lineDelta: -1, fixedPointDelta: 0), -1,
+                    "ordinary line-based mouse-wheel notches remain available to the magnifier")
+        var steppedLoupeZoom = ScreenshotSupport.captureLoupeMinZoom
+        var steppedLoupeSides: [CGFloat] = []
+        for _ in 0..<12 {
+            steppedLoupeZoom = ScreenshotSupport.captureLoupeSteppedZoom(
+                steppedLoupeZoom, adjustedBy: 0.25)
+            steppedLoupeSides.append(
+                ScreenshotSupport.captureLoupeSampleSide(zoom: steppedLoupeZoom))
+        }
+        expect(steppedLoupeSides == [25, 23, 21, 19, 17, 15, 13, 11, 9, 7, 5, 3],
+               "every stepped wheel notch changes one visible level across the whole zoom range")
+        for _ in 0..<12 {
+            steppedLoupeZoom = ScreenshotSupport.captureLoupeSteppedZoom(
+                steppedLoupeZoom, adjustedBy: -0.25)
+        }
+        expectClose(steppedLoupeZoom, ScreenshotSupport.captureLoupeMinZoom,
+                    "all stepped magnifier levels are reversible without dead notches")
+        var fastLoupeZoom: CGFloat = 1
+        for _ in 0..<6 {
+            fastLoupeZoom = ScreenshotSupport.captureLoupeZoom(
+                fastLoupeZoom, adjustedBy: 20)
+        }
+        expect(fastLoupeZoom > 2,
+               "fast magnifier zoom preserves the original packet-by-packet behavior")
+        expect(ScreenshotSupport.captureLoupeUsesSteppedZoom(
+            steppedByDefault: true, optionPressed: false)
+                && !ScreenshotSupport.captureLoupeUsesSteppedZoom(
+                    steppedByDefault: true, optionPressed: true)
+                && ScreenshotSupport.captureLoupeUsesSteppedZoom(
+                    steppedByDefault: false, optionPressed: true),
+               "Option temporarily swaps the chosen magnifier wheel mode")
         expectClose(ScreenshotSupport.captureLoupeZoom(0.5, adjustedBy: -1), 0.5,
                     "capture loupe zoom stays above its minimum")
         expectClose(ScreenshotSupport.captureLoupeZoom(10, adjustedBy: 1),
@@ -18144,6 +18189,11 @@ struct MetricsTests {
                "the previous capture outline stays visible by default, as it always was")
         expect(Defaults.registeredDefaults[DefaultsKey.screenshotLoupeStartsOn] as? Bool == false,
                "the always-on loupe is an opt-in and ships off")
+        expect(Defaults.registeredDefaults[DefaultsKey.screenshotLoupeRememberZoom] as? Bool == false
+                && Defaults.registeredDefaults[DefaultsKey.screenshotLoupeDefaultZoom] as? Double == 1
+                && Defaults.registeredDefaults[
+                    DefaultsKey.screenshotLoupeSteppedZoomByDefault] as? Bool == false,
+               "magnifier zoom preferences preserve the original behavior by default")
         expect(Defaults.registeredDefaults[DefaultsKey.screenshotToolShortcutsEnabled] as? Bool == true,
                "screenshot number shortcuts ship enabled")
         expect(Defaults.registeredDefaults[DefaultsKey.screenshotPreviewPosition] as? String == "",
@@ -20063,8 +20113,13 @@ struct MetricsTests {
                 && backupKeys.contains(DefaultsKey.screenshotClipboardShortcutEnabled)
                 && backupKeys.contains(DefaultsKey.screenshotClipboardShortcut)
                 && backupKeys.contains(DefaultsKey.screenshotPreviewPosition)
+                && backupKeys.contains(DefaultsKey.screenshotLoupeRememberZoom)
+                && backupKeys.contains(DefaultsKey.screenshotLoupeDefaultZoom)
+                && backupKeys.contains(DefaultsKey.screenshotLoupeSteppedZoomByDefault)
                 && backupKeys.contains(DefaultsKey.panelUtilityScreenshot),
                "screenshot preferences travel with the settings backup")
+        expect(!backupKeys.contains(DefaultsKey.screenshotLoupeLastZoom),
+               "the magnifier's last session zoom stays on its own Mac")
         expect(backupKeys.contains(DefaultsKey.whatsAppDownloadsEnabled)
                 && backupKeys.contains(DefaultsKey.whatsAppDownloadsAutomaticEnabled)
                 && backupKeys.contains(DefaultsKey.whatsAppDownloadsCategories)
@@ -23703,6 +23758,11 @@ struct MetricsTests {
         let smoothSchedulerCode = smoothSchedulerSource.components(separatedBy: "\n")
             .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
             .joined(separator: "\n")
+        let steppedLoupeBypass = smoothSchedulerCode
+            .components(separatedBy: "if ScreenshotSelectionController.steppedLoupeNeedsRawWheel(")
+            .dropFirst().first?.components(separatedBy: "return").first ?? ""
+        expect(steppedLoupeBypass.contains("stopGlide()"),
+               "entering stepped magnifier zoom cancels the fast glide before passing the raw notch")
         let scrollInverterSource = (try? String(
             contentsOfFile: "Sources/Vorssaint/Services/ScrollInverter.swift",
             encoding: .utf8)) ?? ""

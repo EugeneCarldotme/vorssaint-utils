@@ -763,6 +763,7 @@ struct EnergySettings: View {
                                 if isOn { Permissions.shared.requestAccessibility() }
                                 BrightnessService.shared.syncWithPreferences()
                             }
+                        DisplayBrightnessShortcutControls()
                         if brightness.brightnessOSDSupported {
                             SettingsToggleWithCaption(title: strings.osdToggle,
                                                       caption: strings.osdCaption,

@@ -22902,6 +22902,8 @@ struct MetricsTests {
                 && SettingsBackupSupport.exportKeys().contains(DefaultsKey.recorderSystemAudio),
                "the tap grant this Mac gave stays out of the backup while the sound choice travels")
         var pauseTimeline = RecorderPauseTimeline()
+        RecorderSampleTimingTests.run { expect($0, $1) }
+        RecorderWriterTests.run { expect($0, $1) }
         expect(pauseTimeline.pause(at: 3) && !pauseTimeline.pause(at: 4),
                "a recording enters one pause only once")
         expect(pauseTimeline.elapsed(since: 0, at: 7) == 3

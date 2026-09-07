@@ -862,6 +862,7 @@ final class AppSwitcher: ObservableObject {
             return
         }
         let enumerationSnapshot = WindowEnumerator.snapshot()
+        let displayScope = currentDisplayScope
         enumerationQueue.async { [weak self] in
             guard let self,
                   self.routeLock.withLock({
@@ -871,10 +872,11 @@ final class AppSwitcher: ObservableObject {
                       )
                   })
             else { return }
-            let allWindows = WindowEnumerator.enumerateSwitcherWindows(
+            let enumeration = WindowEnumerator.enumerateSwitcherWindows(
                 groupByApp: groupByApp,
                 preservingGroupedWindows: preservesGroupedWindows,
                 snapshot: enumerationSnapshot,
+                displayScope: displayScope,
                 isCancelled: { [weak self] in
                     guard let self else { return true }
                     return !self.routeLock.withLock {
@@ -894,16 +896,16 @@ final class AppSwitcher: ObservableObject {
             let sessionWindows: [SwitcherItem]
             switch requested.scope {
             case .allApps:
-                sessionWindows = allWindows
+                sessionWindows = enumeration.items
             case .frontmostApp:
                 sessionWindows = SwitcherSupport.frontmostAppWindows(
-                    allItems: allWindows,
+                    allItems: enumeration.items,
                     frontmostPID: reportedFrontPID)
             }
             let needsFocusedWindowLookup = !sessionWindows.isEmpty
                 && SwitcherSupport.needsFocusedWindowLookup(
                     frontmostPID: reportedFrontPID,
-                    items: sessionWindows)
+                    items: enumeration.sourceItems)
             let focusedSourceWindowID = needsFocusedWindowLookup
                 ? self.focusedWindowID(for: reportedFrontPID,
                                        accessibilityGranted: enumerationSnapshot.accessibilityGranted)
@@ -912,7 +914,8 @@ final class AppSwitcher: ObservableObject {
                 self?.finishPendingSession(generation: generation,
                                            reportedFrontPID: reportedFrontPID,
                                            focusedSourceWindowID: focusedSourceWindowID,
-                                           windows: sessionWindows)
+                                           windows: sessionWindows,
+                                           sourceItems: enumeration.sourceItems)
             }
         }
     }
@@ -920,7 +923,8 @@ final class AppSwitcher: ObservableObject {
     private func finishPendingSession(generation: UInt64,
                                       reportedFrontPID: pid_t,
                                       focusedSourceWindowID: CGWindowID?,
-                                      windows: [SwitcherItem]) {
+                                      windows: [SwitcherItem],
+                                      sourceItems: [SwitcherItem]) {
         guard routeLock.withLock({
             SwitcherSupport.isCurrentSessionStart(
                 generation: generation,
@@ -939,19 +943,14 @@ final class AppSwitcher: ObservableObject {
         // time (issue #324).
         let source = SwitcherSupport.sessionSourceItem(frontmostPID: reportedFrontPID,
                                                        focusedWindowID: focusedSourceWindowID,
-                                                       items: windows)
+                                                       items: sourceItems)
         // Keep the original source for activation, but start at the first
         // entry if display filtering removes the foreground window.
-        let scoped = windowsOnCurrentDisplay(windows)
-        guard !scoped.isEmpty else {
-            discardPendingSessionStart(generation: generation)
-            return
-        }
         let listedSource = source.flatMap { item in
-            scoped.contains { $0.id == item.id } ? item : nil
+            windows.contains { $0.id == item.id } ? item : nil
         }
 
-        let list = orderedForSession(scoped, currentID: listedSource?.id)
+        let list = orderedForSession(windows, currentID: listedSource?.id)
         guard let pending = routeLock.withLock({ () -> SwitcherPendingSessionStart? in
             guard SwitcherSupport.isCurrentSessionStart(
                 generation: generation,
@@ -1661,19 +1660,16 @@ final class AppSwitcher: ObservableObject {
         return screens[index]
     }
 
-    /// Filter on the main thread because NSScreen is used to locate the pointer.
-    private func windowsOnCurrentDisplay(_ items: [SwitcherItem]) -> [SwitcherItem] {
+    /// Freeze the pointer's display before the asynchronous window walk.
+    private var currentDisplayScope: WindowEnumerator.DisplayScope? {
         guard UserDefaults.standard.bool(forKey: DefaultsKey.switcherCurrentDisplayOnly) else {
-            return items
+            return nil
         }
         let screens = NSScreen.screens
-        guard let target = NSScreen.withMouse,
-              let targetIndex = screens.firstIndex(where: { $0.displayID == target.displayID })
-        else { return [] }
-        return SwitcherSupport.itemsOnDisplay(
-            items,
-            displayBounds: screens.map { CGDisplayBounds($0.displayID) },
-            targetIndex: targetIndex)
+        let targetID = NSScreen.withMouse?.displayID
+        return WindowEnumerator.DisplayScope(
+            bounds: screens.map { CGDisplayBounds($0.displayID) },
+            targetIndex: screens.firstIndex { $0.displayID == targetID } ?? -1)
     }
 
     private var placementVisibleFrame: CGRect {

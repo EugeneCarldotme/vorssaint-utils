@@ -32,6 +32,13 @@ struct BrightnessSection: View {
                         .font(.system(size: 10.5))
                         .foregroundStyle(.red)
                 }
+                Divider()
+                VStack(alignment: .leading, spacing: 8) {
+                    DisplayBrightnessShortcutControls()
+                }
+                .font(.system(size: 11.5, weight: .medium))
+                .toggleStyle(.checkbox)
+                .controlSize(.small)
                 if service.brightnessOSDSupported {
                     Divider()
                     Toggle(strings.osdToggle, isOn: $brightnessOSDEnabled)

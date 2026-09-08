@@ -37,7 +37,7 @@ This fix addresses the verified cmux helper-window case. Reproduce closing and r
 - Live helper-window tags reproduce acceptance by the old predicate and rejection by the updated predicate.
 - Regression checks cover both observed helper-window tag values.
 - The original working tree passed 10,632 checks, preference-cleanup tests, a release build, and the bundled self-test. That tree also contained unrelated mixer edits.
-- The changed app has not been installed or verified through the switcher UI.
+- The reporter verified the signed Developer build in cmux. The follow-up screenshot shows one real window preview and a count of one, with both blank entries removed. Ghostty remains unverified.
 
 ## Environment
 

@@ -562,8 +562,9 @@ enum SwitcherSupport {
                                               subrole: String?,
                                               fillsScreen: Bool,
                                               hasNormalWindowLevel: Bool,
-                                              acceptsUndescribedSubroles: Bool) -> Bool {
-        guard role == "AXWindow" else { return false }
+                                              acceptsUndescribedSubroles: Bool,
+                                              isExcludedFromWindowCycle: Bool = false) -> Bool {
+        guard role == "AXWindow", !isExcludedFromWindowCycle else { return false }
         if subrole == "AXUnknown" {
             return hasNormalWindowLevel || acceptsUndescribedSubroles || fillsScreen
         }

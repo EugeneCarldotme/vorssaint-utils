@@ -832,7 +832,11 @@ enum WindowEnumerator {
                 subrole: subrole,
                 fillsScreen: fillsScreen,
                 hasNormalWindowLevel: hasNormalWindowLevel,
-                acceptsUndescribedSubroles: acceptsUndescribedSubroles)
+                acceptsUndescribedSubroles: acceptsUndescribedSubroles,
+                // Borderless helper windows can appear in AXWindows even when
+                // the app explicitly excludes them from window cycling.
+                isExcludedFromWindowCycle: AXWindowResolver.windowID(for: window)
+                    .map(SpaceWindowBridge.isExcludedFromWindowCycle) ?? false)
         }
         guard !isCancelled() else { return false }
         return stringAttribute(window, kAXRoleAttribute as String) == "AXWindow"

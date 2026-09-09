@@ -5375,6 +5375,13 @@ struct MetricsTests {
                && !CleanerPolicy.precheckCacheEntry("com.spotify.client")
                && !CleanerPolicy.precheckCacheEntry("ms-playwright"),
                "system, sensitive and unattributable caches start unchecked")
+        expect(CleanerPolicy.isExcludedCacheEntry("com.spotify.client")
+               && CleanerPolicy.isExcludedCacheEntry("COM.SPOTIFY.CLIENT")
+               && CleanerPolicy.isExcludedCacheEntry("com.spotify.client.helper"),
+               "Spotify caches holding Spicetify state are excluded even when all caches are selected")
+        expect(!CleanerPolicy.isExcludedCacheEntry("com.vendor.editor")
+               && !CleanerPolicy.isExcludedCacheEntry("ms-playwright"),
+               "ordinary and downloadable sensitive caches remain available for review")
         expect(CleanerSupport.Category.deviceBackups.rawValue == 6
                && CleanerSupport.Category.allCases.count == 7,
                "device backups joined the cleaner with a stable category id")

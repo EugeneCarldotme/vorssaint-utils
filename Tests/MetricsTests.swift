@@ -2845,7 +2845,7 @@ struct MetricsTests {
                 hasNormalWindowLevel: true,
                 acceptsUndescribedSubroles: false,
                 isExcludedFromWindowCycle: SpaceHopSupport.isExcludedFromWindowCycle(windowTagsLow: tags)),
-                   "App Switcher excludes cmux helper windows that opt out of window cycling")
+                   "App Switcher excludes helper windows that opt out of window cycling")
         }
         expect(SwitcherSupport.isSwitchableNonstandardWindow(
             role: "AXWindow",

@@ -7,21 +7,26 @@ enum RecorderWriterTests {
     static func run(expect: @escaping (Bool, String) -> Void) {
         let finished = DispatchSemaphore(value: 0)
         Task.detached {
-            do { try await check(expect: expect) }
+            do {
+                try await check(expect: expect)
+                try await check(expect: expect, delayedVideo: true)
+                try await check(expect: expect, delayedVideo: true, capturesAudio: false)
+            }
             catch { expect(false, "recorder writer fixture failed: \(error)") }
             finished.signal()
         }
         finished.wait()
     }
 
-    private static func check(expect: (Bool, String) -> Void) async throws {
+    private static func check(expect: (Bool, String) -> Void,
+                              delayedVideo: Bool = false, capturesAudio: Bool = true) async throws {
         let url = FileManager.default.temporaryDirectory.appendingPathComponent("recorder-sync-\(UUID()).mov")
         defer { try? FileManager.default.removeItem(at: url) }
         let pause = RecorderPauseClock()
         let origin = CMTime(value: 100, timescale: 1)
         let microphoneClock = RecorderSampleTimingTests.offsetClock()
         let writer = RecorderWriter(url: url, pixelSize: CGSize(width: 64, height: 64), frameRate: 30,
-            capturesSystemAudio: true, capturesMicrophone: true, pauseClock: pause)!
+            capturesSystemAudio: capturesAudio, capturesMicrophone: capturesAudio, pauseClock: pause)!
         precondition(writer.start())
         writer.beginSession(at: origin)
 
@@ -34,7 +39,7 @@ enum RecorderWriterTests {
                 pause.resume(at: 101)
             }
             let source = origin + time(Double(index) / 100 + (index >= 50 ? 0.5 : 0))
-            if [0, 40, 80].contains(index) {
+            if [delayedVideo ? 20 : 0, 40, 80].contains(index) {
                 writer.append(video(at: source), kind: .video)
             }
             let audio = RecorderSampleTimingTests.audio(count: 480, time: source)
@@ -56,25 +61,33 @@ enum RecorderWriterTests {
         }
         let finished = await writer.finish(at: origin + time(1.5))
         expect(finished, "the raw multitrack MOV finishes")
-        expect(writer.videoFrameCount == 3, "late-arriving video at the recording origin is retained")
+        expect(writer.videoFrameCount == 3, "all three captured video frames are retained")
         guard finished else { return }
         let asset = AVURLAsset(url: url)
         let tracks = try await asset.load(.tracks)
-        expect(tracks.count == 3, "the raw MOV contains video, system audio and microphone")
+        expect(tracks.count == (capturesAudio ? 3 : 1), "the raw MOV contains exactly the enabled tracks")
         for track in tracks {
             let type = track.mediaType
             let range = try await track.load(.timeRange)
             expect(abs(range.end.seconds - 1) < 0.05, "\(type.rawValue) ends on the shared timeline after the pause")
             if type == .video {
+                let segments = try await track.load(.segments)
+                expect(!segments.contains { $0.isEmpty && $0.timeMapping.target.start.seconds < 0.001 },
+                       "video has no empty opening edit when the first capture is delayed")
                 expect(abs(range.start.seconds) < 0.001, "video begins at the explicit recording origin")
                 let reader = try AVAssetReader(asset: asset)
-                let output = AVAssetReaderTrackOutput(track: track, outputSettings: nil)
+                let output = AVAssetReaderTrackOutput(track: track, outputSettings: [
+                    kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA,
+                ])
                 reader.add(output)
                 precondition(reader.startReading())
                 var timestamps: [Double] = []
                 while let sample = output.copyNextSampleBuffer() {
                     timestamps.append(CMSampleBufferGetPresentationTimeStamp(sample).seconds)
                 }
+                expect(timestamps.first.map { abs($0) < 0.001 } ?? false,
+                       "the first decoded image starts at zero, including delayed capture with sound off")
+                expect(reader.status == .completed, "the saved video decodes fully")
                 expect([0.4, 0.8].allSatisfy { expected in timestamps.contains { abs($0 - expected) < 0.001 } },
                        "the raw MOV preserves video marker timestamps across pause/resume")
                 continue

@@ -165,13 +165,16 @@ final class RecorderWriter {
 
         switch kind {
         case .video:
+            // Hold the first captured image over startup latency. Keep the
+            // shared origin and every later timestamp so audio stays aligned.
+            let videoTime: CMTime = videoFrameCount == 0 ? .zero : shifted
             guard videoInput.isReadyForMoreMediaData,
-                  let retimed = RecorderSampleTiming.retimed(sampleBuffer, to: shifted)
+                  let retimed = RecorderSampleTiming.retimed(sampleBuffer, to: videoTime)
             else { return }
             if videoInput.append(retimed) {
                 videoFrameCount += 1
                 lastVideoSample = sampleBuffer
-                lastVideoTime = shifted
+                lastVideoTime = videoTime
             } else {
                 failed = true
             }

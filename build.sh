@@ -26,7 +26,7 @@ trap cleanup EXIT
 # into the build sweeps like any other ending.
 trap 'exit 1' INT TERM HUP
 
-# Flags: --dev builds the local-only "Vorssaint Developer" variant (its own
+# Flags: --dev builds the local-only "Vorssaint (Developer)" variant (its own
 # bundle id, so it coexists with the official app); --install puts it in /Applications.
 DEV=0
 INSTALL=0
@@ -40,7 +40,7 @@ for arg in "$@"; do
 done
 
 if (( DEV )); then
-    APP_NAME="Vorssaint Developer"
+    APP_NAME="Vorssaint (Developer)"
     EXECUTABLE="VorssaintDeveloper"
     APP_BUNDLE_ID="com.vorssaint.utils.dev"
     BUILD_VARIANT_FLAGS=(-D VORSSAINT_DEVELOPMENT)

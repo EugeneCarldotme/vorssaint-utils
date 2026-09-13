@@ -7,7 +7,7 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Summary
-App Switcher opens more smoothly, keeps more apps available, offers display filtering, excludes hidden helper windows and preserves window focus; on-screen keyboard input keeps panels open. Display brightness gains optional custom shortcuts, Screenshot gains custom editor shortcuts and optional preview focus, Scratchpad adds tab shortcuts, the menu bar panel keeps a continuous background, Cleaner protects app customizations, and Quit on close preserves incoming calls.
+App Switcher opens more smoothly, keeps more apps available, filters by display, excludes hidden helper windows and preserves focus; on-screen keyboard input keeps panels open. Brightness, Screenshot and Scratchpad gain shortcuts, Screenshot gains preview focus, menu bar recovery waits for placement, its panel keeps a continuous background, Cleaner protects customizations, Quit on close preserves incoming calls, and screen recordings keep video and audio aligned.
 
 ### Added
 - Display brightness gains optional custom shortcuts for the primary display or the display under the pointer. Thanks to @EugeneCarldotme.
@@ -19,6 +19,8 @@ App Switcher opens more smoothly, keeps more apps available, offers display filt
 - The App Switcher opens more smoothly when many windows are open. Thanks to @bebricoOOOOOOf.
 
 ### Fixed
+- Screen recordings keep video, system sound and microphone audio aligned through pauses, with no blank opening. Thanks to @EugeneCarldotme and @fakepooh.
+- Menu bar icon recovery waits for placement, preserves full-size content and avoids overlapping attempts. Thanks to @Borisserz.
 - Panels and App Switcher stay open when typing with the Accessibility Keyboard, including the first use. Thanks to @fermincasagrande.
 - Quit on close keeps incoming calls connected when their app has no open window. Thanks to @Borisserz.
 - Cleaner preserves installed customizations stored in an app's cache when all optional caches are selected. Thanks to @EugeneCarldotme.

@@ -70,6 +70,13 @@ def main():
           + "}\n}\n")
     notch = "Sources/Vorssaint/Services/Notch/NotchService.swift"
     canvas = "Sources/Vorssaint/Services/Notch/NotchWindowHost.swift"
+    write("NotchPresentationRefresh.swift", "import Foundation\nimport Combine\n"
+          + "extension NotchPresentationRefreshContract {\nfinal class Service: State {\n"
+          + declaration(notch, "    func refreshPresentation(")
+          + declaration(notch, "    func updateCaptureHeight(")
+          + declaration(notch, "    func removeCapture(")
+          + declaration(notch, "    private func clearCapture(")
+          + "}\n}\n")
     write("ShelfDropRouting.swift", "import AppKit\n\nextension ShelfDropRoutingContract {\n"
           + declaration(canvas, "struct NotchFileDropActions {")
           + "final class ShelfService: ShelfState {\nstatic var shared = ShelfService()\n"

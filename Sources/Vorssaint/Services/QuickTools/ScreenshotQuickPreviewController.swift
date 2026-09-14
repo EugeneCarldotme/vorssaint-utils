@@ -101,7 +101,7 @@ final class ScreenshotQuickPreviewController {
             hoverChanged: { [weak self] inside in self?.hoverChanged(inside) },
             embedded: wantsNotch)
         if wantsNotch, NotchService.shared.presentCapture(
-            id: presentationID, content: AnyView(content),
+            id: presentationID, content: AnyView(content), height: Self.size(showingLink: model.sharedRecord != nil).height,
             fallback: { [weak self] in
                 guard let self else { return }
                 self.shownInNotch = false
@@ -371,6 +371,10 @@ final class ScreenshotQuickPreviewController {
     }
 
     private func resizePanel(showingLink: Bool) {
+        if shownInNotch {
+            NotchService.shared.updateCaptureHeight(id: presentationID, height: Self.size(showingLink: showingLink).height)
+            return
+        }
         panel?.setFrame(previewFrame(for: Self.size(showingLink: showingLink)),
                         display: true,
                         animate: true)

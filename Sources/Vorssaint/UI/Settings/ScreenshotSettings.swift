@@ -265,19 +265,7 @@ struct ScreenshotCaptureSettings: View {
 
     private var defaultActionRow: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Picker(strings.defaultActionLabel, selection: Binding(
-                get: { defaultActionRaw },
-                set: { raw in
-                    let action = ScreenshotDefaultAction(rawValue: raw) ?? .none
-                    defaultActionRaw = action.rawValue
-                    copyToClipboard = action == .copy || action == .saveAndCopy
-                })) {
-                Text(strings.defaultActionNone).tag(ScreenshotDefaultAction.none.rawValue)
-                Text(strings.saveButton).tag(ScreenshotDefaultAction.save.rawValue)
-                Text(strings.defaultActionSaveAndCopy).tag(ScreenshotDefaultAction.saveAndCopy.rawValue)
-                Text(strings.copyButton).tag(ScreenshotDefaultAction.copy.rawValue)
-                Text(strings.editButton).tag(ScreenshotDefaultAction.edit.rawValue)
-            }
+            ScreenshotDefaultActionPicker(strings: strings, selection: $defaultActionRaw)
             Text(strings.defaultActionCaption)
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -602,6 +590,28 @@ private struct ScreenshotSharedLinksView: View {
                 showingDeleteError = true
             }
             deletingID = nil
+        }
+    }
+}
+
+struct ScreenshotDefaultActionPicker: View {
+    let strings: ScreenshotFeatureStrings
+    @Binding var selection: String
+    @AppStorage(DefaultsKey.screenshotCopyToClipboard) private var copyToClipboard = false
+
+    var body: some View {
+        Picker(strings.defaultActionLabel, selection: Binding(
+            get: { selection },
+            set: { raw in
+                let action = ScreenshotDefaultAction(rawValue: raw) ?? .none
+                selection = action.rawValue
+                copyToClipboard = action == .copy || action == .saveAndCopy
+            })) {
+            Text(strings.defaultActionNone).tag(ScreenshotDefaultAction.none.rawValue)
+            Text(strings.saveButton).tag(ScreenshotDefaultAction.save.rawValue)
+            Text(strings.defaultActionSaveAndCopy).tag(ScreenshotDefaultAction.saveAndCopy.rawValue)
+            Text(strings.copyButton).tag(ScreenshotDefaultAction.copy.rawValue)
+            Text(strings.editButton).tag(ScreenshotDefaultAction.edit.rawValue)
         }
     }
 }

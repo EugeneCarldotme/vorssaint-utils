@@ -44,6 +44,10 @@ final class ScreenshotQuickPreviewController {
     private var dismissWork: DispatchWorkItem?
     private var autoDismissDuration: TimeInterval = 12
     private var closed = false
+    private let presentationID = UUID()
+    private var shownInNotch = false
+    private var didRunDefaultAction = false
+    private var pointerInside = false
 
     var protectedWindowIDs: Set<CGWindowID> {
         guard let panel, panel.isVisible, panel.windowNumber > 0 else { return [] }
@@ -65,13 +69,20 @@ final class ScreenshotQuickPreviewController {
         self.onClose = onClose
     }
 
-    func show(displayPreview: Bool = true) {
-        guard panel == nil, !closed else { return }
-        let actionSucceeded = runDefaultAction(defaultAction)
-        if !displayPreview && actionSucceeded {
-            close()
-            return
+    func show(displayPreview: Bool = true, inNotch: Bool = true) {
+        guard panel == nil, !shownInNotch, !closed else { return }
+        if !didRunDefaultAction {
+            didRunDefaultAction = true
+            let actionSucceeded = runDefaultAction(defaultAction)
+            if !displayPreview && actionSucceeded {
+                close()
+                return
+            }
+            autoDismissDuration = actionSucceeded ? 3 : 12
+            scanForQR()
         }
+        let wantsNotch = inNotch && NotchSupport.routes(.capture)
+            && NotchService.shared.acceptsSystemFeedback
         let content = ScreenshotQuickPreviewView(
             image: Self.thumbnail(for: capture.image),
             strings: strings,
@@ -87,14 +98,29 @@ final class ScreenshotQuickPreviewController {
             copySharedLink: { [weak self] in self?.copySharedLink() },
             deleteSharedLink: { [weak self] in self?.deleteSharedLink() },
             showQR: { [weak self] in self?.showQRResult() },
-            hoverChanged: { [weak self] inside in
-                if inside {
-                    self?.dismissWork?.cancel()
-                    self?.dismissWork = nil
-                } else {
-                    self?.scheduleAutoDismiss()
+            hoverChanged: { [weak self] inside in self?.hoverChanged(inside) },
+            embedded: wantsNotch)
+        if wantsNotch, NotchService.shared.presentCapture(
+            id: presentationID, content: AnyView(content),
+            fallback: { [weak self] in
+                guard let self else { return }
+                self.shownInNotch = false
+                self.pointerInside = false
+                if let keyMonitor = self.keyMonitor { NSEvent.removeMonitor(keyMonitor) }
+                self.keyMonitor = nil
+                if let globalKeyMonitor = self.globalKeyMonitor {
+                    NSEvent.removeMonitor(globalKeyMonitor)
                 }
-            })
+                self.globalKeyMonitor = nil
+                self.show(inNotch: false)
+            },
+            close: { [weak self] in self?.close() },
+            hover: { [weak self] inside in self?.hoverChanged(inside) }) {
+            shownInNotch = true
+            if let window = NotchService.shared.presentationWindow { installKeyMonitor(for: window) }
+            finishShowing()
+            return
+        }
         let host = NSHostingController(rootView: content)
         let size = Self.size(showingLink: false)
         let panel = ScreenshotQuickPreviewPanel(
@@ -126,13 +152,22 @@ final class ScreenshotQuickPreviewController {
         }
         // A performed action turns the preview into a short confirmation; a
         // failed one keeps the full stay so the person can still act by hand.
-        autoDismissDuration = actionSucceeded ? 3 : 12
-        scheduleAutoDismiss()
-        scanForQR()
+        finishShowing()
     }
 
-    /// Runs the Settings-configured action once, right after the preview
-    /// appears, and reports whether anything happened. Only the halves that
+    private func finishShowing() {
+        scheduleAutoDismiss()
+    }
+
+    private func hoverChanged(_ inside: Bool) {
+        pointerInside = inside
+        dismissWork?.cancel()
+        dismissWork = nil
+        if !inside { scheduleAutoDismiss() }
+    }
+
+    /// Runs the Settings-configured action once, before presenting the preview,
+    /// and reports whether anything happened. Only the halves that
     /// actually succeeded gray their buttons out, so a failed copy leaves
     /// Copy available. Unlike `perform(_:)` this never closes the panel: it
     /// stays up as confirmation, and the person can still edit or discard
@@ -213,6 +248,10 @@ final class ScreenshotQuickPreviewController {
         }
         panel?.orderOut(nil)
         panel = nil
+        if shownInNotch {
+            shownInNotch = false
+            NotchService.shared.removeCapture(id: presentationID)
+        }
         onClose()
     }
 
@@ -338,7 +377,7 @@ final class ScreenshotQuickPreviewController {
     }
 
     private func scheduleAutoDismiss() {
-        guard !closed else { return }
+        guard !closed, !pointerInside, !model.sharing, !model.deletingShare else { return }
         dismissWork?.cancel()
         let work = DispatchWorkItem { [weak self] in self?.close() }
         dismissWork = work
@@ -347,13 +386,21 @@ final class ScreenshotQuickPreviewController {
 
     private func installKeyMonitor(for panel: NSPanel) {
         globalKeyMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
-            guard event.keyCode == kVK_Escape,
+            guard let self, !self.closed, let panel = self.panel ?? NotchService.shared.presentationWindow,
+                  panel.isVisible,
+                  !self.shownInNotch || NotchService.shared.isCaptureVisible(id: self.presentationID),
+                  panel.attachedSheet == nil, !(panel.firstResponder is NSText),
+                  !ShortcutCapture.isCapturing,
+                  event.keyCode == kVK_Escape,
                   event.modifierFlags.intersection([.command, .control, .option, .shift]).isEmpty
             else { return }
-            self?.close()
+            self.close()
         }
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self, weak panel] event in
-            guard let self, let panel else { return event }
+            guard let self, !self.closed, let panel, panel.isVisible,
+                  !self.shownInNotch || NotchService.shared.isCaptureVisible(id: self.presentationID),
+                  panel.attachedSheet == nil, !(panel.firstResponder is NSText),
+                  !ShortcutCapture.isCapturing else { return event }
             if event.keyCode == kVK_Escape,
                event.modifierFlags.intersection([.command, .control, .option, .shift]).isEmpty {
                 self.close()
@@ -428,6 +475,7 @@ private struct ScreenshotQuickPreviewView: View {
     let deleteSharedLink: () -> Void
     let showQR: () -> Void
     let hoverChanged: (Bool) -> Void
+    var embedded = false
     @AppStorage(DefaultsKey.screenshotSharingEnabled) private var sharingEnabled = true
 
     var body: some View {
@@ -440,7 +488,7 @@ private struct ScreenshotQuickPreviewView: View {
                     .interpolation(.high)
                     .scaledToFit()
                     .frame(maxWidth: 320, maxHeight: 138)
-                    .frame(width: 320, height: 138)
+                    .frame(width: embedded ? nil : 320, height: 138)
                     .background(Color.black.opacity(0.12))
                     .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
                     .overlay(
@@ -498,15 +546,20 @@ private struct ScreenshotQuickPreviewView: View {
             }
         }
         .padding(10)
-        .frame(width: ScreenshotQuickPreviewController.size(showingLink: false).width,
-               height: ScreenshotQuickPreviewController.size(
+        .frame(width: embedded ? nil : ScreenshotQuickPreviewController.size(showingLink: false).width,
+               height: embedded ? nil : ScreenshotQuickPreviewController.size(
                    showingLink: model.sharedRecord != nil).height)
-        .background(.regularMaterial,
-                    in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .strokeBorder(Color.primary.opacity(0.10), lineWidth: 1)
-        )
+        .background {
+            if !embedded {
+                RoundedRectangle(cornerRadius: 16, style: .continuous).fill(.regularMaterial)
+            }
+        }
+        .overlay {
+            if !embedded {
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .strokeBorder(Color.primary.opacity(0.10), lineWidth: 1)
+            }
+        }
         .onHover(perform: hoverChanged)
     }
 
@@ -553,7 +606,7 @@ private struct ScreenshotQuickPreviewView: View {
             .accessibilityLabel(strings.deleteLink)
         }
         .padding(.horizontal, 9)
-        .frame(width: 320, height: 48)
+        .frame(width: embedded ? nil : 320, height: 48)
         .background(Color.primary.opacity(0.055),
                     in: RoundedRectangle(cornerRadius: 9, style: .continuous))
         .overlay(

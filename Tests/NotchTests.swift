@@ -8,6 +8,7 @@ enum NotchTests {
     static func run(expect: (Bool, String) -> Void) {
         NotchPresentationRefreshContract.run(expect: expect)
         NotchCaptureKeyboardTests.run(expect: expect)
+        ScreenshotOutputContract.run(expect: expect)
         NotchDownloadProgressTests.run(expect: expect)
         NotchSliderEditingTests.run(expect: expect)
         NotchFileToolsTests.run(expect: expect)

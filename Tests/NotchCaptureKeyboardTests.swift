@@ -153,8 +153,12 @@ enum NotchCaptureKeyboardTests {
         expect(preview.closed && preview.actions.isEmpty,
                "global Escape dismisses a visible notch capture without deleting output")
         preview.closed = false
-        expect(Event.handler?(escape) == nil && preview.closed,
+        expect(Event.handler?(escape) != nil && preview.closed,
                "local Escape dismisses an unfocused visible capture")
+        preview.closed = false
+        let dialog = Contract.NSPanel()
+        expect(Event.handler?(Event(window: dialog, keyCode: UInt16(kVK_Escape))) != nil && preview.closed,
+               "Escape dismisses an unfocused preview and still reaches another window's dialog")
         preview.closed = false
         preview.shownInNotch = false
         notch.expanded = false

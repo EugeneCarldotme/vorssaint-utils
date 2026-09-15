@@ -413,7 +413,8 @@ final class ScreenshotQuickPreviewController {
             if event.keyCode == kVK_Escape,
                event.modifierFlags.intersection([.command, .control, .option, .shift]).isEmpty {
                 self.close()
-                return nil
+                // Dismiss our preview without swallowing another window's Escape.
+                return event.window === panel ? nil : event
             }
             guard event.window === panel else { return event }
             let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)

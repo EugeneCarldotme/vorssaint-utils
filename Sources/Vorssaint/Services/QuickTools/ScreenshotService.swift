@@ -22,6 +22,7 @@ final class ScreenshotService: ObservableObject {
     private let clipboardHotkey = QuickToolHotkey(id: 24)
     private var session: ScreenshotSelectionController?
     private var preview: ScreenshotQuickPreviewController?
+    private var pendingRecoveryPreviews: [ScreenshotSelectionController.Capture] = []
     private var editors: [ScreenshotEditorController] = []
     private var countdown: DispatchWorkItem?
     private var countdownRemaining = 0
@@ -154,6 +155,7 @@ final class ScreenshotService: ObservableObject {
         autoCopyTask?.cancel()
         autoCopyTask = nil
         autoCopyGeneration += 1
+        pendingRecoveryPreviews.removeAll()
         scrollingTask?.cancel()
         scrollingTask = nil
         scrollingCaptureID = nil
@@ -442,7 +444,10 @@ final class ScreenshotService: ObservableObject {
                 case .saveAndCopy:
                     guard let result = self.saveAndCopyDirect(capture) else { return [] }
                     saved = result.outcome
-                    return result.copied ? [.save, .copy] : [.save]
+                    var performed: Set<ScreenshotQuickPreviewController.Action> = []
+                    if result.outcome != nil { performed.insert(.save) }
+                    if result.copied { performed.insert(.copy) }
+                    return performed
                 case .discard:
                     // If this capture was already written to disk — whether
                     // by the default action or a manual Save — Trash should
@@ -466,7 +471,10 @@ final class ScreenshotService: ObservableObject {
                 }
                 self.shareDirect(capture, duration: duration, completion: completion)
             },
-            onClose: { [weak self] in self?.preview = nil })
+            onClose: { [weak self] in
+                self?.preview = nil
+                self?.scheduleRecoveryPreview()
+            })
         preview = controller
         controller.show(displayPreview: showPreview)
     }
@@ -543,13 +551,31 @@ final class ScreenshotService: ObservableObject {
         guard editors.contains(where: { $0 === editor }) else { return }
         editors.removeAll { $0 === editor }
         WindowActivationPolicy.release()
+        scheduleRecoveryPreview()
+    }
+
+    // Defer failed hidden captures while the user is viewing another capture.
+    // Waiting one main-queue turn also lets a synchronous replacement finish.
+    private func recoverFailedCapture(_ capture: ScreenshotSelectionController.Capture) {
+        pendingRecoveryPreviews.append(capture)
+        scheduleRecoveryPreview()
+    }
+
+    private func scheduleRecoveryPreview() {
+        DispatchQueue.main.async { [weak self] in self?.showNextRecoveryPreview() }
+    }
+
+    private func showNextRecoveryPreview() {
+        guard preview == nil, editors.isEmpty, !pendingRecoveryPreviews.isEmpty else { return }
+        let capture = pendingRecoveryPreviews.removeFirst()
+        presentPreview(capture, defaultAction: .none)
     }
 
     /// Keep automatic copying quiet; recover failed hidden captures in a preview.
     private func autoCopy(_ capture: ScreenshotSelectionController.Capture,
                           recoverOnFailure: Bool = false) {
         let recover = { [weak self] in
-            if recoverOnFailure { self?.restorePreview(capture) }
+            if recoverOnFailure { self?.recoverFailedCapture(capture) }
         }
         let downscale = UserDefaults.standard.bool(forKey: DefaultsKey.screenshotDownscale)
         guard let folder = ScreenshotSupport.copiedFilesDirectory() else {
@@ -668,7 +694,7 @@ final class ScreenshotService: ObservableObject {
     /// the HUD keeps the plain saved message, so the caller leaves the Copy
     /// button available instead of claiming work that never happened.
     private func saveAndCopyDirect(_ capture: ScreenshotSelectionController.Capture)
-        -> (outcome: SaveOutcome, copied: Bool)? {
+        -> (outcome: SaveOutcome?, copied: Bool)? {
         guard let image = flatten(capture),
               let data = ScreenshotRenderer.pngData(from: image)
         else { return nil }
@@ -680,7 +706,8 @@ final class ScreenshotService: ObservableObject {
                 Self.rewindNumberSequence(toReuse: consumedNumber)
             }
             NSSound.beep()
-            return nil
+            // Copy through its own temporary file even when the save folder is unwritable.
+            return (nil, copyDirect(capture))
         }
 
         let copied = ScreenshotEditorController.copyFile(

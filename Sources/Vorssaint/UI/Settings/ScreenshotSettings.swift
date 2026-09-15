@@ -177,12 +177,8 @@ struct ScreenshotCaptureSettings: View {
             }
 
             Section {
-                Toggle(strings.autoCopyToggle, isOn: automaticCopy)
+                Toggle(strings.autoCopyToggle, isOn: $copyToClipboard)
                 Text(strings.autoCopyCaption)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Toggle(strings.autoSaveToggle, isOn: automaticSave)
-                Text(strings.autoSaveCaption)
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 folderRow
@@ -241,32 +237,6 @@ struct ScreenshotCaptureSettings: View {
         .sheet(isPresented: $showingSharePrivacy) {
             ScreenshotSharePrivacyView()
         }
-    }
-
-    // Keep the existing after-capture action and the output toggles in sync.
-    private var automaticSave: Binding<Bool> {
-        Binding(get: {
-            [.save, .saveAndCopy].contains(ScreenshotDefaultAction(rawValue: defaultActionRaw) ?? .none)
-        }, set: { enabled in
-            let copies = automaticCopy.wrappedValue
-            copyToClipboard = copies
-            defaultActionRaw = enabled ? ScreenshotDefaultAction.save.rawValue
-                : ScreenshotDefaultAction.none.rawValue
-        })
-    }
-
-    private var automaticCopy: Binding<Bool> {
-        Binding(get: {
-            copyToClipboard || [.copy, .saveAndCopy].contains(
-                ScreenshotDefaultAction(rawValue: defaultActionRaw) ?? .none)
-        }, set: { enabled in
-            copyToClipboard = enabled
-            if defaultActionRaw == ScreenshotDefaultAction.copy.rawValue {
-                defaultActionRaw = ScreenshotDefaultAction.none.rawValue
-            } else if defaultActionRaw == ScreenshotDefaultAction.saveAndCopy.rawValue {
-                defaultActionRaw = ScreenshotDefaultAction.save.rawValue
-            }
-        })
     }
 
     private var defaultActionRow: some View {
@@ -603,16 +573,9 @@ private struct ScreenshotSharedLinksView: View {
 struct ScreenshotDefaultActionPicker: View {
     let strings: ScreenshotFeatureStrings
     @Binding var selection: String
-    @AppStorage(DefaultsKey.screenshotCopyToClipboard) private var copyToClipboard = false
 
     var body: some View {
-        Picker(strings.defaultActionLabel, selection: Binding(
-            get: { selection },
-            set: { raw in
-                let action = ScreenshotDefaultAction(rawValue: raw) ?? .none
-                selection = action.rawValue
-                copyToClipboard = action == .copy || action == .saveAndCopy
-            })) {
+        Picker(strings.defaultActionLabel, selection: $selection) {
             Text(strings.defaultActionNone).tag(ScreenshotDefaultAction.none.rawValue)
             Text(strings.saveButton).tag(ScreenshotDefaultAction.save.rawValue)
             Text(strings.defaultActionSaveAndCopy).tag(ScreenshotDefaultAction.saveAndCopy.rawValue)

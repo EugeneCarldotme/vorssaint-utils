@@ -145,6 +145,14 @@ def main():
           + declaration(view, "    private func isActive(_ item: QuickLauncherItem)")
           + "func display(_ item: QuickLauncherItem) -> (String, Bool) { (icon(for: item), isActive(item)) }\n}\n}\n")
 
+    screenshot = "Sources/Vorssaint/Services/QuickTools/ScreenshotService.swift"
+    write("ScreenshotOutput.swift", "import Foundation\nextension ScreenshotOutputContract {\n"
+          + declaration(screenshot, "    private func recoverFailedCapture(").replace("private func", "func", 1)
+          + declaration(screenshot, "    private func showNextRecoveryPreview(").replace("private func", "func", 1)
+          + declaration(screenshot, "    private func saveAndCopyDirect(")
+            .replace("private func", "func", 1)
+          + "}\n")
+
     preview = "Sources/Vorssaint/Services/QuickTools/ScreenshotQuickPreviewController.swift"
     selection = "Sources/Vorssaint/Services/QuickTools/ScreenshotSelectionController.swift"
     refresh_methods = [

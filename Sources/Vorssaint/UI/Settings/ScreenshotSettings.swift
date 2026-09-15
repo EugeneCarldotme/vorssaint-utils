@@ -161,6 +161,12 @@ struct ScreenshotCaptureSettings: View {
                         Text(strings.previewEscapeCaption)
                             .font(.caption)
                             .foregroundStyle(.secondary)
+                        if !permissions.accessibility {
+                            Button(strings.previewAccessibilityButton) {
+                                permissions.requestAccessibility()
+                                permissions.openAccessibilitySettings()
+                            }
+                        }
                         previewPositionRow
                         previewFocusRow
                     }

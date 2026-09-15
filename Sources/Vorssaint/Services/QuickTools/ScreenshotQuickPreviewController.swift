@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Vorssaint
 
 import AppKit
+import ApplicationServices
 import Carbon.HIToolbox
 import SwiftUI
 
@@ -389,16 +390,20 @@ final class ScreenshotQuickPreviewController {
     }
 
     private func installKeyMonitor(for panel: NSPanel) {
-        globalKeyMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
-            guard let self, !self.closed, let panel = self.panel ?? NotchService.shared.presentationWindow,
-                  panel.isVisible,
-                  !self.shownInNotch || NotchService.shared.isCaptureVisible(id: self.presentationID),
-                  panel.attachedSheet == nil, !(panel.firstResponder is NSText),
-                  !ShortcutCapture.isCapturing,
-                  event.keyCode == kVK_Escape,
-                  event.modifierFlags.intersection([.command, .control, .option, .shift]).isEmpty
-            else { return }
-            self.close()
+        // Global key events require Accessibility. Local dismissal and capture
+        // remain available without it; never prompt from the capture path.
+        if AXIsProcessTrusted() {
+            globalKeyMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
+                guard let self, !self.closed, let panel = self.panel ?? NotchService.shared.presentationWindow,
+                      panel.isVisible,
+                      !self.shownInNotch || NotchService.shared.isCaptureVisible(id: self.presentationID),
+                      panel.attachedSheet == nil, !(panel.firstResponder is NSText),
+                      !ShortcutCapture.isCapturing,
+                      event.keyCode == kVK_Escape,
+                      event.modifierFlags.intersection([.command, .control, .option, .shift]).isEmpty
+                else { return }
+                self.close()
+            }
         }
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self, weak panel] event in
             guard let self, !self.closed, let panel, panel.isVisible,

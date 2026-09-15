@@ -15,6 +15,8 @@ enum NotchCaptureKeyboardContract {
     final class NSText {}
     final class ScreenshotOverlayPanel: NSPanel { var overlayView = Overlay() }
     final class Overlay { var isDragging = false }
+    static var accessibilityTrusted = true
+    static func AXIsProcessTrusted() -> Bool { accessibilityTrusted }
     enum ShortcutCapture { static var isCapturing = false }
     struct NSEvent {
         struct ModifierFlags: OptionSet {
@@ -59,8 +61,31 @@ enum NotchCaptureKeyboardTests {
             Contract.ShortcutCapture.isCapturing = false
             Contract.NotchService.shared = Contract.NotchService()
         }
+        permissionFallback(expect: expect)
         preview(expect: expect)
         chooser(expect: expect)
+    }
+
+    private static func permissionFallback(expect: (Bool, String) -> Void) {
+        let preview = Contract.Preview()
+        let panel = Contract.NSPanel()
+        preview.shownInNotch = false
+        Event.globalHandler = nil
+        Contract.accessibilityTrusted = false
+        preview.attach(panel)
+        expect(Event.globalHandler == nil,
+               "without Accessibility no global Escape monitor is installed")
+        expect(Event.handler != nil && !preview.closed,
+               "without Accessibility the preview and local keyboard monitor remain available")
+        _ = Event.handler?(Event(window: panel, keyCode: UInt16(kVK_Escape)))
+        expect(preview.closed && preview.actions.isEmpty,
+               "without Accessibility focused Escape still dismisses without deleting output")
+        Contract.accessibilityTrusted = true
+        Event.globalHandler = nil
+        let granted = Contract.Preview()
+        granted.attach(panel)
+        expect(Event.globalHandler != nil,
+               "the next preview installs global Escape after Accessibility is granted")
     }
 
     private static func preview(expect: (Bool, String) -> Void) {

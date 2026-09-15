@@ -12,6 +12,7 @@ final class NotchTimerService: ObservableObject {
     private let origin = ContinuousClock.now
     private var completionTask: Task<Void, Never>?
     private var suspended = true
+    private let alert = NotchTimerAlert()
     private init() {}
 
     var now: TimeInterval {
@@ -23,11 +24,14 @@ final class NotchTimerService: ObservableObject {
         guard NotchTimerSupport.isEnabled() else { stop(); return }
         suspended = false
         finishIfDue()
+        if session.completed { alert.start(enabled: NotchTimerSupport.isSoundEnabled()) }
         scheduleCompletion()
     }
 
     func start(mode: NotchTimerMode, minutes: Int) {
         guard !suspended, NotchTimerSupport.isEnabled() else { return }
+        guard !session.hasSession else { return }
+        alert.stop()
         session.start(mode: mode, minutes: minutes, now: now, configuration: .load())
         scheduleCompletion()
     }
@@ -42,17 +46,21 @@ final class NotchTimerService: ObservableObject {
 
     func startNext() {
         guard !suspended, NotchTimerSupport.isEnabled() else { return }
+        guard session.canStartNext else { return }
+        alert.stop()
         session.startNext(at: now)
         scheduleCompletion()
     }
 
     func cancel() {
+        alert.stop()
         completionTask?.cancel(); completionTask = nil
         session.cancel()
     }
 
     func suspend() {
         suspended = true
+        alert.suspend()
         completionTask?.cancel(); completionTask = nil
     }
 
@@ -60,11 +68,12 @@ final class NotchTimerService: ObservableObject {
 
     private func finishIfDue() {
         guard session.finishIfDue(at: now) else { return }
+        alert.stop()
         let text = FeatureStrings.notchActivities(L10n.shared.language)
         NotchService.shared.show(NotchNotice(event: .timer,
             title: session.cycleFinished ? text.pomodoroFinished : text.finished,
             detail: text.phase(session.phase), symbol: "timer"))
-        NSSound.beep()
+        alert.start(enabled: NotchTimerSupport.isSoundEnabled())
     }
 
     private func scheduleCompletion() {

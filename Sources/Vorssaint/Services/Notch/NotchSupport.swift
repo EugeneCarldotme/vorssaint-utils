@@ -242,6 +242,13 @@ struct NotchQuickAccessConfiguration: Equatable, Codable {
     var buttons: [NotchQuickButton]
     private var version = 1
     static let maximumPerSide = 3
+    static let initial = Self(buttons: [
+        NotchQuickButton(id: UUID(uuidString: "00000000-0000-4000-8000-000000000001")!, action: .explore, side: .left),
+        NotchQuickButton(id: UUID(uuidString: "00000000-0000-4000-8000-000000000002")!, action: .module(.timer), side: .left),
+        NotchQuickButton(id: UUID(uuidString: "00000000-0000-4000-8000-000000000003")!, action: .settings, side: .right),
+        NotchQuickButton(id: UUID(uuidString: "00000000-0000-4000-8000-000000000004")!, action: .module(.mixer), side: .right),
+        NotchQuickButton(id: UUID(uuidString: "00000000-0000-4000-8000-000000000005")!, action: .module(.music), side: .bottom),
+    ])
     var actions: [NotchQuickAction] { buttons.compactMap(\.action) }
     var hasBottom: Bool { buttons.contains { $0.side == .bottom } }
 
@@ -282,10 +289,15 @@ struct NotchQuickAccessConfiguration: Equatable, Codable {
            let value = try? JSONDecoder().decode(Self.self, from: data), value.version == 1 {
             return value.sanitized()
         }
+        // These retired keys have no registration defaults, so even an empty
+        // saved value is an explicit legacy choice rather than a fresh install.
+        let legacyKeys = [DefaultsKey.notchQuickAccessSide, DefaultsKey.notchQuickAccessSecond, DefaultsKey.notchQuickAccessThird]
+        guard legacyKeys.contains(where: { defaults.object(forKey: $0) != nil }) else { return .initial }
         let side = NotchQuickAccessSide(rawValue: defaults.string(forKey: DefaultsKey.notchQuickAccessSide) ?? "") ?? .left
         var actions: [NotchQuickAction] = [.explore]
         for key in [DefaultsKey.notchQuickAccessSecond, DefaultsKey.notchQuickAccessThird] {
-            guard let id = defaults.string(forKey: key), let action = NotchQuickAction(id: id),
+            let id = defaults.string(forKey: key) ?? (key == DefaultsKey.notchQuickAccessSecond ? NotchQuickAction.settings.id : "")
+            guard let action = NotchQuickAction(id: id),
                   !actions.contains(action) else { continue }
             actions.append(action)
         }

@@ -6,12 +6,84 @@ import Foundation
 enum NotchActivityTests {
     static func run(expect: (Bool, String) -> Void) {
         timerContracts(expect: expect)
+        alertContracts(expect: expect)
         pomodoroContracts(expect: expect)
         rulerContracts(expect: expect)
         compactTimerContracts(expect: expect)
         accessoryContracts(expect: expect)
         PeripheralBatteryLifecycleTests.run(expect: expect)
         gateContracts(expect: expect)
+    }
+
+    private static func alertContracts(expect: (Bool, String) -> Void) {
+        let suite = "com.vorssaint.tests.timer-alert"
+        let defaults = UserDefaults(suiteName: suite)!
+        defaults.removePersistentDomain(forName: suite)
+        defer { defaults.removePersistentDomain(forName: suite) }
+        expect(NotchTimerSupport.isSoundEnabled(in: defaults), "timer sound is enabled by default")
+        for enabled in [false, true] {
+            defaults.set(enabled, forKey: DefaultsKey.notchTimerSoundEnabled)
+            expect(NotchTimerSupport.isSoundEnabled(in: defaults) == enabled,
+                   "the sound preference survives reload")
+        }
+        expect(Defaults.registeredDefaults[DefaultsKey.notchTimerSoundEnabled] as? Bool == true
+               && SettingsBackupSupport.exportKeys().contains(DefaultsKey.notchTimerSoundEnabled),
+               "the sound preference is registered and included in settings backup")
+        expect(NotchTimerAlert.maximumDuration == .seconds(300), "an alarm is limited to five minutes")
+        var sounds = 0, stops = 0
+        var elapsed: Duration = .zero
+        let alert = NotchTimerAlert(interval: .milliseconds(5), now: { .now.advanced(by: elapsed) },
+                                   sound: { sounds += 1 }, stopSound: { stops += 1 })
+        defer { alert.stop() }
+        func wait(until predicate: () -> Bool) {
+            let deadline = Date().addingTimeInterval(1)
+            while !predicate() && Date() < deadline {
+                RunLoop.current.run(until: Date().addingTimeInterval(0.002))
+            }
+        }
+        func settle() {
+            let end = Date().addingTimeInterval(0.04)
+            wait { Date() >= end }
+        }
+        alert.start(enabled: false)
+        settle()
+        expect(sounds == 0, "a timer completed with sound disabled stays silent")
+        alert.start(enabled: true)
+        expect(sounds == 1, "an enabled sound alarm alerts immediately")
+        alert.start(enabled: true)
+        expect(sounds == 1, "preference synchronization does not duplicate a pending alarm")
+        wait { sounds >= 3 }
+        expect(sounds >= 3, "an unacknowledged sound alarm repeats")
+        alert.start(enabled: false)
+        let mutedSounds = sounds
+        settle()
+        expect(sounds == mutedSounds && stops > 0, "disabling sound stops current playback and repetition")
+        elapsed = .seconds(299)
+        alert.start(enabled: true)
+        expect(sounds == mutedSounds + 1, "sound can resume within the original alarm budget")
+        alert.suspend()
+        let suspendedSounds = sounds
+        settle()
+        expect(sounds == suspendedSounds, "suspension cancels sound playback")
+        alert.start(enabled: true)
+        elapsed = .seconds(301)
+        let expirationStops = stops
+        wait { stops > expirationStops }
+        let expiredSounds = sounds
+        alert.start(enabled: false)
+        alert.start(enabled: true)
+        alert.suspend()
+        alert.start(enabled: true)
+        settle()
+        expect(stops > expirationStops && sounds == expiredSounds,
+               "five minutes stop playback; preference changes and suspension cannot restart an expired alarm")
+        alert.stop()
+        alert.start(enabled: true)
+        expect(sounds == expiredSounds + 1, "a new timer phase gets a fresh alert budget")
+        alert.stop()
+        let cancelledSounds = sounds
+        settle()
+        expect(sounds == cancelledSounds, "dismissal prevents delayed playback")
     }
 
     private static func timerContracts(expect: (Bool, String) -> Void) {

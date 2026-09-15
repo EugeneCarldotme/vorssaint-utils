@@ -55,7 +55,13 @@ struct NotchClipboardView: View {
                                         service.collapse()
                                         history.copyQuickEntry(entry)
                                     } else {
-                                        history.copy(entry) { copied in if copied { copiedID = entry.id } }
+                                        history.copy(entry) { copied in
+                                            if copied {
+                                                copiedID = entry.id
+                                            } else {
+                                                NSSound.beep()
+                                            }
+                                        }
                                     }
                                 } label: {
                                     HStack(spacing: 10) {
@@ -70,7 +76,13 @@ struct NotchClipboardView: View {
                                 .help(permissions.accessibility ? text.clickRowShortcut : text.copy)
                                 NotchIconButton(symbol: copiedID == entry.id ? "checkmark" : "doc.on.doc",
                                                 title: copiedID == entry.id ? text.copied : text.copy) {
-                                    history.copy(entry) { copied in if copied { copiedID = entry.id } }
+                                    history.copy(entry) { copied in
+                                        if copied {
+                                            copiedID = entry.id
+                                        } else {
+                                            NSSound.beep()
+                                        }
+                                    }
                                 }
                                 NotchIconButton(symbol: entry.isPinned ? "pin.fill" : "pin",
                                                 title: entry.isPinned ? text.unpin : text.pin) {

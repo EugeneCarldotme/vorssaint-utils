@@ -12,6 +12,7 @@
 // (`RadialNowPlayingSupport.adapterReply`). Nothing here is linked into the
 // app: the library is built and signed on its own by build.sh.
 
+import AppKit
 import Foundation
 
 private typealias InfoCallback = @convention(block) (NSDictionary?) -> Void
@@ -56,6 +57,14 @@ public func vorssaintNowPlayingGet() {
         emit(["error": "MRMediaRemoteGetNowPlayingInfo unavailable"])
         return
     }
+    let selected = watching ? NotchNativePlayback.select() : nil
+    if watching, selected == nil {
+        NotchNativePlayback.publish(nil)
+        previousArtwork = nil
+        emit(["isPlaying": false])
+        NotchNativeQueue.observe([:])
+        return
+    }
     let queue = DispatchQueue(label: "com.vorssaint.now-playing-adapter")
     let group = DispatchGroup()
     let lock = NSLock()
@@ -68,7 +77,7 @@ public func vorssaintNowPlayingGet() {
     }
 
     group.enter()
-    getInfo(queue) { info in
+    let receiveInfo: InfoCallback = { info in
         let info = (info as? [String: Any]) ?? [:]
         if watching { set("itemIdentifier", info["kMRMediaRemoteNowPlayingInfoContentItemIdentifier"] as? String) }
         for key in ["kMRMediaRemoteNowPlayingInfoTitle",
@@ -95,14 +104,19 @@ public func vorssaintNowPlayingGet() {
         if watching { previousArtwork = artwork }
         group.leave()
     }
-    if let getPID = function(handle, "MRMediaRemoteGetNowPlayingApplicationPID", as: PIDFunction.self) {
+    if let selected {
+        NotchNativePlayback.readInfo(selected, artwork: true, queue: queue, completion: receiveInfo)
+        set("pid", selected.pid)
+        set("displayID", selected.bundleIdentifier)
+    } else { getInfo(queue, receiveInfo) }
+    if selected == nil, let getPID = function(handle, "MRMediaRemoteGetNowPlayingApplicationPID", as: PIDFunction.self) {
         group.enter()
         getPID(queue) { pid in
             set("pid", pid)
             group.leave()
         }
     }
-    if let getDisplayID = function(handle, "MRMediaRemoteGetNowPlayingApplicationDisplayID",
+    if selected == nil, let getDisplayID = function(handle, "MRMediaRemoteGetNowPlayingApplicationDisplayID",
                                    as: DisplayIDFunction.self) {
         group.enter()
         getDisplayID(queue) { identifier in
@@ -110,7 +124,7 @@ public func vorssaintNowPlayingGet() {
             group.leave()
         }
     }
-    if let getIsPlaying = function(handle, "MRMediaRemoteGetNowPlayingApplicationIsPlaying",
+    if selected == nil, let getIsPlaying = function(handle, "MRMediaRemoteGetNowPlayingApplicationIsPlaying",
                                    as: IsPlayingFunction.self) {
         group.enter()
         getIsPlaying(queue) { isPlaying in
@@ -120,18 +134,16 @@ public func vorssaintNowPlayingGet() {
     }
     // Only expose seeking when the current player advertises that command.
     // Missing symbols keep the timeline read-only without affecting playback.
-    typealias CommandsCallback = @convention(block) (NSArray?) -> Void
-    typealias CopyCommands = @convention(c) (DispatchQueue, @escaping CommandsCallback) -> Void
     typealias CommandID = @convention(c) (AnyObject) -> Int32
     typealias CommandEnabled = @convention(c) (AnyObject) -> Bool
     let capabilities = DispatchGroup()
     if watching,
-       let copyCommands = function(handle, "MRMediaRemoteCopySupportedCommands", as: CopyCommands.self),
+       let selected,
        let commandID = function(handle, "MRMediaRemoteCommandInfoGetCommand", as: CommandID.self),
        let commandEnabled = function(handle, "MRMediaRemoteCommandInfoGetEnabled", as: CommandEnabled.self),
-       dlsym(handle, "MRMediaRemoteSetElapsedTime") != nil {
+       NotchNativePlayback.stringConstant("kMRMediaRemoteOptionPlaybackPosition") != nil {
         capabilities.enter()
-        copyCommands(queue) { commands in
+        NotchNativePlayback.supportedCommands(selected, queue: queue) { commands in
             set("canSeek", commands?.contains(where: {
                 commandID($0 as AnyObject) == 24 && commandEnabled($0 as AnyObject)
             }) == true)
@@ -152,6 +164,7 @@ public func vorssaintNowPlayingGet() {
     lock.lock()
     let snapshot = reply
     lock.unlock()
+    if watching { NotchNativePlayback.publish(selected) }
     emit(snapshot)
     if watching { NotchNativeQueue.observe(snapshot) }
 }
@@ -172,15 +185,21 @@ public func vorssaintNowPlayingWatch() {
     var pending: DispatchWorkItem?
     let names = ["kMRMediaRemoteNowPlayingInfoDidChangeNotification",
                  "kMRMediaRemoteNowPlayingApplicationDidChangeNotification",
-                 "kMRMediaRemoteNowPlayingApplicationIsPlayingDidChangeNotification"]
-    let observers = names.map { name in
-        NotificationCenter.default.addObserver(forName: Notification.Name(name), object: nil, queue: .main) { _ in
-            pending?.cancel()
-            let work = DispatchWorkItem { vorssaintNowPlayingGet() }
-            pending = work
-            reader.asyncAfter(deadline: .now() + 0.12, execute: work)
-        }
+                 "kMRMediaRemoteNowPlayingApplicationIsPlayingDidChangeNotification",
+                 "kMRMediaRemotePlayerNowPlayingInfoDidChangeNotification",
+                 "kMRMediaRemoteNowPlayingPlayerStateDidChange",
+                 "kMRMediaRemoteNowPlayingApplicationClientStateDidChange"]
+    func refresh() {
+        pending?.cancel()
+        let work = DispatchWorkItem { vorssaintNowPlayingGet() }
+        pending = work
+        reader.asyncAfter(deadline: .now() + 0.12, execute: work)
     }
+    let observers = names.map { name in
+        NotificationCenter.default.addObserver(forName: Notification.Name(name), object: nil, queue: .main) { _ in refresh() }
+    }
+    let termination = NSWorkspace.shared.notificationCenter.addObserver(
+        forName: NSWorkspace.didTerminateApplicationNotification, object: nil, queue: .main) { _ in refresh() }
     var commandFramer = NotchPlaybackCommandFramer()
     FileHandle.standardInput.readabilityHandler = { input in
         let data = input.availableData
@@ -188,12 +207,12 @@ public func vorssaintNowPlayingWatch() {
         DispatchQueue.main.async {
             for command in commandFramer.append(data) {
                 guard let command else { emit(["sent": false]); continue }
-                sendPlaybackCommand(command)
+                reader.async { sendPlaybackCommand(command) }
             }
         }
     }
     reader.async { vorssaintNowPlayingGet() }
-    withExtendedLifetime(observers) { RunLoop.main.run() }
+    withExtendedLifetime((observers, termination)) { RunLoop.main.run() }
 }
 
 private func sendPlaybackCommand(_ command: NotchPlaybackCommand) {
@@ -203,25 +222,20 @@ private func sendPlaybackCommand(_ command: NotchPlaybackCommand) {
     case .queuePlay(let selected): NotchNativeQueue.play(selected); return
     default: break
     }
-    typealias Send = @convention(c) (Int32, CFDictionary?) -> Bool
-    typealias Seek = @convention(c) (Double) -> Void
-    let handle = dlopen("/System/Library/PrivateFrameworks/MediaRemote.framework/MediaRemote", RTLD_LAZY)
-    if case .seek(let position) = command {
-        guard let seek = function(handle, "MRMediaRemoteSetElapsedTime", as: Seek.self) else {
-            emit(["sent": false])
-            return
-        }
-        seek(position)
-        emit(["sent": true])
-        return
-    }
+    guard let target = NotchNativePlayback.target else { emit(["sent": false]); return }
     let identifier: Int32
+    var options: CFDictionary?
     switch command {
     case .toggle: identifier = 2
     case .next: identifier = 4
     case .previous: identifier = 5
-    case .seek, .queue, .queueStop, .queuePlay: return
+    case .seek(let position):
+        guard let key = NotchNativePlayback.stringConstant("kMRMediaRemoteOptionPlaybackPosition") else {
+            emit(["sent": false]); return
+        }
+        identifier = 24
+        options = [key: position] as CFDictionary
+    case .queue, .queueStop, .queuePlay: return
     }
-    let send = function(handle, "MRMediaRemoteSendCommand", as: Send.self)
-    emit(["sent": send?(identifier, nil) ?? false])
+    emit(["sent": NotchNativePlayback.send(identifier, options: options, to: target)])
 }

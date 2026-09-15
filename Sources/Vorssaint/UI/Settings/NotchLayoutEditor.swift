@@ -252,6 +252,7 @@ struct NotchActionChooser: View {
     }
 
     private func matchesQuery(_ action: NotchQuickAction) -> Bool {
+        guard action.isAvailable() else { return false }
         let term = CommandBarSearch.normalized(query)
         return term.isEmpty || CommandBarSearch.normalized(action.title(l10n) + " " + action.id).contains(term)
     }

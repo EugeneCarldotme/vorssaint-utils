@@ -201,9 +201,16 @@ final class ScreenCaptureService: ObservableObject {
             includePointer: policy.includePointer,
             showLastRegion: defaults.bool(forKey: DefaultsKey.screenshotShowLastRegion),
             hideVorssaintWindows: policy.hideVorssaintWindows,
-            protectedWindowIDs: {
-                var windows = AppFeature.screenshot.isAvailable
-                    ? ScreenshotService.shared.protectedWindowIDsForCapture : []
+            protectedWindowIDs: { [weak options] in
+                var windows: Set<CGWindowID> = []
+                if AppFeature.screenshot.isAvailable {
+                    // The tool can still change while the selection is up, so it
+                    // is read here rather than captured. A session on its way out
+                    // leaves no tool, and keeps both kinds out.
+                    let tool = options?.selectedTool
+                    windows = ScreenshotService.shared.protectedWindowIDsForCapture(
+                        honoursVisibilityPreference: tool != nil && tool != .recording)
+                }
                 // The notch never belongs in the pixels while an area is being
                 // chosen, so what sits behind it is captured cleanly.
                 if NotchSupport.isEnabled() { windows.formUnion(NotchService.shared.captureChromeWindowIDs) }

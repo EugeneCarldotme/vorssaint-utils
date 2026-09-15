@@ -12,11 +12,12 @@ struct NotchSettings: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var features = FeatureRuntime.shared
     @ObservedObject private var permissions = Permissions.shared
-    @AppStorage(DefaultsKey.notchGesturesEnabled) private var gesturesEnabled = false
+    @AppStorage(DefaultsKey.notchGesturesEnabled) private var gesturesEnabled = true
     @AppStorage(DefaultsKey.notchKeyboardLight) private var keyboardLight = false
     @AppStorage(DefaultsKey.notchNotificationsEnabled) private var notificationsEnabled = false
     @AppStorage(DefaultsKey.notchDismissNativeNotifications) private var dismissNativeNotifications = false
     @AppStorage(DefaultsKey.notchTimerEnabled) private var timerEnabled = true
+    @AppStorage(DefaultsKey.notchTimerSoundEnabled) private var timerSoundEnabled = true
     @AppStorage(DefaultsKey.notchCameraEnabled) private var cameraEnabled = false
     @AppStorage(DefaultsKey.notchAccessoriesEnabled) private var accessoriesEnabled = false
     @AppStorage(DefaultsKey.notchCalendarEnabled) private var calendarEnabled = true
@@ -32,24 +33,24 @@ struct NotchSettings: View {
     @AppStorage(DefaultsKey.notchBrightness) private var brightness = true
     @AppStorage(DefaultsKey.notchBattery) private var battery = true
     @AppStorage(DefaultsKey.notchClipboard) private var clipboard = false
-    @AppStorage(DefaultsKey.notchClipboardWindow) private var clipboardWindow = false
+    @AppStorage(DefaultsKey.notchClipboardWindow) private var clipboardWindow = true
     @AppStorage(DefaultsKey.screenshotDefaultAction) private var captureAction = ""
     @AppStorage(DefaultsKey.notchCapture) private var capture = false
     @AppStorage(DefaultsKey.notchShowPlayingMusic) private var showPlayingMusic = true
-    @AppStorage(DefaultsKey.notchIdleContent) private var idle = NotchIdleContent.none.rawValue
+    @AppStorage(DefaultsKey.notchIdleContent) private var idle = NotchIdleContent.music.rawValue
     @AppStorage(DefaultsKey.notchHiddenControls) private var hiddenControls = NotchControlItem.defaultHidden
     @AppStorage(DefaultsKey.notchControlOrder) private var controlOrder = ""
     @AppStorage(DefaultsKey.notchShowInCaptures) private var showInCaptures = true
-    @AppStorage(DefaultsKey.notchSize) private var size = NotchSize.compact.rawValue
+    @AppStorage(DefaultsKey.notchSize) private var size = NotchSize.spacious.rawValue
     @AppStorage(DefaultsKey.notchCustomWidth) private var customWidth = NotchSize.defaultWidth
     @AppStorage(DefaultsKey.notchCustomHeight) private var customHeight = NotchSize.defaultHeight
-    @AppStorage(DefaultsKey.notchHapticFeedback) private var hapticFeedback = false
+    @AppStorage(DefaultsKey.notchHapticFeedback) private var hapticFeedback = true
     @AppStorage(DefaultsKey.notchShelf) private var shelfWindow = true
     @AppStorage(DefaultsKey.notchDragReveal) private var dragReveal = true
     @AppStorage(DefaultsKey.notchCaptureControls) private var captureControls = true
     @AppStorage(DefaultsKey.notchQuickPanel) private var quickPanel = true
     @AppStorage(DefaultsKey.notchAppPanel) private var appPanel = true
-    @AppStorage(DefaultsKey.notchHoverExpands) private var hoverExpand = false
+    @AppStorage(DefaultsKey.notchHoverExpands) private var hoverExpand = true
     @AppStorage(DefaultsKey.notchQuickAccessLayout) private var accessData = Data()
     @State private var tab = NotchSettingsTab.layout
     @State private var selectedModule = NotchModule.controls
@@ -60,7 +61,7 @@ struct NotchSettings: View {
 
     private var configuration: [String] {
         [String(enabled), String(calendarEnabled), String(notificationsEnabled), String(dismissNativeNotifications), String(gesturesEnabled), String(lyricsEnabled), String(lyricsOnline), String(queueEnabled), String(showPlayingMusic), idle, hiddenControls, controlOrder, size,
-         String(timerEnabled), String(cameraEnabled), String(accessoriesEnabled), String(customWidth), String(customHeight), String(hapticFeedback), String(shelfWindow), String(dragReveal), String(captureControls), String(quickPanel), String(appPanel), String(hoverExpand), display, String(hover), hidden, order, String(volume),
+         String(timerEnabled), String(timerSoundEnabled), String(cameraEnabled), String(accessoriesEnabled), String(customWidth), String(customHeight), String(hapticFeedback), String(shelfWindow), String(dragReveal), String(captureControls), String(quickPanel), String(appPanel), String(hoverExpand), display, String(hover), hidden, order, String(volume),
          String(brightness), String(keyboardLight), String(battery), String(clipboard), String(clipboardWindow), String(capture), captureAction, String(showInCaptures)]
     }
 
@@ -203,6 +204,9 @@ struct NotchSettings: View {
                 Button(calendar.allow, action: permissions.requestCalendar).disabled(permissions.requestingCalendar)
                 Button(calendar.settings, action: permissions.openCalendarSettings)
             }
+        case .timer:
+            Toggle(FeatureStrings.notchActivities(l10n.language).soundEnabled, isOn: $timerSoundEnabled)
+                .disabled(!AppFeature.notchTimer.isAvailable)
         case .camera:
             Text(FeatureStrings.notchActivities(l10n.language).cameraHint).font(.callout).foregroundStyle(.secondary)
             if permissions.camera == .granted {

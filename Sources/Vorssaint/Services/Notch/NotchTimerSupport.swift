@@ -130,6 +130,10 @@ struct NotchTimerSession: Equatable {
 }
 
 enum NotchTimerSupport {
+    static func isSoundEnabled(in defaults: UserDefaults = .standard) -> Bool {
+        defaults.object(forKey: DefaultsKey.notchTimerSoundEnabled) as? Bool ?? true
+    }
+
     static func isEnabled(in defaults: UserDefaults = .standard) -> Bool {
         NotchSupport.isEnabled(in: defaults) && AppFeature.notchTimer.isAvailable(in: defaults)
             && defaults.bool(forKey: DefaultsKey.notchTimerEnabled)

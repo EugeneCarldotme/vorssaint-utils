@@ -112,12 +112,46 @@ enum NotchMusicHardeningTests {
     }
 
     static func run(expect: (Bool, String) -> Void) {
+        sourcePriority(expect: expect)
+        NotchPlaybackRoutingTests.run(expect: expect)
         lyricExpansion(expect: expect)
         lyricLifecycle(expect: expect)
         lyricPicker(expect: expect)
         queueSelection(expect: expect)
         framing(expect: expect)
         pendingCommands(expect: expect)
+    }
+
+    private static func sourcePriority(expect: (Bool, String) -> Void) {
+        func source(_ pid: Int32, music: Bool, playing: Bool = true, track: Bool = true) -> NotchPlaybackSource {
+            NotchPlaybackSource(pid: pid, bundleIdentifier: "test.player.\(pid)", isMusicApp: music,
+                                isPlaying: playing, hasTrack: track)
+        }
+        let music = source(10, music: true)
+        let paused = source(10, music: true, playing: false)
+        let browser = source(20, music: false)
+        let other = source(30, music: true)
+        func choose(_ sources: [NotchPlaybackSource], previous: Int32? = nil, system: Int32? = 20) -> NotchPlaybackSource? {
+            NotchPlaybackSource.preferred(in: sources, previousPID: previous, systemPID: system)
+        }
+        expect(choose([browser, music]) == music, "a browser video cannot take controls from playing music")
+        expect(choose([music, browser]) == music, "source discovery order does not change music priority")
+        expect(choose([browser, paused], previous: 10) == paused, "pausing music keeps its resume control reachable")
+        expect(choose([browser, paused]) == paused, "reopening the music surface can still reach paused music")
+        expect(choose([browser, source(10, music: true, track: false)]) == browser,
+               "an empty music app does not hide browser playback")
+        expect(choose([browser], previous: 10) == browser, "closing the music app releases its priority")
+        expect(choose([source(10, music: true, track: false)], previous: 10) == nil,
+               "clearing the track never preserves a stale music selection")
+        expect(choose([music, other, browser], previous: 30) == other,
+               "two playing music apps keep the previously controlled app")
+        expect(choose([paused, other, browser], previous: 10) == other,
+               "newly playing music takes priority over another app's paused track")
+        expect(choose([music, other], system: 30) == other,
+               "the system's choice breaks an initial tie between playing music apps")
+        expect(choose([browser], system: 99) == nil, "an unrelated remembered video never becomes a fallback")
+        expect(choose([source(0, music: true), browser]) == browser, "invalid process identities are not controllable")
+        expect(choose([], previous: 10) == nil, "no surviving session leaves no command destination")
     }
 
     private static func lyricExpansion(expect: (Bool, String) -> Void) {

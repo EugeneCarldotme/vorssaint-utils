@@ -115,9 +115,10 @@ enum NotchGestureTests {
         for (key, value) in Defaults.registeredDefaults where key.hasPrefix("notch") { defaults.set(value, forKey: key) }
         for (key, value) in AppFeature.availabilityDefaults { defaults.set(value, forKey: key) }
         defaults.set(true, forKey: DefaultsKey.notchEnabled)
-        expect(!NotchGestureSupport.isEnabled(in: defaults), "gestures are independently opt-in")
+        expect(NotchGestureSupport.isEnabled(in: defaults), "gestures start enabled with the island")
+        defaults.set(false, forKey: DefaultsKey.notchGesturesEnabled)
+        expect(!NotchGestureSupport.isEnabled(in: defaults), "gestures retain an independent opt-out")
         defaults.set(true, forKey: DefaultsKey.notchGesturesEnabled)
-        expect(NotchGestureSupport.isEnabled(in: defaults), "explicit opt-in enables gestures")
         defaults.set(false, forKey: AppFeature.notchGestures.availabilityKey)
         expect(!NotchGestureSupport.isEnabled(in: defaults), "removing gestures from the hub clears their handler")
         defaults.set(true, forKey: AppFeature.notchGestures.availabilityKey)

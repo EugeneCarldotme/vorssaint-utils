@@ -20,6 +20,7 @@ struct MetricsTests {
         let groups: [(String, () -> Void)] = [
             ("harness", { TestHarnessTests.run(suite) }),
             ("core", { coreChecks(suite) }),
+            ("capture", { ScreenshotSelectionRefreshContract.run(suite) }),
             ("keyboard", {
                 assistiveKeyboardChecks { suite.expect($0, $1) }
                 screenshotToolShortcutChecks { suite.expect($0, $1) }
@@ -36,6 +37,7 @@ struct MetricsTests {
             ("network", { SpeedTestTests.run { suite.expect($0, $1) } }),
             ("app-updates", { AppUpdatesContract.run(suite) }),
             ("localization", { LocalizationTests.run(suite) }),
+            ("cleaner", { CleanerEligibilityTests.run(suite) }),
             ("launcher", { QuickLauncherContract.run(suite) }),
             ("switcher", { SwitcherScrollContract.run(suite) }),
         ]
@@ -733,6 +735,9 @@ struct MetricsTests {
         expectEqual(ClipboardHistorySensitiveText.concealedPasteboardType,
                     "org.nspasteboard.ConcealedType",
                     "the secret mark keeps the exact name the apps that write it use")
+
+        ClipboardHistoryWriteTests.run { expect($0, $1) }
+        ClipboardHistoryAccessTests.run { expect($0, $1) }
 
         let pasteboardAccess = GeneralPasteboardAccess(label: "Vorssaint.Tests.PasteboardAccess")
         let pasteboardGroup = DispatchGroup()
@@ -15323,6 +15328,11 @@ struct MetricsTests {
                 && !FanControlPolicy.targetRPMMatches(target: 1_205, expected: 1_200)
                 && !FanControlPolicy.targetRPMMatches(target: .nan, expected: 1_200),
                "fan target verification allows a narrow tolerance and rejects stale or malformed targets")
+        expect(FanControlPolicy.forceTestSatisfied(keyExists: false, writeSucceeded: false)
+                && FanControlPolicy.forceTestSatisfied(keyExists: false, writeSucceeded: true)
+                && FanControlPolicy.forceTestSatisfied(keyExists: true, writeSucceeded: true)
+                && !FanControlPolicy.forceTestSatisfied(keyExists: true, writeSucceeded: false),
+               "the manual-mode fallback needs the force-test override only where the Mac exposes it")
 
         let defaultCurve = FanControlConfiguration.defaultCurve
         expect(FanControlPolicy.validConfiguration(.manual(level: 0))
@@ -17737,6 +17747,41 @@ struct MetricsTests {
         expect(SettingsBackupSupport.exportKeys().contains(
             DefaultsKey.screenshotHideVorssaintWindows),
                "the screenshot window visibility preference travels in backups")
+        // An editor or a pinned capture is an ordinary window, so the
+        // visibility preference has to reach it; the overlays and HUDs taking
+        // the capture stay out either way (issue #780).
+        let workflowWindows: Set<CGWindowID> = [12]
+        let contentWindows: Set<CGWindowID> = [11, 13]
+        expect(ScreenshotCapturePolicy.protectedWindowIDs(
+            workflowWindowIDs: workflowWindows,
+            contentWindowIDs: contentWindows,
+            honoursVisibilityPreference: true
+        ) == workflowWindows,
+        "a screenshot protects only the surfaces taking it")
+        expect(ScreenshotCapturePolicy.protectedWindowIDs(
+            workflowWindowIDs: workflowWindows,
+            contentWindowIDs: contentWindows,
+            honoursVisibilityPreference: false
+        ) == ownScreenshotWindows,
+        "a recording is exempt from the preference and protects both kinds")
+        expect(ScreenshotCapturePolicy.excludedWindowIDs(
+            hideVorssaintWindows: false,
+            ownWindowIDs: ownScreenshotWindows,
+            protectedWindowIDs: ScreenshotCapturePolicy.protectedWindowIDs(
+                workflowWindowIDs: workflowWindows,
+                contentWindowIDs: contentWindows,
+                honoursVisibilityPreference: true)
+        ) == workflowWindows,
+        "showing Vorssaint windows leaves an editor and a pin in the capture")
+        expect(ScreenshotCapturePolicy.canPickWindow(
+            13,
+            isOwnWindow: true,
+            hideVorssaintWindows: false,
+            protectedWindowIDs: ScreenshotCapturePolicy.protectedWindowIDs(
+                workflowWindowIDs: workflowWindows,
+                contentWindowIDs: contentWindows,
+                honoursVisibilityPreference: true)
+        ), "a pinned capture can be picked while Vorssaint windows are shown")
         expect(ScreenshotCapturePolicy.excludedWindowIDs(
             hideVorssaintWindows: true,
             ownWindowIDs: ownScreenshotWindows,
@@ -18382,12 +18427,15 @@ struct MetricsTests {
             screenshotHideVorssaintWindows: true)
         expect(liveScreenshotPolicy == .init(freeze: false, includePointer: true,
                                              hideVorssaintWindows: true,
+                                             keepsContentWindowsOut: true,
                                              usesGeometry: false)
                 && recorderPolicy == .init(freeze: true, includePointer: false,
                                            hideVorssaintWindows: false,
+                                           keepsContentWindowsOut: true,
                                            usesGeometry: true)
                 && textPolicy == .init(freeze: true, includePointer: false,
                                        hideVorssaintWindows: true,
+                                       keepsContentWindowsOut: true,
                                        usesGeometry: false),
                "switching capture mode rebuilds the frozen frame, pointer and window policy")
         let colorPolicy = ScreenshotSupport.unifiedCapturePolicy(
@@ -18399,6 +18447,44 @@ struct MetricsTests {
                 && !textPolicy.sharesSource(with: recorderPolicy)
                 && !textPolicy.sharesSource(with: liveScreenshotPolicy),
                "only freeze, pointer and window policy decide whether a mode needs its own photograph")
+        // With "Hide Vorssaint windows" off, freeze on and the pointer off,
+        // every tool wants the same pixels except for the editors and pins
+        // recording keeps out, so switching to or from recording has to
+        // re-photograph and re-list the pickable windows (issue #780).
+        let shownWindowPolicies = Dictionary(uniqueKeysWithValues: ScreenCaptureTool.allCases.map {
+            ($0, ScreenshotSupport.unifiedCapturePolicy(
+                for: $0,
+                screenshotFreeze: true,
+                screenshotIncludePointer: false,
+                screenshotHideVorssaintWindows: false))
+        })
+        expect(shownWindowPolicies[.recording]?.keepsContentWindowsOut == true
+                && shownWindowPolicies[.screenshot]?.keepsContentWindowsOut == false
+                && shownWindowPolicies[.text]?.keepsContentWindowsOut == false
+                && shownWindowPolicies[.color]?.keepsContentWindowsOut == false,
+               "only recording keeps editors and pins out while Vorssaint windows are shown")
+        expect(shownWindowPolicies[.recording].map { recording in
+            [ScreenCaptureTool.screenshot, .text, .color].allSatisfy { tool in
+                guard let other = shownWindowPolicies[tool] else { return false }
+                return !recording.sharesSource(with: other) && !other.sharesSource(with: recording)
+            }
+        } == true,
+               "switching between recording and screenshot, text or color refreshes the picture and pickable windows both ways")
+        expect(shownWindowPolicies[.screenshot].map { screenshot in
+            [ScreenCaptureTool.text, .color].allSatisfy {
+                shownWindowPolicies[$0].map(screenshot.sharesSource(with:)) == true
+            }
+        } == true,
+               "tools that show the same windows keep the picture they already have")
+        let hiddenWindowPolicies = ScreenCaptureTool.allCases.map {
+            ScreenshotSupport.unifiedCapturePolicy(
+                for: $0,
+                screenshotFreeze: true,
+                screenshotIncludePointer: false,
+                screenshotHideVorssaintWindows: true)
+        }
+        expect(hiddenWindowPolicies.allSatisfy(\.keepsContentWindowsOut),
+               "hiding Vorssaint windows keeps editors and pins out of every tool")
         expect(ScreenshotSupport.captureGuideIsVisible(pointerOnDisplay: true,
                                                        selectionInProgress: false,
                                                        capturePending: false)

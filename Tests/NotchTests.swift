@@ -66,16 +66,52 @@ enum NotchTests {
                "disabled notch cannot consume any existing presentation")
         defaults.set(true, forKey: DefaultsKey.notchEnabled)
         expect(NotchSupport.isEnabled(in: defaults), "master switch enables notch")
-        expect(!NotchSupport.usesHapticFeedback(in: defaults), "enabling the notch does not enable tactile feedback")
+        expect(NotchSupport.usesHapticFeedback(in: defaults), "the enabled island starts with tactile feedback")
+        defaults.set(false, forKey: DefaultsKey.notchHapticFeedback)
+        expect(!NotchSupport.usesHapticFeedback(in: defaults), "tactile feedback can still be turned off independently")
         defaults.set(true, forKey: DefaultsKey.notchHapticFeedback)
-        expect(NotchSupport.usesHapticFeedback(in: defaults), "tactile feedback has an independent opt-in")
         defaults.set(false, forKey: DefaultsKey.notchEnabled)
         expect(!NotchSupport.usesHapticFeedback(in: defaults) && !NotchSupport.routesAppPanel(in: defaults)
                && !NotchSupport.routesQuickPanel(in: defaults) && !NotchSupport.routesShelf(in: defaults),
                "turning the notch off restores separate panels and suppresses tactile feedback")
         defaults.set(true, forKey: DefaultsKey.notchEnabled)
         expect(NotchSupport.usesHapticFeedback(in: defaults), "disabling the notch preserves the user's tactile preference")
-        expect(NotchSupport.idleContent(in: defaults) == .none, "idle is empty without an explicit choice")
+        expect(NotchSupport.idleContent(in: defaults) == .music, "a new island shows playing music at rest")
+        expect(defaults.string(forKey: DefaultsKey.notchSize) == NotchSize.spacious.rawValue
+               && defaults.bool(forKey: DefaultsKey.notchOpenOnHover)
+               && defaults.bool(forKey: DefaultsKey.notchHoverExpands),
+               "a new island starts spacious and expands on hover")
+        expect(NotchSupport.routesAppPanel(in: defaults) && NotchSupport.routesQuickPanel(in: defaults)
+               && NotchSupport.routesClipboardWindow(in: defaults) && NotchSupport.routesShelf(in: defaults)
+               && NotchSupport.routesCaptureControls(in: defaults),
+               "enabling a fresh island routes available panels into it")
+        let initialLayout = NotchQuickAccessConfiguration.current(in: defaults)
+        expect(initialLayout.buttons.filter { $0.side == .left }.compactMap(\.action) == [.explore, .module(.timer)]
+               && initialLayout.buttons.filter { $0.side == .right }.compactMap(\.action) == [.settings, .module(.mixer)]
+               && initialLayout.buttons.filter { $0.side == .bottom }.compactMap(\.action) == [.module(.music)],
+               "a fresh layout places Explore and Timer left, Settings and Mixer right, and music below")
+        expect(initialLayout == NotchQuickAccessConfiguration.current(in: defaults),
+               "default buttons keep stable identities across preference refreshes")
+        defaults.set(false, forKey: AppFeature.mixer.availabilityKey)
+        defaults.set(false, forKey: AppFeature.notchTimer.availabilityKey)
+        expect(NotchQuickAccessConfiguration.current(in: defaults).actions == [.explore, .settings, .module(.music)]
+               && !NotchQuickAction.module(.mixer).isAvailable(in: defaults)
+               && !NotchQuickAction.control(.mixer).isAvailable(in: defaults),
+               "uninstalled utilities leave no default buttons or available mixer actions")
+        expect(NotchQuickAccessConfiguration.stored(in: defaults) == initialLayout,
+               "uninstalling a utility preserves its configured position")
+        defaults.set(true, forKey: AppFeature.mixer.availabilityKey)
+        defaults.set(true, forKey: AppFeature.notchTimer.availabilityKey)
+        expect(NotchQuickAccessConfiguration.current(in: defaults) == initialLayout,
+               "reinstalled utilities return to their original positions")
+        defaults.set("right", forKey: DefaultsKey.notchQuickAccessSide)
+        expect(NotchQuickAccessConfiguration.stored(in: defaults) == .init(side: .right, actions: [.explore, .settings]),
+               "a saved legacy side retains the former Settings companion")
+        defaults.set("", forKey: DefaultsKey.notchQuickAccessSecond)
+        expect(NotchQuickAccessConfiguration.stored(in: defaults) == .init(side: .right, actions: [.explore]),
+               "an explicitly empty legacy action stays empty under the new defaults")
+        defaults.removeObject(forKey: DefaultsKey.notchQuickAccessSide)
+        defaults.removeObject(forKey: DefaultsKey.notchQuickAccessSecond)
         expect(NotchSupport.watchesMusicActivity(in: defaults), "enabled music activity can detect playback while the panel is closed")
         expect(NotchSupport.showsMusicActivity(isPlaying: true, in: defaults)
                && !NotchSupport.showsMusicActivity(isPlaying: false, in: defaults),
@@ -215,9 +251,10 @@ enum NotchTests {
         expect(!NotchSupport.routes(.clipboard, in: defaults), "clipboard event respects the history capture switch")
         defaults.set(true, forKey: DefaultsKey.clipboardHistoryEnabled)
         expect(NotchSupport.routes(.clipboard, in: defaults), "explicit clipboard activity opt-in is honored")
-        expect(!NotchSupport.routesClipboardWindow(in: defaults), "clipboard opening stays unchanged until opted in")
+        expect(NotchSupport.routesClipboardWindow(in: defaults), "clipboard opening defaults to the enabled island")
+        defaults.set(false, forKey: DefaultsKey.notchClipboardWindow)
+        expect(!NotchSupport.routesClipboardWindow(in: defaults), "clipboard can still use its separate window")
         defaults.set(true, forKey: DefaultsKey.notchClipboardWindow)
-        expect(NotchSupport.routesClipboardWindow(in: defaults), "clipboard opening can be routed to the notch")
         defaults.set("clipboard,unknown", forKey: DefaultsKey.notchHiddenModules)
         expect(!NotchSupport.routesClipboardWindow(in: defaults), "hidden clipboard keeps the ordinary history available")
         expect(!NotchSupport.routes(.clipboard, in: defaults), "hidden module cannot leak an activity")
@@ -282,6 +319,10 @@ enum NotchTests {
                && restored?[DefaultsKey.notchQuickAccessSecond] as? String == "timer"
                && restored?[DefaultsKey.notchQuickAccessThird] as? String == "settings",
                "backup restores both the side and the actions of floating quick access")
+        expect(!SettingsBackupSupport.valueLooksRight(DefaultsKey.notchQuickAccessSide, ["right"])
+               && !SettingsBackupSupport.valueLooksRight(DefaultsKey.notchQuickAccessSecond, true)
+               && !SettingsBackupSupport.valueLooksRight(DefaultsKey.notchQuickAccessThird, 3),
+               "legacy layout keys retain string validation after leaving registered defaults")
         defaults.set("unknown", forKey: DefaultsKey.notchQuickAccessSide)
         defaults.set("settings", forKey: DefaultsKey.notchQuickAccessSecond)
         defaults.set("settings", forKey: DefaultsKey.notchQuickAccessThird)

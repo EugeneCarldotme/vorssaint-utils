@@ -149,11 +149,7 @@ final class QuickLauncherService: ObservableObject {
     func show() {
         if NotchService.shared.openQuickPanel() { return }
         let panel = ensurePanel()
-        presentationID = UUID()
-        isEditing = false
-        editingOptionsItem = nil
-        activeUtility = nil
-        selectedIndex = visibleItems.isEmpty ? nil : 0
+        prepareForPresentation()
         position(panel)
         installMonitors(for: panel)
         panel.alphaValue = 0
@@ -163,6 +159,22 @@ final class QuickLauncherService: ObservableObject {
             context.duration = 0.13
             panel.animator().alphaValue = 1
         }
+    }
+
+    /// Both destinations start with usable keyboard navigation. A utility that
+    /// is still installed keeps its working state when the island is reopened.
+    func prepareForPresentation() {
+        refreshAvailability()
+        presentationID = UUID()
+        isEditing = false
+        editingOptionsItem = nil
+        selectedIndex = visibleItems.isEmpty ? nil : 0
+    }
+
+    func refreshAvailability() {
+        if let activeUtility, !activeUtility.feature.isAvailable { self.activeUtility = nil }
+        if let editingOptionsItem, !editingOptionsItem.feature.isAvailable { self.editingOptionsItem = nil }
+        clampSelection()
     }
 
     func hide() {
@@ -246,7 +258,7 @@ final class QuickLauncherService: ObservableObject {
     }
 
     func run(_ item: QuickLauncherItem) {
-        guard !isEditing else { return }
+        guard !isEditing, item.feature.isAvailable else { return }
         switch item {
         case .keepAwake:
             KeepAwakeManager.shared.toggle()

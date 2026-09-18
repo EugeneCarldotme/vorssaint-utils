@@ -7,11 +7,20 @@ final class ScreenshotOutputContract {
     enum ScreenshotSelectionController { typealias Capture = Int }
     struct SaveOutcome { let url: URL; let consumedNumber: Int? }
     enum ScreenshotRenderer {
-        static func pngData(from image: Int) -> Data? { Data([1, 2, 3]) }
+        struct Export { let image: Int; let scale: Double }
+        static var lastScale: Double?
+        static func pngData(from image: Int, scale: Double) -> Data? {
+            lastScale = scale
+            return Data([1, 2, 3])
+        }
     }
     enum ScreenshotEditorController {
         static var copied = true
-        static func clipboardPayload(from image: Int, png: Data) -> Int { image }
+        static var lastScale: Double?
+        static func clipboardPayload(from export: ScreenshotRenderer.Export, png: Data) -> Int {
+            lastScale = export.scale
+            return export.image
+        }
         static func copyFile(_ url: URL, payload: Int) -> Bool { copied }
     }
     enum QuickToolHUD { static func show(icon: String, message: String) {} }
@@ -32,7 +41,10 @@ final class ScreenshotOutputContract {
     static var rewound: [Int] = []
     var fallbackCopies = 0
     var fallbackSucceeds = true
-    func flatten(_ capture: Int) -> Int? { capture }
+    var exportScale = 2.0
+    func flatten(_ capture: Int) -> ScreenshotRenderer.Export? {
+        ScreenshotRenderer.Export(image: capture, scale: exportScale)
+    }
     func copyDirect(_ capture: Int) -> Bool {
         fallbackCopies += 1
         return fallbackSucceeds
@@ -79,6 +91,12 @@ final class ScreenshotOutputContract {
             ScreenshotEditorController.copied = true
             expect(service.saveAndCopyDirect(1)?.copied == true,
                    "a successful save still copies the saved file")
+            expect(ScreenshotRenderer.lastScale == 2 && ScreenshotEditorController.lastScale == 2,
+                   "save and clipboard export both preserve Retina scale")
+            service.exportScale = 1
+            _ = service.saveAndCopyDirect(1)
+            expect(ScreenshotRenderer.lastScale == 1 && ScreenshotEditorController.lastScale == 1,
+                   "save and clipboard export both preserve downscaled 1x output")
             ScreenshotEditorController.copied = false
             expect(service.saveAndCopyDirect(1)?.copied == false,
                    "a failed clipboard write does not claim copy success")

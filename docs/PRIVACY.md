@@ -33,6 +33,8 @@ Timers and focus sessions are kept only for the current app session. Accessory a
 
 Imported lyrics and timing adjustments are kept for only the current song in memory. Opening a different section cancels lookup work without losing that song's imported text. Observing a different song or disabling the feature clears it. The upcoming music queue comes from the local player and is not uploaded.
 
+Playback controls keep music apps ahead of browser videos. When a player needs Automation for directed controls, Vorssaint reads only the playback commands declared in that app's local scripting definition. Permission is requested from an explicit button; granting it does not replay an earlier action. Commands address the selected running process and recheck the displayed playback before delivery. Players without compatible controls can still be opened from the island. No playback data is uploaded by these controls.
+
 ## Network connections
 
 Vorssaint opens only a few kinds of connection, and each one belongs to a visible feature.

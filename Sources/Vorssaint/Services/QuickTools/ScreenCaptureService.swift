@@ -12,8 +12,10 @@ final class ScreenCaptureSelectionOptions: ObservableObject {
     let controlsInNotch: Bool
     var hasFocusedControl = false
     var onPresentationReady: (() -> Void)?
+    var onSelectionProgressChange: ((Bool) -> Void)?
     let recorderAudio = RecorderSelectionAudioOptions()
     @Published private(set) var selectedTool: ScreenCaptureTool
+    @Published var offersRepeatLastRegion = false
     var onSelectionChange: (() -> Void)?
 
     init(availableTools: [ScreenCaptureTool], selectedTool: ScreenCaptureTool,

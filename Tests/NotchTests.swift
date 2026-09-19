@@ -435,6 +435,16 @@ enum NotchTests {
         expect(controls.first == .panel && Set(controls).count == controls.count,
                "shortcut ordering tolerates duplicate and obsolete identifiers")
         expect(!controls.contains(.volume) && !controls.contains(.screenshot), "individual controls can be hidden")
+        defaults.set("", forKey: DefaultsKey.notchHiddenControls)
+        expect(NotchSupport.controls(in: defaults).last == .scratchpad
+               && NotchQuickAction(id: NotchQuickAction.control(.scratchpad).id) == .control(.scratchpad)
+               && NotchQuickAction.optionalActions.contains(.control(.scratchpad)),
+               "the scratchpad shortcut can be shown among the controls and placed as a floating button")
+        defaults.set(false, forKey: AppFeature.scratchpad.availabilityKey)
+        expect(!NotchSupport.controls(in: defaults).contains(.scratchpad)
+               && !NotchQuickAction.control(.scratchpad).isAvailable(in: defaults),
+               "an uninstalled scratchpad leaves no island shortcut")
+        defaults.set(true, forKey: AppFeature.scratchpad.availabilityKey)
         defaults.set("mixer,commandBar", forKey: DefaultsKey.notchHiddenControls)
         defaults.set("", forKey: DefaultsKey.notchControlOrder)
         let allModules = NotchModule.allCases
@@ -733,14 +743,17 @@ enum NotchTests {
         }
         for frame in frames {
             for width in [360.0, 470.0, 600.0] {
-                for height in [400.0, 520.0, 640.0] {
+                for height in [NotchSize.heightRange.lowerBound, 400.0, 520.0, 640.0] {
                     let custom = NotchGeometry(screen: frame, safeAreaTop: 32, cameraWidth: 210,
                                                layout: .custom, customWidth: width, customHeight: height)
+                    let available = height - custom.safeContentTop - NotchLayout.chromeHeight
                     for module in NotchModule.allCases {
                         let size = custom.expandedSize(module: module)
                         expect(size.width == min(width, frame.width - 24 - NotchQuickAccessLayout.gutter * 2) && size.height <= height
                                && frame.contains(custom.frame(for: size)),
                                "custom dimensions fit every module and respect the display and height limit")
+                        expect(custom.contentSize(for: size).height >= 130,
+                               "even the smallest custom height leaves every page a usable content area")
                     }
                     for count in [0, 1, 9, allModules.count] {
                         let picker = custom.sectionPickerSize(count: count)
@@ -750,8 +763,10 @@ enum NotchTests {
                     }
                     expect(custom.expandedSize(module: .clipboard).height == min(height, frame.height - 48),
                            "long lists use the chosen height without overflowing a shorter display")
-                    expect(custom.contentSize(for: custom.expandedSize(module: .music)).height >= 212,
-                           "custom sizes retain space for music and its essential volume controls")
+                    expect(custom.contentSize(for: custom.expandedSize(module: .music)).height >= min(212, available),
+                           "custom sizes retain space for music and its essential volume controls, scrolling only below that")
+                    expect(custom.contentSize(for: custom.expandedSize(module: .music, musicHasContent: false)).height >= 130,
+                           "empty music keeps its message and volume controls at every custom height")
                 }
             }
         }
@@ -1196,6 +1211,23 @@ enum NotchTests {
         expect(NotchCalendarSupport.upcoming(entries, now: date(2026, 3, 8, 12)).map(\.id)
                == ["all", "overnight"],
                "upcoming mode still hides completed appointments after adding month history")
+        func link(_ event: NotchCalendarEvent, identifier: String, recurring: Bool) -> String? {
+            var event = event
+            event.calendarItemIdentifier = identifier
+            event.recurring = recurring
+            return NotchCalendarSupport.eventURL(event, calendar: calendar)?.absoluteString
+        }
+        expect(link(ended, identifier: "9F2A 1C", recurring: false)
+               == "ical://ekevent/9F2A%201C?method=show&options=more",
+               "a single appointment opens by its escaped identifier")
+        expect(link(ended, identifier: "9F2A", recurring: true)
+               == "ical://ekevent/20260308T130000Z/9F2A?method=show&options=more",
+               "a repeating appointment opens the clicked occurrence addressed in UTC")
+        expect(link(allDay, identifier: "9F2A", recurring: true)
+               == "ical://ekevent/20260308T000000Z/9F2A?method=show&options=more",
+               "a repeating all-day occurrence keeps its local day")
+        expect(link(ended, identifier: "", recurring: false) == nil,
+               "an appointment without an identifier falls back to opening Calendar itself")
     }
 
 }

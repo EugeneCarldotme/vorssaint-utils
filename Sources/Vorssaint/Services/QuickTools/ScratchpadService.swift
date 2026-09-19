@@ -58,7 +58,8 @@ final class ScratchpadService: NSObject, ObservableObject, NSWindowDelegate {
             && UserDefaults.standard.bool(forKey: DefaultsKey.scratchpadShortcutEnabled)
         let shortcut = GlobalShortcut.saved(for: DefaultsKey.scratchpadShortcut,
                                             fallback: .scratchpadDefault)
-        shortcutRegistrationFailed = !hotkey.sync(enabled: enabled, shortcut: shortcut)
+        shortcutRegistrationFailed = !hotkey.sync(enabled: enabled, shortcut: shortcut,
+                                                  storageKey: DefaultsKey.scratchpadShortcut)
         if !available {
             hide()
             // Uninstalled in the hub: nothing stays resident.
@@ -458,7 +459,10 @@ final class ScratchpadService: NSObject, ObservableObject, NSWindowDelegate {
         }
         outsideClickMonitor = NSEvent.addGlobalMonitorForEvents(matching: mouseEvents) { [weak self, weak panel] event in
             guard let self, let panel, panel.isVisible, self.dismissesOnOutsideClick else { return }
-            if event.windowNumber != panel.windowNumber, !Self.mouseIsInside(panel) {
+            if event.windowNumber != panel.windowNumber, !Self.mouseIsInside(panel),
+               // Every key on the Accessibility Keyboard is a click outside this
+               // panel. Dismissing on those makes the panel impossible to type into.
+               !AssistiveKeyboard.ownsCocoaPoint(NSEvent.mouseLocation) {
                 self.hide()
             }
         }

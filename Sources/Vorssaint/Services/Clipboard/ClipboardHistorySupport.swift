@@ -3,6 +3,46 @@
 
 import Foundation
 
+/// Main-thread capture admission. Expiring a result does not release the
+/// actual queued read; stop/start must not release it either.
+struct ClipboardHistoryCaptureState {
+    private(set) var generation = 0
+    private(set) var inFlight = false
+    private(set) var needsBaseline = true
+
+    mutating func restart() {
+        generation &+= 1
+        needsBaseline = true
+    }
+
+    mutating func invalidate() {
+        generation &+= 1
+    }
+
+    mutating func begin() -> Int? {
+        guard !inFlight else { return nil }
+        inFlight = true
+        generation &+= 1
+        return generation
+    }
+
+    func accepts(_ token: Int) -> Bool {
+        token == generation
+    }
+
+    mutating func expire(_ token: Int) {
+        if accepts(token) { invalidate() }
+    }
+
+    mutating func finish() {
+        inFlight = false
+    }
+
+    mutating func didBaseline() {
+        needsBaseline = false
+    }
+}
+
 enum ClipboardHistoryEntryKind: String, Codable {
     case text
     case image
@@ -79,6 +119,23 @@ struct ClipboardHistoryEntry: Codable, Equatable, Identifiable {
         }
     }
 
+    /// `preview` collapsed further to a menu bar sized excerpt, for the
+    /// optional "show latest copy" status item. `preview` itself renders an
+    /// image as bare dimensions (nothing else displays it raw — every other
+    /// image row builds its own labeled string instead), so this adds the
+    /// same localized "Image" label those rows show next to the dimensions.
+    func menuBarText(maxCharacters: Int) -> String {
+        let base: String
+        if kind == .image {
+            let imageLabel = FeatureStrings.clipboard(L10n.shared.language).imageEntryLabel
+            base = "\(imageLabel) · \(imageDimensionsLabel)"
+        } else {
+            base = preview
+        }
+        guard base.count > maxCharacters else { return base }
+        return String(base.prefix(maxCharacters)) + "…"
+    }
+
     /// Same clipboard content, regardless of when it was copied: re-copying
     /// refreshes the existing entry instead of duplicating it.
     func matchesContent(of other: ClipboardHistoryEntry) -> Bool {
@@ -133,6 +190,9 @@ enum ClipboardHistoryEditing {
     /// this bounded prevents a very large saved document from being copied
     /// again merely to draw its list preview.
     static let previewCharacters = 2_000
+    /// A hover tooltip is a transient popup, not a list row: previewCharacters
+    /// would let a whole page of prose through and read as a wall of text.
+    static let tooltipCharacters = 200
 
     struct EncodedHistory {
         let entries: [ClipboardHistoryEntry]

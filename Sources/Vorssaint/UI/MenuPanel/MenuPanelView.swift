@@ -60,6 +60,7 @@ final class MenuPanelFocus: ObservableObject {
 /// Content of the menu bar popover: keep-awake controls, the volume mixer and
 /// the system monitor.
 struct MenuPanelView: View {
+    var notchSize: CGSize? = nil
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var updates = UpdateService.shared
     @ObservedObject private var panelFocus = MenuPanelFocus.shared
@@ -96,7 +97,9 @@ struct MenuPanelView: View {
 
     var body: some View {
         Group {
-            if selectedMetric != nil {
+            if let notchSize {
+                embeddedPanel(size: notchSize)
+            } else if selectedMetric != nil {
                 metricPanel
             } else {
                 navigablePanel
@@ -163,6 +166,31 @@ struct MenuPanelView: View {
             selectedMetric = metric
             selectedSection = metric.panelSection
         }
+    }
+
+    /// Uses the same sections and actions inside an existing surface. The
+    /// host already supplies the title and material; one native scroll view
+    /// keeps long sections usable without nesting two scroll regions.
+    private func embeddedPanel(size: CGSize) -> some View {
+        VStack(spacing: 12) {
+            Group {
+                if let selectedMetric { metricNavigationHeader(selectedMetric) }
+                else { sectionNavigation }
+            }
+            .frame(height: 38)
+            OverlayScrollView(measuredHeight: $navigableContentHeight) {
+                Group {
+                    if let selectedMetric { MetricDetailView(kind: selectedMetric) }
+                    else { section(for: activeSection, collapsible: false) }
+                }
+                .frame(width: size.width)
+                .environment(\.notchPresentation, true)
+                .environment(\.colorScheme, .dark)
+            }
+            .frame(width: size.width, height: max(80, size.height - 96))
+            footer
+        }
+        .frame(width: size.width, height: size.height, alignment: .top)
     }
 
     private var navigablePanel: some View {
@@ -298,23 +326,12 @@ struct MenuPanelView: View {
         }
     }
 
+    /// The rule lives in PanelLayout; reading the @AppStorage values here is
+    /// what keeps the tabs refreshing when Settings flips one of them.
     private func isSectionVisible(_ id: PanelSectionID) -> Bool {
-        guard id.isAvailable else { return false }
-        switch id {
-        case .keepAwake: return showKeepAwake
-        // The section only earns its navigation tab while the feature is on;
-        // it is switched on in Settings, not from an empty panel screen.
-        case .brightness: return showBrightness && brightnessEnabled
-        case .mixer: return showMixer
-        case .system: return showSystem
-        case .network: return showNetwork
-        case .disk: return showDisk
-        case .power: return showPower
-        case .fanControl: return showFanControl
-        case .utilities: return showUtilities
-        case .controls: return showControls
-        case .toggles: return showToggles
-        }
+        _ = (showKeepAwake, showBrightness, brightnessEnabled, showMixer, showSystem, showNetwork,
+             showDisk, showPower, showFanControl, showUtilities, showControls, showToggles)
+        return PanelLayout.isVisibleInPanel(id)
     }
 
     private var sectionNavigation: some View {
@@ -333,7 +350,7 @@ struct MenuPanelView: View {
                 }
                 .buttonStyle(.plain)
                 .focused($focusedSection, equals: id)
-                .foregroundStyle(isActive ? Color.accentColor : Color.secondary.opacity(0.86))
+                .foregroundStyle(isActive ? (notchSize != nil ? Color.white : Color.accentColor) : Color.secondary.opacity(0.86))
                 .background(
                     RoundedRectangle(cornerRadius: 8, style: .continuous)
                         .fill(isActive ? navigationActiveFill : Color.clear)
@@ -344,7 +361,7 @@ struct MenuPanelView: View {
         .padding(4)
         .background(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(PanelSurface.cardFill(for: colorScheme))
+                .fill(notchSize != nil ? .black : PanelSurface.cardFill(for: colorScheme))
         )
         .overlay(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
@@ -353,7 +370,8 @@ struct MenuPanelView: View {
     }
 
     private var navigationActiveFill: Color {
-        colorScheme == .light ? Color.accentColor.opacity(0.13) : Color.accentColor.opacity(0.20)
+        if notchSize != nil { return .black }
+        return colorScheme == .light ? Color.accentColor.opacity(0.13) : Color.accentColor.opacity(0.20)
     }
 
     private func metricNavigationHeader(_ kind: MetricDetailKind) -> some View {
@@ -435,7 +453,7 @@ struct MenuPanelView: View {
                 .frame(maxWidth: .infinity, minHeight: 28)
                 .background(
                     RoundedRectangle(cornerRadius: 7, style: .continuous)
-                        .fill(PanelSurface.cardFill(for: colorScheme))
+                        .fill(notchSize != nil ? .black : PanelSurface.cardFill(for: colorScheme))
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: 7, style: .continuous)
@@ -500,7 +518,7 @@ private enum UtilityPanelItem: String, PanelOrderItem, Identifiable {
     // are migrated once without disturbing the rest of the user's layout.
     case screenshot, quickLauncher, appUpdates, cleaner, homebrew, media, clipboard, windowLayout,
          uninstaller, cleanURL, cleaning, screenOCR, colorPicker, cameraPreview, scratchpad,
-         commandBar, screenRecorder
+         commandBar, screenRecorder, portManager
 
     var id: String { rawValue }
 
@@ -525,6 +543,7 @@ private enum UtilityPanelItem: String, PanelOrderItem, Identifiable {
         case .cameraPreview: return .cameraPreview
         case .scratchpad: return .scratchpad
         case .commandBar: return .commandBar
+        case .portManager: return .portManager
         }
     }
 }
@@ -542,6 +561,7 @@ struct UtilitiesSection: View {
     @State private var showClipboardPanel = false
     @State private var showRecentCapturesPanel = false
     @State private var showWindowLayoutPanel = false
+    @State private var showPortManagerPanel = false
     @AppStorage(DefaultsKey.panelUtilityCleaning) private var showCleaning = true
     @AppStorage(DefaultsKey.panelUtilityURLCleaner) private var showCleanURL = true
     @AppStorage(DefaultsKey.panelUtilityUninstaller) private var showUninstallerAction = true
@@ -559,6 +579,7 @@ struct UtilitiesSection: View {
     @AppStorage(DefaultsKey.panelUtilityScratchpad) private var showScratchpad = true
     @AppStorage(DefaultsKey.panelUtilityCommandBar) private var showCommandBar = true
     @AppStorage(DefaultsKey.panelUtilityScreenRecorder) private var showScreenRecorder = true
+    @AppStorage(DefaultsKey.panelUtilityPortManager) private var showPortManager = true
     @ObservedObject private var recorder = ScreenRecorderService.shared
     @AppStorage(DefaultsKey.clipboardHistoryEnabled) private var clipboardEnabled = false
     @AppStorage(DefaultsKey.panelUtilityOrder) private var utilityOrderRaw = ""
@@ -612,6 +633,11 @@ struct UtilitiesSection: View {
                     PanelInteractionState.shared.viewKeepsPopoverOpen = false
                     showAppUpdatesPanel = false
                 }
+            } else if showPortManagerPanel {
+                PanelPortManagerView {
+                    PanelInteractionState.shared.viewKeepsPopoverOpen = false
+                    showPortManagerPanel = false
+                }
             } else {
                 VStack(alignment: .leading, spacing: 8) {
                     ForEach(items(editing: editing)) { item in
@@ -653,6 +679,7 @@ struct UtilitiesSection: View {
         if showRecentCapturesPanel { return .screenshot }
         if showWindowLayoutPanel { return .windowLayout }
         if showAppUpdatesPanel { return .appUpdates }
+        if showPortManagerPanel { return .portManager }
         return nil
     }
 
@@ -662,7 +689,7 @@ struct UtilitiesSection: View {
     private var isHostingUtility: Bool {
         showUninstaller || showCleanerPanel || showURLCleaner || showHomebrewPanel
             || showMediaPanel || showClipboardPanel || showRecentCapturesPanel
-            || showWindowLayoutPanel || showAppUpdatesPanel
+            || showWindowLayoutPanel || showAppUpdatesPanel || showPortManagerPanel
     }
 
     /// Homebrew browsing behaves like an ordinary popover. Other hosted tools
@@ -717,6 +744,7 @@ struct UtilitiesSection: View {
         case .quickLauncher: return showQuickLauncher
         case .screenshot: return showScreenshot
         case .screenRecorder: return showScreenRecorder
+        case .portManager: return showPortManager
         }
     }
 
@@ -951,6 +979,14 @@ struct UtilitiesSection: View {
                                         CommandBarService.shared.show()
                                     }
                                 })
+        case .portManager:
+            UtilityActionButton(title: FeatureStrings.portManager(l10n.language).title,
+                                caption: FeatureStrings.portManager(l10n.language).listeningCaption,
+                                systemImage: "network",
+                                isEditing: editing,
+                                showsDragHandle: true,
+                                visibility: $showPortManager,
+                                action: { showPortManagerPanel = true })
         }
     }
 
@@ -1027,6 +1063,7 @@ struct UtilitiesSection: View {
         showScratchpad = true
         showQuickLauncher = true
         showCommandBar = true
+        showPortManager = true
     }
 
     private func grantAccessibility() {
@@ -1038,7 +1075,7 @@ struct UtilitiesSection: View {
 private enum ControlPanelItem: String, PanelOrderItem, Identifiable {
     case mouseScroll, focusFollowsMouse, mouseAcceleration, mouseNavigation, switcher, cutPaste, autoQuit, shelf, windowMaximize, dockPreview, keyDebounce,
          dockClick, dockClickHide, dockClickCycle, middleClick, textSnippets, radialMenu, mouseButtonShortcuts, superKey,
-         mouseClickDebounce
+         mouseClickDebounce, notch
 
     var id: String { rawValue }
 
@@ -1060,6 +1097,7 @@ private enum ControlPanelItem: String, PanelOrderItem, Identifiable {
         case .dockClick, .dockClickHide, .dockClickCycle: return .dockClick
         case .middleClick: return .middleClick
         case .textSnippets: return .textSnippets
+        case .notch: return .notch
         case .radialMenu: return .radialMenu
         case .mouseButtonShortcuts: return .mouseButtonShortcuts
         case .superKey: return .superKey
@@ -1077,7 +1115,7 @@ private enum ControlCategory: String, CaseIterable, Identifiable {
 
     static func category(for item: ControlPanelItem) -> ControlCategory {
         switch item {
-        case .switcher, .dockPreview, .dockClick, .dockClickHide, .dockClickCycle, .windowMaximize, .autoQuit:
+        case .switcher, .dockPreview, .dockClick, .dockClickHide, .dockClickCycle, .windowMaximize, .autoQuit, .notch:
             return .windows
         case .mouseScroll, .focusFollowsMouse, .mouseAcceleration, .mouseNavigation, .mouseButtonShortcuts, .middleClick, .keyDebounce,
              .textSnippets, .radialMenu, .superKey, .mouseClickDebounce:
@@ -1121,6 +1159,8 @@ struct QuickControlsSection: View {
     @AppStorage(DefaultsKey.dockClickCycleWindows) private var dockClickCycleEnabled = false
     @AppStorage(DefaultsKey.middleClickEnabled) private var middleClickEnabled = false
     @AppStorage(DefaultsKey.textSnippetsEnabled) private var textSnippetsEnabled = false
+    @AppStorage(DefaultsKey.notchEnabled) private var notchEnabled = false
+    @AppStorage(DefaultsKey.panelControlNotch) private var showNotch = true
     @AppStorage(DefaultsKey.radialMenuEnabled) private var radialMenuEnabled = false
     @AppStorage(DefaultsKey.mouseButtonShortcutsEnabled) private var mouseButtonShortcutsEnabled = false
     @AppStorage(DefaultsKey.mouseSpacesGestureEnabled) private var spacesEnabled = false
@@ -1266,6 +1306,7 @@ struct QuickControlsSection: View {
         case .dockClickCycle: return dockClickCycleEnabled
         case .middleClick: return middleClickEnabled
         case .textSnippets: return textSnippetsEnabled
+        case .notch: return notchEnabled
         case .radialMenu: return radialMenuEnabled
         case .mouseButtonShortcuts: return mouseButtonShortcutsEnabled || spacesEnabled
         case .superKey: return superKeyEnabled
@@ -1343,6 +1384,7 @@ struct QuickControlsSection: View {
         case .dockClickCycle: return showDockClickCycle
         case .middleClick: return showMiddleClick
         case .textSnippets: return showTextSnippets
+        case .notch: return showNotch
         case .radialMenu: return showRadialMenu
         case .mouseButtonShortcuts: return showMouseButtonShortcuts
         case .superKey: return showSuperKey
@@ -1613,6 +1655,23 @@ struct QuickControlsSection: View {
                     TextSnippetService.shared.syncWithPreferences()
                     requestAccessibilityIfNeeded(enabled)
                 }
+        case .notch:
+            let text = FeatureStrings.notch(l10n.language)
+            PanelToggleRow(title: text.title,
+                           caption: text.description,
+                           systemImage: "macbook",
+                           isOn: $notchEnabled,
+                           isEditing: editing,
+                           showsDragHandle: true,
+                           visibility: $showNotch,
+                           accessoryTitle: l10n.s.menuSettings,
+                           accessoryAction: {
+                               SettingsRouter.shared.page = .notch
+                               appDelegate()?.openSettingsWindow()
+                           })
+                .onChange(of: notchEnabled) { _, _ in
+                    NotchService.shared.syncWithPreferences()
+                }
         case .radialMenu:
             let radialStrings = FeatureStrings.radialMenu(l10n.language)
             // Only wheels that press keys for the user (shortcut or media
@@ -1789,7 +1848,9 @@ struct QuickControlsSection: View {
     }
 
     private var keyDebounceWindowControl: some View {
-        Stepper(value: keyDebounceWindowBinding, in: Defaults.allowedKeyboardDebounceWindowRange, step: 5) {
+        Stepper(value: keyDebounceWindowBinding,
+                in: Defaults.allowedKeyboardDebounceWindowRange,
+                step: Defaults.keyboardDebounceWindowStep) {
             HStack(spacing: 6) {
                 Text(l10n.s.keyDebounceGlobalWindow)
                     .font(.system(size: 10.5, weight: .medium))
@@ -1926,11 +1987,16 @@ struct UtilityActionButton: View {
                 VStack(alignment: .leading, spacing: 7) {
                     if permissionAction != nil {
                         rowContent(showChevron: false)
-                        permissionButton
                     } else {
                         mainButton
                     }
-                    accessoryButton
+                    VStack(alignment: .leading, spacing: 7) {
+                        if permissionAction != nil {
+                            permissionButton
+                        }
+                        accessoryButton
+                    }
+                    .padding(.leading, 31)
                 }
                 .panelCard()
             } else {
@@ -1960,7 +2026,6 @@ struct UtilityActionButton: View {
             }
             .buttonStyle(.bordered)
             .controlSize(.mini)
-            .padding(.leading, 31)
         }
     }
 
@@ -2740,7 +2805,8 @@ struct KeepAwakeCard: View {
         .font(.system(size: 10))
     }
 
-    private static func remainingText(until end: Date) -> String {
+    /// "1 h 05 min" style countdown, shared with the Energy page's status line.
+    static func remainingText(until end: Date) -> String {
         let total = max(0, Int(end.timeIntervalSinceNow))
         let hours = total / 3600
         let minutes = (total % 3600) / 60
@@ -2756,15 +2822,27 @@ struct DurationPicker: View {
     @ObservedObject private var l10n = L10n.shared
     @Binding var selection: Int
 
+    /// The offered durations in minutes; 0 keeps the session open until it
+    /// is switched off.
+    static let choices = [15, 30, 60, 120, 240, 480, 0]
+
+    static func title(for minutes: Int, _ s: Strings) -> String {
+        switch minutes {
+        case 15: return s.minutes15
+        case 30: return s.minutes30
+        case 60: return s.hour1
+        case 120: return s.hours2
+        case 240: return s.hours4
+        case 480: return s.hours8
+        default: return s.indefinite
+        }
+    }
+
     var body: some View {
         Picker("", selection: $selection) {
-            Text(l10n.s.minutes15).tag(15)
-            Text(l10n.s.minutes30).tag(30)
-            Text(l10n.s.hour1).tag(60)
-            Text(l10n.s.hours2).tag(120)
-            Text(l10n.s.hours4).tag(240)
-            Text(l10n.s.hours8).tag(480)
-            Text(l10n.s.indefinite).tag(0)
+            ForEach(Self.choices, id: \.self) { minutes in
+                Text(Self.title(for: minutes, l10n.s)).tag(minutes)
+            }
         }
         .labelsHidden()
         .pickerStyle(.menu)

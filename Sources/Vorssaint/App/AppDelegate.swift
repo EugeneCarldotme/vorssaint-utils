@@ -16,6 +16,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     private var popoverLocalDismissMonitor: Any?
     private var popoverKeyboardMonitor: Any?
     private var popoverIsClosing = false
+    /// The last visible geometry and event destination survive AppKit's teardown.
+    private var popoverLastFrame: CGRect?
+    private var popoverLastWindowNumber: Int?
+    private var popoverForeignReopenAt = Date.distantPast
     private var popoverIsSwitchingAnchor = false
     private var metricAnchorSwitchSerial = 0
     private var popoverCloseCompletions: [() -> Void] = []
@@ -48,10 +52,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         }
         beginStartupWatch()
         Self.boundAccessibilityWaits()
-        // Resolve the Accessibility Keyboard's pid now. The lookup is async, so
-        // a feature that asks first and has no second chance — the switcher
-        // judges a click only after cancelSession() has already run — would
-        // otherwise be told "not running" once per launch.
+        // Pay the first AppKit process lookup before an input callback needs
+        // it. Each click still resolves the current process independently.
         _ = AssistiveKeyboard.isRunning
 
         // Finish the on-disk rename for installs carried over from a pre-2.5
@@ -98,6 +100,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
             self?.captureStatusClick()
             self?.showMetricPanel(for: metric, anchoredTo: button)
         }
+        statusController.onClipboardPreviewClick = {
+            // No captureStatusClick() here, unlike the other click handlers:
+            // it only ever helps anchor the main popover to a status item,
+            // and this action opens the clipboard quick panel instead, which
+            // centers itself on the pointer's screen rather than anchoring to
+            // any status item.
+            ClipboardHistoryService.shared.toggleHistoryWindow()
+        }
         // The shelf drop zone chip anchors itself under the menu bar icon.
         ShelfService.shared.statusItemFrameProvider = { [weak self] in
             guard let item = self?.statusController.statusItem, item.isVisible,
@@ -110,6 +120,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         setUpPopover()
         bindManagers()
 
+        // A marker from an earlier build may name a hotkey id this build no
+        // longer owns; give it back before any feature decides what to hold,
+        // except the ids the switcher is about to take over again, which stay
+        // off rather than flipping on and back. It has to run before the first
+        // claim of the launch — keep-awake makes one on the next line — because
+        // a claim resolves what every source wants together, and a marker no
+        // source has spoken for yet resolves to nothing and is handed back whole.
+        SystemShortcutTakeover.recoverIfNeeded(keeping: AppSwitcher.launchTakeoverIDs())
         HotkeyManager.shared.onActivate = { KeepAwakeManager.shared.toggle() }
         HotkeyManager.shared.syncWithPreferences()
 
@@ -117,11 +135,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
             KeepAwakeManager.shared.activateOnLaunchIfNeeded()
         }
         FanControlService.recoverIfNeeded()
-        // A marker from an earlier build may name a hotkey id this build no
-        // longer owns; give it back before any feature decides what to hold,
-        // except the ids the switcher is about to take over again, which stay
-        // off rather than flipping on and back.
-        SystemShortcutTakeover.recoverIfNeeded(keeping: AppSwitcher.launchTakeoverIDs())
         // One binding per feature: only available features are touched, so a
         // feature switched off in the hub never even instantiates here.
         FeatureRuntime.shared.syncAtLaunch()
@@ -139,11 +152,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
             .receive(on: DispatchQueue.main)
             .sink { _ in
                 FeatureRuntime.shared.sync([
-                    .scrollInverter, .focusFollowsMouse, .smoothScroll, .mouseNavigation, .switcher,
+                    .scrollInverter, .scrollHorizontal, .focusFollowsMouse, .smoothScroll, .mouseNavigation, .switcher,
                     .dockPreview, .finderCutPaste, .finderRename, .autoQuit, .dockClick,
                     .middleClick, .windowMaximizer, .keyboardDebounce, .windowLayout,
                     .textSnippets, .brightness, .radialMenu, .mouseButtonShortcuts,
-                    .mouseClickDebounce, .superKey, .quitWindowProtection, .mixer,
+                    .mouseClickDebounce, .superKey, .quitWindowProtection, .mixer, .notch,
                 ])
             }
             .store(in: &cancellables)
@@ -173,6 +186,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         let skipStartupWindows = startupOfPreviousRunDidNotFinish
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }
+            #if VORSSAINT_DEVELOPMENT
+            if CommandLine.arguments.contains("--preview-notch-tour") {
+                self.showUpdateHighlights()
+                return
+            }
+            #endif
             if !defaults.bool(forKey: DefaultsKey.hasOnboarded) {
                 guard !skipStartupWindows else { return }
                 self.showOnboarding(mode: .full)
@@ -228,6 +247,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
 
     func applicationWillTerminate(_ notification: Notification) {
         isTerminating = true
+        if AppFeature.notch.isAvailable { NotchService.shared.stop(restoreCapture: false) }
         // Quitting properly means the start worked, whenever it happened.
         endStartupWatch()
         if AppFeature.brightness.isAvailable {
@@ -265,6 +285,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         AudioInputDeviceManager.shared.stop()
         // Flushes any scratchpad edit still inside the save debounce.
         ScratchpadService.shared.suspend()
+        // Every macOS shortcut a feature took over goes back now, whichever
+        // feature held it; not all of them suspend here.
+        SystemShortcutTakeover.restoreAll()
         // The clipboard history persists through an async pipeline; the last
         // mutation (often a Clear) must land before the process dies.
         if AppFeature.clipboardHistory.isAvailable {
@@ -321,6 +344,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         guard let frame = statusController?.statusItem.button?.window?.frame,
               frame.width > 0, frame.height > 0 else { return false }
         return NSScreen.screens.contains { $0.frame.intersects(frame) }
+    }
+
+    private func iconIsSettling() -> Bool {
+        StatusItemAnchorSupport.isSettlingStatusFrame(
+            statusController?.statusItem.button?.window?.frame)
     }
 
     /// What the recovery saw, in the app's own log. Whether macOS gave the
@@ -387,14 +415,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     }
 
     private func toggleMainPopover() {
+        if NotchSupport.routesAppPanel(), NotchService.shared.acceptsSystemFeedback {
+            NotchService.shared.openAppPanel(toggle: true); return
+        }
         if !popover.isShown {
             MenuPanelFocus.shared.showNormalPanel()
         }
         togglePopover()
     }
 
+    func isOverStatusItem(_ point: NSPoint) -> Bool {
+        statusController?.containsStatusItem(at: point) == true
+    }
+
     private func showMetricPanel(for metric: MenuBarMetric, anchoredTo button: NSStatusBarButton) {
         let detailKind = metric.detailKind
+        if NotchSupport.routesAppPanel(), NotchService.shared.acceptsSystemFeedback,
+           NotchSupport.modules().contains(.system) {
+            NotchService.shared.showMetric(detailKind, toggle: true); return
+        }
         if popover.isShown {
             if MenuPanelFocus.shared.activeMetric == detailKind {
                 metricAnchorSwitchSerial &+= 1
@@ -664,11 +703,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         } else {
             applyPopoverDriftFrame(window)
         }
+        popoverLastFrame = window.frame
+        popoverLastWindowNumber = window.windowNumber
         for name in [NSWindow.didMoveNotification, NSWindow.didResizeNotification] {
             popoverDriftObservers.append(NotificationCenter.default.addObserver(
                 forName: name, object: window, queue: .main
             ) { [weak self, weak window] notification in
                 guard let self, let window else { return }
+                self.popoverLastFrame = window.frame
                 // Once the popover hangs from the stable view, that view is the
                 // only authority for placement. Recompute its screen-space
                 // position on both resize and move; applying the old midX frame
@@ -843,7 +885,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     private func showPopover(anchor button: NSStatusBarButton? = nil,
                              allowRecentClose: Bool = false,
                              animate: Bool = true,
-                             activate: Bool = true) {
+                             activate: Bool = true,
+                             restoring savedAnchor: PanelAnchor? = nil) {
         guard !popover.isShown else { return }
         // The click that just transient-dismissed the popover also lands here;
         // reopening would make the panel look impossible to close.
@@ -881,7 +924,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         }
         if let window = popover.contentViewController?.view.window {
             beginPopoverDriftCorrection(window: window,
-                                        anchor: resolvePanelAnchor(for: button, window: window))
+                                        anchor: savedAnchor ?? resolvePanelAnchor(for: button, window: window))
         }
         installPopoverDismissMonitor()
     }
@@ -1008,7 +1051,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     }
 
     func closePopover(animated: Bool = true, after delay: TimeInterval = 0,
-                      completion: (() -> Void)? = nil) {
+                      preservingNotch: Bool = false, completion: (() -> Void)? = nil) {
+        if !preservingNotch, NotchSupport.isEnabled() { NotchService.shared.collapse() }
         if delay <= 0 {
             closePopoverNow(animated: animated, completion: completion)
             return
@@ -1092,20 +1136,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     }
 
     func popoverDidClose(_ notification: Notification) {
+        // Decided before anything below is torn down, and treated like a
+        // metric anchor switch: the panel is about to be shown again in the
+        // same turn, so the sampling and caches it is using stay alive.
+        let recoveryAnchor = anchorAfterForeignClose()
+        if recoveryAnchor != nil {
+            popoverIsSwitchingAnchor = true
+            MenuPanelFocus.shared.setSwitchingMetricAnchor(true)
+        }
         if !popoverIsSwitchingAnchor && !popover.isShown {
             statusController.setMicBadgeHeld(false)
         }
         if !popoverIsSwitchingAnchor {
-            SystemMonitor.shared.setMenuPanelNeeds(.none)
-        }
-        if !popoverIsSwitchingAnchor {
-            MenuPanelFocus.shared.clearMetricFocus()
-            // Non-forced stop: the shortened lease lets nettop wind down on its
-            // own within a few seconds while keeping the delta baseline, so a
-            // quick reopen shows per-app rows immediately instead of re-priming.
-            ProcessUsageService.shared.stopNetworkMonitoring()
-            ProcessUsageService.shared.clearCachedRows()
-            ResponsibleProcess.clearIconCache()
+            releasePanelResources()
         }
         removePopoverDismissMonitor()
         endPopoverDriftCorrection()
@@ -1114,6 +1157,57 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         popoverClosedAt = popoverIsSwitchingAnchor ? .distantPast : Date()
         popoverIsClosing = false
         runPopoverCloseCompletions()
+        if let recoveryAnchor {
+            reopenPanelAfterForeignClose(anchor: recoveryAnchor)
+        }
+    }
+
+    /// What the panel was holding open only for as long as it was on screen.
+    private func releasePanelResources() {
+        SystemMonitor.shared.setMenuPanelNeeds(.none)
+        MenuPanelFocus.shared.clearMetricFocus()
+        // Non-forced stop: the shortened lease lets nettop wind down on its
+        // own within a few seconds while keeping the delta baseline, so a
+        // quick reopen shows per-app rows immediately instead of re-priming.
+        ProcessUsageService.shared.stopNetworkMonitoring()
+        ProcessUsageService.shared.clearCachedRows()
+        ResponsibleProcess.clearIconCache()
+    }
+
+    /// Preserve the corrected anchor, not just the status item's stale frame.
+    /// A recent event targeting this panel is required; a parked pointer is not
+    /// evidence that an unrelated system close should be undone.
+    private func anchorAfterForeignClose() -> PanelAnchor? {
+        guard !isTerminating, !popoverIsSwitchingAnchor,
+              let anchor = popoverAnchor, anchor.screen?.isStillAttached == true,
+              let button = anchor.button, button.window != nil,
+              StatusItemAnchorSupport.shouldReopenPanel(
+                  closedByApp: popoverIsClosing,
+                  lastFrame: popoverLastFrame,
+                  panelWindowNumber: popoverLastWindowNumber,
+                  event: NSApp.currentEvent,
+                  secondsSinceLastReopen: Date().timeIntervalSince(popoverForeignReopenAt))
+        else { return nil }
+        return anchor
+    }
+
+    /// Reuses the anchor within the close callback. If presentation fails or
+    /// another close follows immediately, release the resources held for recovery.
+    private func reopenPanelAfterForeignClose(anchor: PanelAnchor) {
+        popoverForeignReopenAt = Date()
+        if let button = anchor.button {
+            showPopover(anchor: button, allowRecentClose: true, animate: false, activate: false,
+                        restoring: anchor)
+        }
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.popoverIsSwitchingAnchor = false
+            MenuPanelFocus.shared.setSwitchingMetricAnchor(false)
+            if !self.popover.isShown {
+                self.statusController.setMicBadgeHeld(false)
+                self.releasePanelResources()
+            }
+        }
     }
 
     // MARK: - Context menu (right click)
@@ -1384,6 +1478,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         }
         NSApp.activate(ignoringOtherApps: true)
         settingsWindow?.makeKeyAndOrderFront(nil)
+        // Reopening on the very page that was showing at close never runs
+        // that page's own onAppear, since its view was never removed from
+        // the hierarchy; the window itself is the only reliable signal here.
+        SecureInputMonitor.shared.setSettingsWindowOpen(true)
         DispatchQueue.main.async { [weak self] in
             guard let self, let window = self.settingsWindow else { return }
             self.positionSettingsWindow(window, force: false)
@@ -1463,6 +1561,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         // metrics option must not immediately re-hide what the user just
         // asked to see (and then trip the "still hidden" alert).
         UserDefaults.standard.set(false, forKey: DefaultsKey.menuBarHideIconWithMetrics)
+        guard !isReshowingStatusItem else { return }
+        isReshowingStatusItem = true
         statusController?.recreateStatusItem()
         verifyIconReappeared(attemptsLeft: Self.reshowVerifyAttempts)
     }
@@ -1471,19 +1571,43 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     /// can take longer than one look to settle. Judging it once meant a slow
     /// placement read as a failure and the person was told the bar was full
     /// when it was not, so the answer is asked for several times before
-    /// anything is said.
-    private static let reshowVerifyAttempts = 4
+    /// anything is said. A newborn item also reports a zero-height frame for
+    /// a few seconds (#1394); that settling grace is separate from the
+    /// "still hidden" countdown so recovery does not burn the arranged spot
+    /// while macOS is still placing the window.
+    private var isReshowingStatusItem = false
+    private static let reshowVerifyAttempts = 6
+    private static let reshowSettlingGraceAttempts = 8
     private static let reshowVerifyInterval: TimeInterval = 0.8
 
-    private func verifyIconReappeared(attemptsLeft: Int, placementWasReset: Bool = false) {
+    private func verifyIconReappeared(attemptsLeft: Int,
+                                      settlingGraceLeft: Int = AppDelegate.reshowSettlingGraceAttempts,
+                                      placementWasReset: Bool = false) {
         DispatchQueue.main.asyncAfter(deadline: .now() + Self.reshowVerifyInterval) { [weak self] in
             guard let self else { return }
+            // A later choice to hide the icon cancels the explicit recovery.
+            guard !UserDefaults.standard.bool(forKey: DefaultsKey.menuBarHideIconWithMetrics) else {
+                self.isReshowingStatusItem = false
+                return
+            }
             if self.iconIsOnScreen() {
+                self.isReshowingStatusItem = false
                 self.logStatusItemPlacement("appeared")
+                return
+            }
+            if StatusItemPlacementSupport.shouldKeepWaitingForSettlement(
+                isOnScreen: false,
+                isSettling: self.iconIsSettling(),
+                settlingGraceLeft: settlingGraceLeft) {
+                self.logStatusItemPlacement("settling")
+                self.verifyIconReappeared(attemptsLeft: attemptsLeft,
+                                          settlingGraceLeft: settlingGraceLeft - 1,
+                                          placementWasReset: placementWasReset)
                 return
             }
             guard attemptsLeft <= 1 else {
                 self.verifyIconReappeared(attemptsLeft: attemptsLeft - 1,
+                                          settlingGraceLeft: settlingGraceLeft,
                                           placementWasReset: placementWasReset)
                 return
             }
@@ -1495,9 +1619,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
                 self.logStatusItemPlacement("resetting placement")
                 self.statusController?.resetStatusItemPlacementIdentity()
                 self.verifyIconReappeared(attemptsLeft: Self.reshowVerifyAttempts,
+                                          settlingGraceLeft: Self.reshowSettlingGraceAttempts,
                                           placementWasReset: true)
                 return
             }
+            self.isReshowingStatusItem = false
             self.logStatusItemPlacement("still hidden")
             let s = L10n.shared.s
             var body = s.menuBarIconStillHiddenBody
@@ -1574,10 +1700,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         }
     }
 
-    /// On launch after an update, keep the short support prompt visible once per
-    /// version. The changelog itself is already shown before download.
+    /// Beta updates only introduce their new feature; other update surfaces
+    /// retain their own release gates.
     private func presentUpdateIntros() {
         if showUpdateHighlightsIfNeeded() { return }
+        guard !AppInfo.isBeta else { return }
         if showSupportUpdateIntroIfNeeded() { return }
         if showUpdateShowcaseIntroIfNeeded() { return }
     }
@@ -1599,16 +1726,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
             return
         }
         let host = NSHostingController(rootView: UpdateHighlightsView(
-            onFinish: { [weak self] in
-                guard let self else { return }
-                let previousWindow = self.updateHighlightsWindow
-                previousWindow?.close()
-                self.showSupportUpdateIntro()
-                if let previousWindow, let supportWindow = self.supportIntroWindow {
-                    supportWindow.setFrameOrigin(previousWindow.frame.origin)
-                    self.positionTourBesideSettings(supportWindow)
-                }
-            }
+            onFinish: { [weak self] in self?.updateHighlightsWindow?.close() }
         ))
         host.sizingOptions = .preferredContentSize
         let window = NSPanel(contentViewController: host)
@@ -1654,6 +1772,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     }
 
     private func markUpdateHighlightsSeen() {
+        guard UpdateHighlightsInfo.matchesRelease(AppInfo.version) else { return }
         UserDefaults.standard.set(UpdateHighlightsInfo.releaseVersion,
                                   forKey: DefaultsKey.updateHighlightsSeenVersion)
     }
@@ -1718,6 +1837,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     }
 
     private func showSupportUpdateIntro() {
+        guard !AppInfo.isBeta else { return }
         closePopover()
         if let window = supportIntroWindow {
             NSApp.activate(ignoringOtherApps: true)
@@ -1864,6 +1984,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
                 settingsKeepsAppRegular = false
                 WindowActivationPolicy.release()
             }
+            // Whatever page was showing, its own onDisappear does not always
+            // run before the window finishes closing; stop the poll from
+            // here too rather than let it run until the app quits. The
+            // page's own demand is left alone, so it resumes on its own the
+            // moment the window reopens, on this page or any other.
+            SecureInputMonitor.shared.setSettingsWindowOpen(false)
             return
         }
         if window === onboardingWindow {

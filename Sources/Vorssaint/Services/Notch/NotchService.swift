@@ -16,6 +16,25 @@ struct NotchNotice: Equatable {
     var notificationID: UUID? = nil
     /// The agent an AI notice is about, which tints its mark.
     var agent: AgentProvider? = nil
+    var isOutputDeviceChange = false
+
+    func isEnabled(in defaults: UserDefaults = .standard) -> Bool {
+        if isOutputDeviceChange {
+            return event == .volume && NotchSupport.isEnabled(in: defaults)
+                && AppFeature.mixer.isAvailable(in: defaults)
+                && AppFeature.soundOutputSwitcher.isAvailable(in: defaults)
+                && defaults.bool(forKey: DefaultsKey.soundOutputOSDEnabled)
+        }
+        return NotchSupport.routes(event, in: defaults)
+    }
+
+    func outputDeviceSize(in geometry: NotchGeometry) -> CGSize {
+        let font = NSFont.systemFont(ofSize: 13, weight: .medium)
+        let textWidth = ceil((title as NSString).size(withAttributes: [.font: font]).width)
+        let width = min(geometry.screen.width - 24,
+                        max(geometry.cameraWidth + 24, min(360, textWidth + 70)))
+        return CGSize(width: width, height: geometry.safeContentTop + 38)
+    }
 
     var preferredWingWidth: CGFloat {
         if notification != nil { return 190 }
@@ -395,7 +414,10 @@ final class NotchService: ObservableObject {
         if expanded { return expandedSize }
         if dragPlaceholder { return CGSize(width: geometry.peek.width, height: geometry.safeContentTop + 66) }
         if let notice {
-            guard noticeExpanded else { return geometry.noticeSize(wingWidth: notice.preferredWingWidth) }
+            guard noticeExpanded else {
+                return notice.isOutputDeviceChange ? notice.outputDeviceSize(in: geometry)
+                    : geometry.noticeSize(wingWidth: notice.preferredWingWidth)
+            }
             return geometry.notificationPreviewSize(
                 contentHeight: notice.previewContentHeight(width: geometry.notificationPreviewContentWidth))
         }
@@ -786,7 +808,7 @@ final class NotchService: ObservableObject {
 
     private func syncNoticeWithPreferences() {
         guard let notice else { return }
-        if !NotchSupport.routes(notice.event) || (notice.notificationID != nil && hiddenUntilHover) {
+        if !notice.isEnabled() || (notice.notificationID != nil && hiddenUntilHover) {
             dismissNotice()
         }
     }
@@ -1256,15 +1278,20 @@ final class NotchService: ObservableObject {
 
     @discardableResult
     func show(_ incoming: NotchNotice) -> Bool {
-        guard showsSystemFeedback, NotchSupport.routes(incoming.event),
+        guard showsSystemFeedback, incoming.isEnabled(),
               NotchSupport.shouldReplace(notice?.event, with: incoming.event, held: noticeExpanded) else { return false }
         noticeWork?.cancel(); noticeWork = nil
         let keepsPreview = noticeExpanded && incoming.notificationID != nil
             && windowHost?.containsHover(NSEvent.mouseLocation) == true
         // Slider and key bursts only replace the displayed value. They never
-        // restart a window resize or enqueue another layout animation.
+        // restart a window resize or enqueue another layout animation. An output
+        // device name arrives in its own wider layout, so it crossfades even
+        // when the volume event stays the same.
+        let changesLayout = notice?.event != incoming.event || noticeExpanded
+            || notice?.isOutputDeviceChange != incoming.isOutputDeviceChange
+            || (incoming.isOutputDeviceChange && notice?.title != incoming.title)
         let transition: NotchContentTransition = !noticeCanPresent ? .none
-            : notice == nil ? .reveal : notice?.event != incoming.event || noticeExpanded ? .replace : .none
+            : notice == nil ? .reveal : changesLayout ? .replace : .none
         mutatePresentation(transitionContent: transition) {
             notice = incoming
             noticeExpanded = keepsPreview

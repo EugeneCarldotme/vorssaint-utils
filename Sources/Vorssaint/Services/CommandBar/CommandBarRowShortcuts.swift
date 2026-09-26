@@ -13,7 +13,7 @@ import Foundation
 enum CommandBarRowShortcuts {
     /// Few enough that the keyboard is still the person's, and that the list
     /// in Settings stays readable.
-    static let limit = 20
+    static let limit = 50
 
     /// A cold catalog may arrive after the person changed their shortcut.
     /// Only the latest request, with its original binding still intact, runs.

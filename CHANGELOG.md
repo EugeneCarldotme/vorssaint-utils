@@ -11,6 +11,7 @@ Dynamic Island gives a small spring response when the pointer reaches its closed
 
 ### Changed
 - The closed Dynamic Island gently grows on hover before a click or a configured hover opening, while respecting Reduce Motion and available menu bar space.
+- Command Bar rows and apps can hold up to 50 shortcuts instead of 20, enough to give every letter of the alphabet its own app.
 
 ## [3.4.0-beta.6] - 2026-09-25
 

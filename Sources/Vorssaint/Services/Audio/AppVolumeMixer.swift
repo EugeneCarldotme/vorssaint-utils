@@ -651,6 +651,14 @@ final class AppVolumeMixer: ObservableObject {
             switchSucceeded: true)
         persistOutputDeviceUIDs(preferences.outputDeviceUIDs)
 
+        // Publish the new output's own level together with its identity. The
+        // island treats the first reading after a switch as its baseline. If
+        // the old output's level stayed here until the next refresh, the new
+        // device's reading would look like a volume change and replace the
+        // device name notice.
+        let volume = Self.hasSettableOutputVolume(for: device.audioObjectID)
+            ? Self.outputVolume(for: device.audioObjectID).map(Double.init) : nil
+        applyOutputControls(volume: volume, muted: Self.outputMuted(for: device.audioObjectID))
         currentOutputDeviceUID = device.uid
         outputDevices = outputDevices.map { outputDevice in
             MixerOutputDevice(id: outputDevice.id,

@@ -427,7 +427,7 @@ enum NotchHoverTests {
         }
         _ = cycling.show(output("AirPods"))
         let firstDevice = cycling.windowHost?.rect ?? .zero
-        expect(cycling.transitions == [.reveal] && firstDevice.height == cycling.geometry.safeContentTop + 38,
+        expect(cycling.transitions == [.reveal] && firstDevice.height == cycling.geometry.safeContentTop + NotchNotice.outputDeviceRowHeight,
                "the first output device name reveals one text row below the camera")
         _ = cycling.show(output("Steam Streaming Speakers"))
         let longerDevice = cycling.windowHost?.rect ?? .zero

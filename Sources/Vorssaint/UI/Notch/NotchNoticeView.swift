@@ -30,10 +30,10 @@ struct NotchNoticeView: View {
 
     private var outputDevice: some View {
         let size = notice.outputDeviceSize(in: geometry)
-        return HStack(spacing: 8) {
+        return HStack(spacing: NotchNotice.outputDeviceSpacing) {
             Image(systemName: notice.symbol)
                 .font(.system(size: 15, weight: .medium))
-                .frame(width: 18)
+                .frame(width: NotchNotice.outputDeviceSymbolWidth)
                 .contentTransition(.symbolEffect(.replace))
             Text(notice.title)
                 .font(.system(size: 13, weight: .medium))
@@ -42,8 +42,8 @@ struct NotchNoticeView: View {
                 .contentTransition(.opacity)
         }
         .foregroundStyle(.white)
-        .padding(.horizontal, 20)
-        .frame(width: size.width, height: 38)
+        .padding(.horizontal, NotchNotice.outputDevicePadding)
+        .frame(width: size.width, height: NotchNotice.outputDeviceRowHeight)
         .padding(.top, geometry.safeContentTop)
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.18), value: notice.title)
         .accessibilityElement(children: .ignore)

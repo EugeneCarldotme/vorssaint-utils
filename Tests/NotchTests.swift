@@ -239,14 +239,15 @@ enum NotchTests {
                                         symbol: "speaker.wave.2.fill", isOutputDeviceChange: true)
             let smallSize = short.outputDeviceSize(in: geometry)
             let largeSize = longer.outputDeviceSize(in: geometry)
-            suite.expect(smallSize.width < largeSize.width && largeSize.width <= 360,
+            suite.expect(smallSize.width < largeSize.width && largeSize.width <= 420,
                    "output device notice grows with the name without filling the expanded island")
             let measured = (longer.title as NSString).size(withAttributes: [.font: NSFont.systemFont(ofSize: 13, weight: .medium)]).width
-            suite.expect(largeSize.width >= measured + 40 + 18 + 8,
-                   "output device width includes both insets, the icon and its gap so ordinary names fit")
-            suite.expect(largeSize.height == geometry.safeContentTop + 38 && screen.contains(geometry.frame(for: largeSize)),
+            suite.expect(largeSize.width >= measured + NotchNotice.outputDevicePadding * 2 + 18 + 8
+                   && NotchNotice.outputDevicePadding >= 28,
+                   "output device width keeps a roomy inset on both sides, plus the icon and its gap")
+            suite.expect(largeSize.height == geometry.safeContentTop + NotchNotice.outputDeviceRowHeight && screen.contains(geometry.frame(for: largeSize)),
                    "output device text has one compact row below the camera and stays on screen")
-            suite.expect(oversized.outputDeviceSize(in: geometry).width <= 360
+            suite.expect(oversized.outputDeviceSize(in: geometry).width <= 420
                    && oversized.accessibilityText == oversized.title,
                    "very long output names stay bounded and retain the full accessible name")
         }

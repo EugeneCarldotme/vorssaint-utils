@@ -28,12 +28,20 @@ struct NotchNotice: Equatable {
         return NotchSupport.routes(event, in: defaults)
     }
 
+    /// The output device row and its view share these, so the measured
+    /// width always leaves the same margin inside the island's rounded corners.
+    static let outputDeviceRowHeight: CGFloat = 46
+    static let outputDevicePadding: CGFloat = 30
+    static let outputDeviceSymbolWidth: CGFloat = 18
+    static let outputDeviceSpacing: CGFloat = 8
+
     func outputDeviceSize(in geometry: NotchGeometry) -> CGSize {
         let font = NSFont.systemFont(ofSize: 13, weight: .medium)
         let textWidth = ceil((title as NSString).size(withAttributes: [.font: font]).width)
+        let content = Self.outputDeviceSymbolWidth + Self.outputDeviceSpacing + textWidth
         let width = min(geometry.screen.width - 24,
-                        max(geometry.cameraWidth + 24, min(360, textWidth + 70)))
-        return CGSize(width: width, height: geometry.safeContentTop + 38)
+                        max(geometry.cameraWidth + 40, min(420, content + Self.outputDevicePadding * 2)))
+        return CGSize(width: width, height: geometry.safeContentTop + Self.outputDeviceRowHeight)
     }
 
     var preferredWingWidth: CGFloat {

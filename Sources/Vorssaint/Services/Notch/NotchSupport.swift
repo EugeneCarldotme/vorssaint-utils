@@ -79,6 +79,20 @@ enum NotchModule: String, CaseIterable, Identifiable {
     }
 }
 
+/// ⌘1 to ⌘9 on the island's clipboard page paste the entry at that place in
+/// the visible list, as in the quick panel.
+struct NotchClipboardPastePress: Equatable {
+    let serial: Int
+    let index: Int
+
+    /// The digit row by physical key, so every layout keeps the shortcut.
+    static func index(keyCode: UInt16, commandOnly: Bool) -> Int? {
+        guard commandOnly else { return nil }
+        let digitKeys: [UInt16] = [18, 19, 20, 21, 23, 22, 26, 28, 25]
+        return digitKeys.firstIndex(of: keyCode)
+    }
+}
+
 enum NotchDisplay: String, CaseIterable {
     case automatic, builtIn, main
 }
@@ -352,6 +366,12 @@ enum NotchCompactActivity: Equatable {
     }
 }
 
+enum NotchControlSetupRequirement: Equatable {
+    case feature(AppFeature)
+    case page(NotchModule, feature: AppFeature?)
+    case none
+}
+
 enum NotchControlItem: String, CaseIterable, Identifiable {
     case volume, brightness, music, mixer, keepAwake, timer, calendar, microphone, screenshot, recording, speedTest, panel, commandBar, scratchpad
     static let defaultHidden = "microphone,screenshot,recording,speedTest,panel,commandBar,scratchpad"
@@ -374,6 +394,25 @@ enum NotchControlItem: String, CaseIterable, Identifiable {
         case .music: return NotchModule.music.symbol
         case .timer: return NotchModule.timer.symbol
         case .calendar: return NotchModule.calendar.symbol
+        }
+    }
+
+    var setupRequirement: NotchControlSetupRequirement {
+        switch self {
+        case .volume: return .feature(.mixer)
+        case .brightness: return .feature(.brightness)
+        case .keepAwake: return .feature(.keepAwake)
+        case .microphone: return .feature(.micMute)
+        case .screenshot: return .feature(.screenshot)
+        case .recording: return .feature(.screenRecorder)
+        case .commandBar: return .feature(.commandBar)
+        case .scratchpad: return .feature(.scratchpad)
+        case .panel: return .none
+        case .mixer: return .page(.mixer, feature: .mixer)
+        case .speedTest: return .page(.system, feature: .monitorNetwork)
+        case .music: return .page(.music, feature: nil)
+        case .timer: return .page(.timer, feature: .notchTimer)
+        case .calendar: return .page(.calendar, feature: .notchCalendar)
         }
     }
 
@@ -1546,6 +1585,16 @@ struct NotchGlassFade: Equatable {
 /// Free room on both sides of the camera, in Cocoa screen coordinates.
 /// Unknown/occupied camera space is distinct from a known zero-width wing.
 enum NotchMenuBarLayout {
+    /// A successful AX read can contain menu items from another display.
+    /// Without an item on this display, its menu space remains unknown.
+    static func measuredSideRoom(screen: CGRect, cameraWidth: CGFloat, barHeight: CGFloat,
+                                 menuItems: [CGRect], statusItems: [CGRect]) -> CGFloat? {
+        let bar = CGRect(x: screen.minX, y: screen.maxY - barHeight, width: screen.width, height: barHeight)
+        guard menuItems.contains(where: { $0.intersects(bar) }) else { return nil }
+        return sideRoom(screen: screen, cameraWidth: cameraWidth, barHeight: barHeight,
+                        occupied: menuItems + statusItems)
+    }
+
     static func sideRoom(screen: CGRect, cameraWidth: CGFloat, barHeight: CGFloat,
                          occupied: [CGRect]) -> CGFloat? {
         let bar = CGRect(x: screen.minX, y: screen.maxY - barHeight, width: screen.width, height: barHeight)

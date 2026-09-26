@@ -713,6 +713,16 @@ enum NotchTests {
         suite.expect(!NotchSupport.modules(in: defaults).contains(.mixer)
                && !NotchSupport.controls(in: defaults).contains(.volume), "mixer availability gates its module and volume control")
         defaults.set(true, forKey: AppFeature.mixer.availabilityKey)
+        suite.expect(NotchControlItem.allCases.filter { $0.setupRequirement == .none } == [.panel],
+                     "every unavailable island control with a setup path has a navigation target")
+        suite.expect(NotchControlItem.brightness.setupRequirement == .feature(.brightness)
+                     && NotchControlItem.recording.setupRequirement == .feature(.screenRecorder)
+                     && NotchControlItem.scratchpad.setupRequirement == .feature(.scratchpad),
+                     "feature-gated controls lead to the matching feature in the hub")
+        suite.expect(NotchControlItem.music.setupRequirement == .page(.music, feature: nil)
+                     && NotchControlItem.mixer.setupRequirement == .page(.mixer, feature: .mixer)
+                     && NotchControlItem.speedTest.setupRequirement == .page(.system, feature: .monitorNetwork),
+                     "page-gated controls lead to their island section or the required feature")
         defaults.set("panel,panel,unknown,speedTest", forKey: DefaultsKey.notchControlOrder)
         defaults.set("volume,screenshot", forKey: DefaultsKey.notchHiddenControls)
         let controls = NotchSupport.controls(in: defaults)
@@ -1222,6 +1232,21 @@ enum NotchTests {
         suite.expect(NotchMenuBarLayout.sideRoom(screen: menuScreen, cameraWidth: 180, barHeight: 32,
             occupied: [CGRect(x: 630, y: 924, width: 60, height: 32)]) == nil,
                "occupied camera space cannot be treated as a free menu gap")
+        let secondaryMenu = CGRect(x: 1480, y: 924, width: 420, height: 32)
+        let primaryStatus = CGRect(x: 950, y: 924, width: 520, height: 32)
+        suite.expect(NotchMenuBarLayout.measuredSideRoom(screen: menuScreen, cameraWidth: 180, barHeight: 32,
+            menuItems: [secondaryMenu], statusItems: [primaryStatus]) == nil,
+               "menus measured only on another display do not prove room on the selected display")
+        suite.expect(NotchMenuBarLayout.measuredSideRoom(screen: menuScreen, cameraWidth: 180, barHeight: 32,
+            menuItems: [CGRect(x: 0, y: 924, width: 610, height: 32), secondaryMenu],
+            statusItems: [primaryStatus]) == 27,
+               "menus on another display do not affect a measured gap on the selected display")
+        suite.expect(NotchMenuBarLayout.measuredSideRoom(screen: menuScreen, cameraWidth: 180, barHeight: 32,
+            menuItems: [], statusItems: [primaryStatus]) == nil,
+               "missing menu geometry is not mistaken for an empty menu bar")
+        suite.expect(NotchMenuBarLayout.measuredSideRoom(screen: menuScreen, cameraWidth: 180, barHeight: 32,
+            menuItems: [CGRect(x: 690, y: 924, width: 80, height: 32)], statusItems: []) == nil,
+               "a menu occupying the island's center still hides it")
         let constrained = NotchGeometry(screen: menuScreen, safeAreaTop: 32, cameraWidth: 180,
                                         menuBarHeight: 24, compactSideRoom: freeRoom)
         suite.expect(constrained.collapsed.height == 32 && constrained.musicStrip.height == 32,
@@ -1485,6 +1510,11 @@ enum NotchTests {
                "automatic uses the notched built-in screen even with external main display")
         suite.expect(NotchSupport.screenIndex(preference: .builtIn, builtIn: [false],
                                        notched: [false], main: 0) == 0, "closed-lid mode falls back to an attached screen")
+        suite.expect(NotchSupport.screenIndex(preference: .automatic, builtIn: [false, false],
+                                       notched: [false, false], main: 1) == 1
+                     && NotchSupport.screenIndex(preference: .builtIn, builtIn: [false, false],
+                                       notched: [false, false], main: 1) == 1,
+               "external-only setups keep the primary display in automatic and built-in modes")
         suite.expect(NotchSupport.screenIndex(preference: .main, builtIn: [], notched: [], main: 0) == nil,
                "no connected displays means no panel")
         suite.expect(NotchSupport.screenIndex(preference: .main, builtIn: [true, false, false],
@@ -1498,6 +1528,11 @@ enum NotchTests {
                "hardware volume steps clamp to audible limits")
         suite.expect(NotchSupport.volumeLevel(current: 0.5, direction: 1, fine: true) == 0.515625,
                "fine volume preserves the system quarter-step")
+        suite.expect((0..<9).map { NotchClipboardPastePress.index(
+                    keyCode: [18, 19, 20, 21, 23, 22, 26, 28, 25][$0], commandOnly: true) } == (0..<9).map { $0 }
+               && NotchClipboardPastePress.index(keyCode: 18, commandOnly: false) == nil
+               && NotchClipboardPastePress.index(keyCode: 29, commandOnly: true) == nil,
+               "⌘1 to ⌘9 on the clipboard page name the first nine entries, and nothing else does")
 
         var session = NotchSessionState()
         session.locked = true

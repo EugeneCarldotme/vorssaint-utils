@@ -9,7 +9,8 @@ import Foundation
 enum DefaultsKey {
     static let language = "appLanguage"                   // AppLanguage.rawValue
     static let appearance = "appAppearance"               // AppAppearance.rawValue
-    static let liquidGlassEnabled = "liquidGlassEnabled"  // Liquid Glass visual styling on macOS 26+
+    static let liquidGlassEnabled = "liquidGlassEnabled"  // Liquid Glass in windows and panels on macOS 26+
+    static let notchLiquidGlassEnabled = "notchLiquidGlassEnabled" // Dynamic Island glass, independently controlled
     static let clamshellPreferred = "clamshellPreferred"  // apply closed-lid mode to every session
     static let dimScreenOnLidClose = "dimScreenOnLidClose" // dim the built-in display to zero while the lid is closed
     static let onboardingStep = "onboardingStep"          // resume point if onboarding is interrupted
@@ -17,6 +18,7 @@ enum DefaultsKey {
     static let lastUpdateIntroVersion = "lastUpdateIntroVersion"
     static let supportUpdateIntroVersion = "supportUpdateIntroVersion"
     static let updateHighlightsSeenVersion = "updateHighlightsSeenVersion"
+    static let brightnessUpdatePromptState = "brightnessUpdatePromptState"
     static let updateShowcaseIntroVersion = "updateShowcaseIntroVersion"
     static let updateShowcaseMediaOverride = "updateShowcaseMediaOverride"
     static let defaultDuration = "defaultDurationMinutes" // 0 = indefinite
@@ -106,6 +108,7 @@ enum DefaultsKey {
     static let switcherSearchPinEnabled = "switcherSearchPinEnabled" // S pins the search field open, off by default so existing users typing S as a search letter see no change
     static let switcherShowShortcutHints = "switcherShowShortcutHints" // show the shortcut bar under the large-icon switcher
     static let switcherAppearanceDelay = "switcherAppearanceDelay" // milliseconds the shortcut must be held before the panel appears (SwitcherSupport.appearanceDelayMillisecondsRange)
+    static let switcherInstantSelection = "switcherInstantSelection" // skip selection and reveal animations while browsing
     static let switcherScreenPlacement = "switcherScreenPlacement" // SwitcherScreenPlacement raw value: which display the panel opens on
     static let switcherCurrentDisplayOnly = "switcherCurrentDisplayOnly" // list only windows on the display under the pointer (issue #1391)
     static let minimalWindowPreviews = "minimalWindowPreviews"
@@ -207,6 +210,9 @@ enum DefaultsKey {
     // software: the only way to know a write-only channel swallows its writes
     // is to watch the panel, which no probe can do. Issue #1589.
     static let brightnessForcedSoftwarePaths = "brightnessForcedSoftwarePaths"
+    // Per-monitor connections where the lower end of the brightness slider
+    // also dims the picture below the panel's hardware minimum.
+    static let brightnessExtendedDimmingPaths = "brightnessExtendedDimmingPaths"
     // Displays this app switched off, so a run that ends without putting them
     // back can be repaired on the next start instead of needing a replug.
     static let displaysSwitchedOff = "displaysSwitchedOff"
@@ -516,6 +522,8 @@ enum DefaultsKey {
     static let clipboardHistoryIncludeImagesFiles = "clipboardHistoryIncludeImagesFiles" // capture copied images and files too
     static let clipboardHistoryIgnoredApps = "clipboardHistoryIgnoredApps" // apps whose copies are never saved
     static let clipboardHistoryQuickPreview = "clipboardHistoryQuickPreview"
+    static let clipboardHistoryWindowWidth = "clipboardHistoryWindowWidth"
+    static let clipboardHistoryWindowHeight = "clipboardHistoryWindowHeight"
     static let clipboardHistoryMenuBarPreview = "clipboardHistoryMenuBarPreview" // show latest copy next to the menu bar icon
     static let clipboardHistoryMenuBarPreviewLength = "clipboardHistoryMenuBarPreviewLength" // characters shown before truncating
 
@@ -880,6 +888,26 @@ enum UpdateHighlightsInfo {
     }
 }
 
+/// A single invitation for existing Dynamic Island users to turn on display
+/// controls after updating. "pending" survives a launch interrupted before
+/// the invitation can be shown; "handled" prevents future updates replaying it.
+enum BrightnessUpdatePromptInfo {
+    static let pending = "pending"
+    static let handled = "handled"
+
+    static func isUpgrade(appVersion: String, previousVersion: String?) -> Bool {
+        guard let previousVersion,
+              let previous = UpdateServiceSupport.SemanticVersion(raw: previousVersion),
+              let current = UpdateServiceSupport.SemanticVersion(raw: appVersion) else { return false }
+        return current > previous
+    }
+
+    static func needsSetup(notchAvailable: Bool, brightnessAvailable: Bool,
+                           notchEnabled: Bool, notchBrightness: Bool, brightnessEnabled: Bool) -> Bool {
+        notchAvailable && brightnessAvailable && notchEnabled && notchBrightness && !brightnessEnabled
+    }
+}
+
 enum SupportUpdateIntroInfo {
     /// The single release whose first launch shows the update intro. It used
     /// to track AppInfo.version, which re-showed the ask on every update; now a
@@ -1050,6 +1078,7 @@ enum Defaults {
     static let registeredDefaults: [String: Any] = [
         DefaultsKey.appearance: AppAppearance.fallback.rawValue,
         DefaultsKey.liquidGlassEnabled: false,
+        DefaultsKey.notchLiquidGlassEnabled: false,
         DefaultsKey.clamshellPreferred: false,
         DefaultsKey.dimScreenOnLidClose: false,
         DefaultsKey.defaultDuration: 0,
@@ -1118,6 +1147,7 @@ enum Defaults {
         DefaultsKey.switcherSearchPinEnabled: false,
         DefaultsKey.switcherShowShortcutHints: true,
         DefaultsKey.switcherAppearanceDelay: SwitcherSupport.defaultAppearanceDelayMilliseconds,
+        DefaultsKey.switcherInstantSelection: false,
         DefaultsKey.switcherScreenPlacement: SwitcherScreenPlacement.fallback.rawValue,
         DefaultsKey.switcherCurrentDisplayOnly: false,
         DefaultsKey.minimalWindowPreviews: false,
@@ -1547,6 +1577,8 @@ enum Defaults {
         DefaultsKey.clipboardHistoryIgnoredApps: [String](),
         DefaultsKey.windowLayoutIgnoredApps: [String](),
         DefaultsKey.clipboardHistoryQuickPreview: false,
+        DefaultsKey.clipboardHistoryWindowWidth: 0.0,
+        DefaultsKey.clipboardHistoryWindowHeight: 0.0,
         DefaultsKey.clipboardHistoryMenuBarPreview: false,
         DefaultsKey.clipboardHistoryMenuBarPreviewLength: Defaults.defaultClipboardMenuBarPreviewLength,
         DefaultsKey.clipboardAutoClearOnDelay: false,
@@ -1736,6 +1768,7 @@ enum Defaults {
     static func register() {
         let defaults = UserDefaults.standard
         migrateExistingNotchDefaults(in: defaults)
+        migrateLiquidGlassIsland(in: defaults)
         migrateFanControlVisibility(in: defaults)
         migrateScrollInverterAxes(in: defaults)
         migrateWhatsAppDownloadsEnabled(in: defaults)
@@ -1757,6 +1790,18 @@ enum Defaults {
         migrateSwitcherWindowlessFinder(in: defaults)
         recheckBrightnessDDCWriteOnlyPaths(in: defaults)
         hideScratchpadControlOnce(in: defaults)
+    }
+
+    /// Existing users keep the island's previous glass choice. The island
+    /// value is saved once, even when off, so turning on glass for other
+    /// windows later never reaches the island on the next launch.
+    static func migrateLiquidGlassIsland(in defaults: UserDefaults,
+                                         domainName: String? = Bundle.main.bundleIdentifier) {
+        guard let domainName else { return }
+        let saved = defaults.persistentDomain(forName: domainName) ?? [:]
+        guard saved[DefaultsKey.notchLiquidGlassEnabled] == nil else { return }
+        defaults.set(saved[DefaultsKey.liquidGlassEnabled] as? Bool ?? false,
+                     forKey: DefaultsKey.notchLiquidGlassEnabled)
     }
 
     /// Keep the previous implicit choices for people who already configured

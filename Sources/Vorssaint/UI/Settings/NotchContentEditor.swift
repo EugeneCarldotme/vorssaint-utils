@@ -37,35 +37,29 @@ struct NotchIslandPreview: View {
     }
 
     var body: some View {
-        GeometryReader { proxy in
-            stage(in: proxy.size)
-        }
-        .background(.quaternary.opacity(0.35))
-        .background(WindowVisibilityReader { windowVisible = $0 })
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .overlay(alignment: .bottomLeading) {
-            Label(hidden ? editor.hiddenInIsland : editor.preview, systemImage: hidden ? "eye.slash" : "eye")
-                .font(.caption.weight(.medium))
-                .foregroundStyle(.secondary)
-                .padding(.horizontal, 12)
-                .padding(.bottom, 8)
-        }
-        .animation(reduceMotion ? nil : .smooth(duration: 0.25), value: module)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(editor.preview)
-        .accessibilityValue(module.title(l10n.language) + (hidden ? ", " + editor.hiddenInIsland : ""))
-        .onAppear { monitor(windowVisible && module == .system) }
-        .onChange(of: module) { _, value in monitor(windowVisible && value == .system) }
-        .onChange(of: windowVisible) { _, visible in monitor(visible && module == .system) }
-        .onDisappear { monitor(false) }
+        previewSurface
+            .animation(reduceMotion ? nil : .smooth(duration: 0.25), value: module)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(editor.preview)
+            .accessibilityValue(module.title(l10n.language) + (hidden ? ", " + editor.hiddenInIsland : ""))
+            .onAppear { monitor(windowVisible && module == .system) }
+            .onChange(of: module) { _, value in monitor(windowVisible && value == .system) }
+            .onChange(of: windowVisible) { _, visible in monitor(visible && module == .system) }
+            .onDisappear { monitor(false) }
     }
 
-    /// Swift 6.0 gives up type-checking this inside the `GeometryReader`
-    /// closure, so it lives in its own method.
-    private func stage(in stage: CGSize) -> some View {
+    private var previewSurface: some View {
+        GeometryReader { proxy in stage(in: proxy.size) }
+            .background(.quaternary.opacity(0.35))
+            .background(WindowVisibilityReader { windowVisible = $0 })
+            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .overlay(alignment: .bottomLeading) { caption }
+    }
+
+    private func stage(in stageSize: CGSize) -> some View {
         let geometry = notch.geometry
         let size = notch.previewSize(for: module)
-        let scale = Self.scale(in: stage)
+        let scale = Self.scale(in: stageSize)
         return ZStack(alignment: .top) {
             Rectangle()
                 .fill(.primary.opacity(0.06))
@@ -77,7 +71,15 @@ struct NotchIslandPreview: View {
                     .opacity(hidden ? 0.4 : 1)
             }
         }
-        .frame(width: stage.width, height: stage.height, alignment: .top)
+        .frame(width: stageSize.width, height: stageSize.height, alignment: .top)
+    }
+
+    private var caption: some View {
+        Label(hidden ? editor.hiddenInIsland : editor.preview, systemImage: hidden ? "eye.slash" : "eye")
+            .font(.caption.weight(.medium))
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, 12)
+            .padding(.bottom, 8)
     }
 
     /// The system page reads live metrics, which sample only while a surface

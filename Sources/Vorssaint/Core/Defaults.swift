@@ -867,15 +867,17 @@ enum OnboardingInfo {
 
 /// The one-time tour of this release's headline feature, shown after updating.
 enum UpdateHighlightsInfo {
-    /// One tour shared by the betas and final release.
-    static let releaseVersion = "3.4.0-beta.1"
+    // Keep this marker unchanged for every stable patch in the 3.4 series.
+    static let releaseVersion = "3.4.0"
+    static let betaSeenVersion = "3.4.0-beta.1"
 
     static func matchesRelease(_ appVersion: String) -> Bool {
         guard let version = UpdateServiceSupport.SemanticVersion(raw: appVersion),
               let release = UpdateServiceSupport.SemanticVersion(raw: releaseVersion),
-              (version.major, version.minor, version.patch) == (release.major, release.minor, release.patch) else { return false }
+              (version.major, version.minor) == (release.major, release.minor),
+              version.patch >= release.patch else { return false }
         if version.prerelease.isEmpty { return true }
-        guard (2...3).contains(version.prerelease.count), version.prerelease[0].description == "beta",
+        guard version.patch == release.patch, (2...3).contains(version.prerelease.count), version.prerelease[0].description == "beta",
               let number = Int(version.prerelease[1].description) else { return false }
         if version.prerelease.count == 3 {
             guard case let .numeric(hotfix) = version.prerelease[2], hotfix >= 0 else { return false }
@@ -884,7 +886,14 @@ enum UpdateHighlightsInfo {
     }
 
     static func shouldShow(appVersion: String, lastSeenVersion: String?) -> Bool {
-        matchesRelease(appVersion) && lastSeenVersion != releaseVersion
+        guard let marker = seenVersion(for: appVersion) else { return false }
+        return lastSeenVersion != marker
+    }
+
+    static func seenVersion(for appVersion: String) -> String? {
+        guard matchesRelease(appVersion),
+              let version = UpdateServiceSupport.SemanticVersion(raw: appVersion) else { return nil }
+        return version.prerelease.isEmpty ? releaseVersion : betaSeenVersion
     }
 }
 
@@ -909,13 +918,23 @@ enum BrightnessUpdatePromptInfo {
 }
 
 enum SupportUpdateIntroInfo {
-    /// The single release whose first launch shows the update intro. It used
-    /// to track AppInfo.version, which re-showed the ask on every update; now a
-    /// release only shows it when this constant is deliberately bumped.
+    /// The stable release series that gets this invitation. Patch updates share
+    /// one completion marker, including when someone skips the initial release.
     static let releaseVersion = "3.4.0"
 
+    // Older beta onboarding wrote the release version before this screen was
+    // available. A distinct completion marker keeps those upgraders eligible.
+    static let seenVersion = "3.4.0-support"
+
+    static func matchesRelease(_ appVersion: String) -> Bool {
+        guard let version = UpdateServiceSupport.SemanticVersion(raw: appVersion),
+              let release = UpdateServiceSupport.SemanticVersion(raw: releaseVersion) else { return false }
+        return (version.major, version.minor) == (release.major, release.minor)
+            && version.patch >= release.patch && version.prerelease.isEmpty
+    }
+
     static func shouldShow(appVersion: String, lastSeenVersion: String?) -> Bool {
-        appVersion == releaseVersion && lastSeenVersion != releaseVersion
+        matchesRelease(appVersion) && lastSeenVersion != seenVersion
     }
 }
 

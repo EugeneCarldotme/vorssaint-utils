@@ -65,6 +65,14 @@ def main():
                         "    static func imageCapture(")
           + "}\n")
     panel = "Sources/Vorssaint/App/AppDelegate.swift"
+    write("UpdateIntroFlow.swift", "import AppKit\nimport Foundation\n"
+          + "extension UpdateIntroFlowTests {\nfinal class Host: Fixture {\n"
+          + "".join(declaration(panel, prefix).replace("    private ", "    ", 1) for prefix in [
+              "    private func presentUpdateIntros()", "    private func showUpdateHighlightsIfNeeded()",
+              "    private func markUpdateHighlightsSeen()", "    private func showSupportUpdateIntroIfNeeded()",
+              "    func windowShouldClose(", "    func windowWillClose(", "    private func markOnboardingComplete()",
+              "    private func markSupportUpdateIntroSeenIfCurrentUpdate()", "    private func markSupportUpdateIntroSeen()"])
+          + "}\n}\n")
     write("PostUpdateStatusItemRecovery.swift", "import AppKit\nimport Foundation\n"
           + "extension PostUpdateStatusItemRecoveryTests {\nfinal class Host: Fixture {\n"
           + "".join(declaration(panel, prefix).replace("private ", "") for prefix in [
@@ -117,6 +125,11 @@ def main():
           + "}\nextension SwitcherActivationTests.Bridge {\n"
           + declaration("Sources/Vorssaint/Services/Switcher/SpaceWindowBridge.swift",
                         "    static func frontWindow(") + "}\n")
+    write("WindowServerCapture.swift", "import CoreGraphics\nimport Foundation\n"
+          + "extension WindowServerCaptureContract.Provider {\n"
+          + declaration("Sources/Vorssaint/Services/Switcher/WindowPreviewProvider.swift",
+                        "    static func captureViaWindowServer(")
+          + "}\n")
     write("ScratchpadExport.swift", "import AppKit\nimport Foundation\n"
           + "extension ScratchpadExportContract {\nfinal class Service: Fixture {\n"
           + declaration("Sources/Vorssaint/Services/QuickTools/ScratchpadService.swift",
@@ -472,6 +485,12 @@ def main():
           + "final class Service: Fixture {\n"
           + declaration(update, "    private func launchAdminInstaller(").replace("private ", "", 1)
           + "}\n}\n")
+    highlights = "Sources/Vorssaint/UI/UpdateHighlightsView.swift"
+    write("UpdateHighlights.swift", "import AppKit\nimport SwiftUI\nextension UpdateHighlightsTests {\n"
+          + "".join(declaration(highlights, prefix) for prefix in [
+              "struct UpdateHighlightsView:", "enum UpdateHighlightsLayout", "private struct UpdateHighlightsGIF:"])
+              .replace("private struct UpdateHighlightsGIF", "struct UpdateHighlightsGIF")
+          + "}\n")
     canvas = "Sources/Vorssaint/Services/Notch/NotchWindowHost.swift"
     write("NotchMissionControlPolling.swift", "import Foundation\n"
           + "extension NotchMissionControlPollingTests {\nfinal class Host: State {\n"

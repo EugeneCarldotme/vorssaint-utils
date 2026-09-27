@@ -6,23 +6,55 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
-### Summary
-Dynamic Island adds reopening choices, improves music gestures and playback selection, keeps brightness feedback white, and reduces repeated processing during agent activity and Mission Control monitoring. The menu bar panel and Settings open on the display where they are invoked in multi-monitor setups. The update tour gains an animated demo and simpler setup.
-
 ### Changed
-- The Dynamic Island update tour uses an animated demo, and Set up installs the feature when needed. The final 3.4.0 release shows the tour only if it was not seen during beta, followed by a single Buy Me a Coffee screen.
-- Dynamic Island can reopen directly to the app panel or Explore, alongside its section choices.
-- Dynamic Island automatically follows music apps by default. Music settings can also include videos and other apps; manually chosen playback sources still work.
 - A Plan limit reading beside the camera turns orange and then red as the allowance runs low, and the Settings preview shows how it looks at the warning share.
 - With a CLIProxyAPI hub added, Spending, Now, Trend, Models, Projects and Activity count every installed agent, even one switched off. The switches then only choose which of this Mac's sign-ins get a limits card.
 - Spending, Trend and Models count a turn through a hub under the kind of account that served it. Claude models go under Claude and other models under Codex, whichever agent asked. The plan multiple counts only spending on the plan itself, and every response is counted once.
 
 ### Fixed
-- The menu bar panel follows the display where its icon was clicked, including vertically arranged displays. Settings opens on the panel's display or the pointer's display and moves there when reopened.
-- Music swipes ignore small initial direction changes and can close the expanded player from its surface. Accepted track skips show brief directional feedback, respecting Reduce Motion.
-- Screen and keyboard brightness feedback stays white in compact notices and the expanded header.
-- AI usage updates reuse historical totals and apply streamed response changes incrementally. The closed island's agent clock reuses its layout between ticks, and Mission Control detection polls less often at rest while retaining fast restoration checks.
 - A turn that goes through a CLIProxyAPI hub no longer shows the agent's own plan limit beside the camera. The reading now shows the account with the least left among every account the working turns draw on.
+
+## [3.4.0] - 2026-09-27
+
+### Summary
+Dynamic Island brings music, live activities and everyday tools together at the top of your screen, including a dedicated view of your AI agents. Version 3.4.0 also expands window management, capture and clipboard tools, adds automatic audio device switching, and improves everyday reliability and performance.
+
+If you use Extra Brightness on 3.3.5, turn it off before updating so it cannot cover the administrator password prompt.
+
+### Dynamic Island
+- An optional, experimental island for Macs with or without a camera cutout, with customizable layouts, click or hover opening, gestures and keyboard navigation.
+- Control music with seeking, synchronized lyrics and the player's queue. Follow music apps automatically or choose a playback source; online lyric lookup requires separate consent.
+- Keep timers, focus cycles and a stopwatch within reach, browse your calendar, and preview or revisit notifications.
+- Choose which activity stays visible beside the camera, or combine a timer with music, a download or a working AI agent.
+- Follow local AI agent activity, plan limits, API value and usage history, with alerts for completed tasks and usage limits. Usage data stays on your Mac.
+- Reach Clipboard History, Shelf, Scratchpad, the volume mixer and device controls without leaving the island. Drag in files for storage or media tools, and manage captures from its header.
+- Arrange sections and shortcuts with a live preview, choose where the island reopens, and customize its outline, Liquid Glass, display and full-screen behavior.
+
+### Added
+- Screenshots gain custom watermarks, sharing, pinning and editor shortcuts. Screenshot and recording editors offer adjustable blur strength, and recordings can export at speeds from 0.25× to 4×.
+- Clipboard History gains a resizable window, image editing and color swatches. Shelf keeps pinned items across restarts and accepts complete attachments dragged from other apps.
+- Window Layout adds quarter rows and columns, vertical thirds, app exceptions and width cycling. New shortcuts help move windows and the pointer between displays, including stacked monitors.
+- App Switcher adds filtering by the pointer's display and optional instant selection. Dock Preview gains an experimental option to keep an auto-hidden Dock visible while browsing.
+- Audio device priority switches to the highest-ranked connected output or microphone. The volume mixer adds microphone volume, pinned apps and a saved custom order.
+- Display controls add extra dimming for supported external monitors, custom brightness shortcuts and optional built-in display dimming with the lid closed. Keyboard brightness is adjustable from the panel.
+- Command Bar adds scientific calculations, emoji skin tones and up to 64 custom shortcuts.
+- Keep Awake adds separate Duration and Until modes and stricter automation conditions. Fan Control can optionally resume a manual speed or curve after restart or sleep.
+- An optional wallpaper gallery in the menu panel.
+- Slovak and Ukrainian translations throughout the app.
+
+### Changed
+- Settings gains grouped navigation, Back and Forward buttons and clearer feature setup. Newly installed features start their main behavior unless a previous choice was saved.
+- Package management offers direct installation from search and groups dependencies; Cleaner and Uninstaller scans can be cancelled.
+- Lower temporary memory use in the screenshot editor.
+
+### Fixed
+- Bug fixes in App Switcher, Dock Preview and multi-display behavior, including window focus, unwanted resizing, slow previews and panel placement.
+- Bug fixes in screenshots and recordings, including image sharpness, scrolling captures, audio synchronization, saving and capture shortcuts during a recording.
+- Bug fixes in Clipboard History and audio controls, including recovery after clipboard service restarts or stalled playback, and clearer handling of failed copies and microphone changes.
+- Reliability fixes for permission resets, keyboard input, sleep restoration, cleaning, uninstalling and menu bar icon recovery, with clearer reporting when an operation cannot finish.
+
+### Contributors
+Thanks to @1119350264, @adnn-alc, @akeslo, @akune, @anandghegde, @ancoesat, @aniruddhaadak80, @archieamas11, @bebricoOOOOOOf, @Borisserz, @brandom, @cdbrandt729-code, @celltower, @cjscld, @COMEBACKISREAL, @dajiaohuang, @DarkEden-coding, @delfu, @DiogoDuart3, @DocEmmetBrown, @drybx, @EdenRochmanSharabi, @ethanbeau, @EugeneCarldotme, @fakepooh, @fermincasagrande, @frixaco, @Frozen0wl, @GabrielDazzi, @georgebnov, @GolamRafi27oo, @ilim-cell, @iltonandrew, @integral-llc, @iva-zhu, @JashRashne, @justin-chiam, @Kernel-Hunter, @kirolos-esmat, @KumarSashank, @kxnstandin, @loburets, @Logimon, @MakhBeth, @maodijim, @marcelharinck, @MaximilianMauroner, @MrDXTR, @muskecan, @naveenkrdy, @NongKnot, @npcmail010, @overstock718, @owendaw, @PathGao, @pergioa, @rado9904, @ranak8811, @rkrkrkk, @root800080, @ruvelro, @samanyudas, @Samuel61904, @samueljim, @santi-ug, @sarat03, @shlok1806, @stephansann, @tenbux, @trac3r00, @tuttopassastudios, @Yahddyyp, @Yash121l, @ywu73, @zamai, @zeuslcf, @zorahrel, Azelance, Brain, DucemMortis, Jets, Monolithic capacitor, Mower, Pinea and Slipshady.
 
 ## [3.4.0-beta.7] - 2026-09-26
 

@@ -38,21 +38,7 @@ struct NotchIslandPreview: View {
 
     var body: some View {
         GeometryReader { proxy in
-            let geometry = notch.geometry
-            let size = notch.previewSize(for: module)
-            let scale = Self.scale(in: proxy.size)
-            ZStack(alignment: .top) {
-                Rectangle()
-                    .fill(.primary.opacity(0.06))
-                    .frame(height: geometry.menuBarHeight * scale)
-                if windowVisible {
-                    island(size: size, geometry: geometry)
-                        .scaleEffect(scale, anchor: .top)
-                        .frame(width: size.width * scale, height: size.height * scale, alignment: .top)
-                        .opacity(hidden ? 0.4 : 1)
-                }
-            }
-            .frame(width: proxy.size.width, height: proxy.size.height, alignment: .top)
+            stage(in: proxy.size)
         }
         .background(.quaternary.opacity(0.35))
         .background(WindowVisibilityReader { windowVisible = $0 })
@@ -72,6 +58,26 @@ struct NotchIslandPreview: View {
         .onChange(of: module) { _, value in monitor(windowVisible && value == .system) }
         .onChange(of: windowVisible) { _, visible in monitor(visible && module == .system) }
         .onDisappear { monitor(false) }
+    }
+
+    /// Swift 6.0 gives up type-checking this inside the `GeometryReader`
+    /// closure, so it lives in its own method.
+    private func stage(in stage: CGSize) -> some View {
+        let geometry = notch.geometry
+        let size = notch.previewSize(for: module)
+        let scale = Self.scale(in: stage)
+        return ZStack(alignment: .top) {
+            Rectangle()
+                .fill(.primary.opacity(0.06))
+                .frame(height: geometry.menuBarHeight * scale)
+            if windowVisible {
+                island(size: size, geometry: geometry)
+                    .scaleEffect(scale, anchor: .top)
+                    .frame(width: size.width * scale, height: size.height * scale, alignment: .top)
+                    .opacity(hidden ? 0.4 : 1)
+            }
+        }
+        .frame(width: stage.width, height: stage.height, alignment: .top)
     }
 
     /// The system page reads live metrics, which sample only while a surface

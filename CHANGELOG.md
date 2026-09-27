@@ -7,7 +7,23 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Summary
-External monitors can dim below their hardware minimum, and the Clipboard History window can be resized. Dynamic Island adds ⌘1–⌘9 paste on its Clipboard page, its own Liquid Glass switch, a hover response and Fan Control from its fan card, and keeps a clickable cutout over the camera in full screen. App Switcher offers instant selection, Command Bar accepts up to 64 shortcuts, and Quit on Close warns about apps that keep working without a window.
+Dynamic Island adds reopening choices, improves music gestures and playback selection, keeps brightness feedback white, and reduces repeated processing during agent activity and Mission Control monitoring. The menu bar panel and Settings open on the display where they are invoked in multi-monitor setups. The update tour gains an animated demo and simpler setup.
+
+### Changed
+- The Dynamic Island update tour uses an animated demo, and Set up installs the feature when needed. The final 3.4.0 release shows the tour only if it was not seen during beta, followed by a single Buy Me a Coffee screen.
+- Dynamic Island can reopen directly to the app panel or Explore, alongside its section choices.
+- Dynamic Island automatically follows music apps by default. Music settings can also include videos and other apps; manually chosen playback sources still work.
+
+### Fixed
+- The menu bar panel follows the display where its icon was clicked, including vertically arranged displays. Settings opens on the panel's display or the pointer's display and moves there when reopened.
+- Music swipes ignore small initial direction changes and can close the expanded player from its surface. Accepted track skips show brief directional feedback, respecting Reduce Motion.
+- Screen and keyboard brightness feedback stays white in compact notices and the expanded header.
+- AI usage updates reuse historical totals and apply streamed response changes incrementally. The closed island's agent clock reuses its layout between ticks, and Mission Control detection polls less often at rest while retaining fast restoration checks.
+
+## [3.4.0-beta.7] - 2026-09-26
+
+### Summary
+External monitors gain extra dimming, and Clipboard History gains a resizable window. Dynamic Island lets you choose the activity to display or combine a timer with another activity, and improves clipboard access and full-screen controls. Screen capture is more responsive, and the volume mixer can recover stalled audio.
 
 ### Added
 - External monitors with readable brightness control offer optional Extra dimming in Settings. The lower part of the slider dims the picture below the monitor's hardware minimum, while the rest keeps using hardware brightness.
@@ -15,8 +31,10 @@ External monitors can dim below their hardware minimum, and the Clipboard Histor
 - Dynamic Island's Clipboard page pastes the first nine entries with ⌘1–⌘9, as the separate window does, and shows the shortcuts while the island has the keyboard.
 - App Switcher can skip highlight, scrolling and panel resize animations while browsing, with smooth selection still the default.
 - Dynamic Island's fan card opens Fan Control with its manual speed and curve controls, and still shows each fan's speed when the fan helper is unavailable.
+- When several activities are active, hovering over the closed Dynamic Island reveals named choices. Select one activity on its own, or use Combine to show a timer beside music, a working agent or a download; the choice lasts while that activity remains available.
 
 ### Changed
+- AI agent usage reads large logs with less temporary memory and avoids unnecessary display updates. Alerts queued by a stopped session no longer appear after restarting the feature.
 - The closed Dynamic Island gently grows on hover before a click or a configured hover opening, while respecting Reduce Motion and available menu bar space.
 - On displays without a camera cutout, Dynamic Island stays visible through app and display focus changes when Show over the menus is enabled, including at rest. With that option off, it uses measured free space only after finding menu geometry on the chosen display.
 - With Hide content in full screen enabled, Dynamic Island keeps a black, clickable cutout over the camera in full screen, and clicking, hovering or a shortcut opens its tools. A simulated cutout stays hidden until a shortcut opens it.
@@ -27,11 +45,16 @@ External monitors can dim below their hardware minimum, and the Clipboard Histor
 - Quit on Close's Settings warns that apps such as screen recorders may keep working after their last window closes, and points to Exceptions to prevent an unwanted quit.
 
 ### Fixed
+- Scrolling screenshots respond faster to wheel, keyboard and scrollbar movement, preserve completed content after later capture failures and avoid transparent seams. The screenshot preview releases focus before opening the editor.
+- Long window titles in App Switcher and Dock previews stay still when Reduce Motion is enabled.
+- Dynamic Island stays off external monitors in closed-lid mode when Built-in display is selected, and returns to the laptop display when it becomes available again. While hidden it does no background work, and a finished timer rings once the island is back. Macs without a built-in display keep the island on the main display.
 - Dynamic Island sends a player's supported Play or Pause command when available, improving control of radio streams.
 - Temperature alerts show their limits and notifications in the selected temperature unit.
 - With inactive apps hidden, the volume mixer shows an app as soon as it starts playing.
+- Volume mixer detects audio processing that stalls after initially working and attempts recovery without requiring a reset or restart. Adjusting an app's volume also checks its audio path.
 - Clipboard History no longer refreshes the whole list when the pointer moves between entries.
 - Turning off automatic copy for screenshots also stops the after-capture Copy action, so captures no longer reach the clipboard. Save and copy becomes Save.
+- Screenshot, text and color shortcuts work during a recording when their capture menu is turned off, and leave the recording running. With the menu on, they still wait for the recording to end.
 
 ### Contributors
 Thanks to @1119350264, @EugeneCarldotme, @loburets, @ranak8811, @ruvelro, @Samuel61904 and @stephansann.

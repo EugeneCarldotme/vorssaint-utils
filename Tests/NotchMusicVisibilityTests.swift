@@ -47,6 +47,11 @@ enum NotchMusicVisibilityTests {
     enum NSEvent { static let mouseLocation = CGPoint.zero }
 
     class State {
+        var activitySelection = NotchActivitySelection()
+        var compactActivityCompanions: [NotchCompactActivity] = []
+        var showsCompactActivityPicker = false
+        var compactActivityPickerLayout = NotchActivityPickerLayout(
+            count: 2, labelWidth: 80, stripSize: CGSize(width: 300, height: 32), screenWidth: 1440)
         var hiddenInFullscreen = false
         var running = true
         var suspended = false
@@ -72,6 +77,7 @@ enum NotchMusicVisibilityTests {
         var downloadName: String?
         var hasAgentActivity = false
         var timerStripWing: CGFloat = 44
+        func timerStripWing(for companion: NotchCompactActivity?) -> CGFloat { timerStripWing }
         var agentStripWing: CGFloat = 58
         var calendarStripWing: CGFloat = 120
         var notchNeedsMonitor = false
@@ -251,6 +257,18 @@ enum NotchMusicVisibilityTests {
         service.hasTimerActivity = true
         service.hasDownloadActivity = true
         suite.expect(service.compactActivity == .timer, "Nothing for resting music preserves a running timer")
+        service.compactActivityCompanions = [.downloads]
+        service.activitySelection.select(.timer, available: service.compactActivities)
+        suite.expect(service.compactCompanion == nil,
+                     "the production Timer selection does not borrow the active download wing")
+        service.activitySelection.select(.timer, companion: .downloads,
+                                         available: service.compactActivities, companions: [.downloads])
+        suite.expect(service.compactCompanion == .downloads,
+                     "the production strip shows only the explicitly selected companion")
+        service.activitySelection.select(.timer, available: service.compactActivities)
+        suite.expect(service.compactCompanion == nil,
+                     "choosing Timer again removes the explicit pair in the production strip")
+        service.activitySelection = NotchActivitySelection()
         service.hasTimerActivity = false
         suite.expect(service.compactActivity == .downloads, "Nothing for resting music preserves active downloads")
         let notice = NotchNotice(event: .accessory, title: "Wireless Headphones", detail: "Connected", symbol: "headphones")

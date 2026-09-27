@@ -749,6 +749,7 @@ enum DefaultsKey {
 
     // Optional top-of-screen workspace and activity presentations.
     static let notchShowPlayingMusic = "notchShowPlayingMusic"
+    static let notchIncludeOtherPlayers = "notchIncludeOtherPlayers"
     static let notchDefaultProfileInitialized = "notchDefaultProfileInitialized" // local migration marker; never backed up
     static let notchInitialExtensionsInstalled = "notchInitialExtensionsInstalled" // local first-install marker; never backed up
     static let notchIdleContent = "notchIdleContent"
@@ -863,18 +864,17 @@ enum OnboardingInfo {
     static let currentFeatureSet = 4
 }
 
-/// The one-time tour of a release's headline features, shown right after the
-/// update. Each row deep links to the exact Settings page or opens the tool
-/// itself, so a new feature is one click from being tried instead of buried.
+/// The one-time tour of this release's headline feature, shown after updating.
 enum UpdateHighlightsInfo {
-    /// One tour shared by the betas of this release.
+    /// One tour shared by the betas and final release.
     static let releaseVersion = "3.4.0-beta.1"
 
     static func matchesRelease(_ appVersion: String) -> Bool {
         guard let version = UpdateServiceSupport.SemanticVersion(raw: appVersion),
               let release = UpdateServiceSupport.SemanticVersion(raw: releaseVersion),
-              (version.major, version.minor, version.patch) == (release.major, release.minor, release.patch),
-              (2...3).contains(version.prerelease.count), version.prerelease[0].description == "beta",
+              (version.major, version.minor, version.patch) == (release.major, release.minor, release.patch) else { return false }
+        if version.prerelease.isEmpty { return true }
+        guard (2...3).contains(version.prerelease.count), version.prerelease[0].description == "beta",
               let number = Int(version.prerelease[1].description) else { return false }
         if version.prerelease.count == 3 {
             guard case let .numeric(hotfix) = version.prerelease[2], hotfix >= 0 else { return false }
@@ -911,29 +911,10 @@ enum SupportUpdateIntroInfo {
     /// The single release whose first launch shows the update intro. It used
     /// to track AppInfo.version, which re-showed the ask on every update; now a
     /// release only shows it when this constant is deliberately bumped.
-    static let releaseVersion = "3.3.2"
+    static let releaseVersion = "3.4.0"
 
     static func shouldShow(appVersion: String, lastSeenVersion: String?) -> Bool {
         appVersion == releaseVersion && lastSeenVersion != releaseVersion
-    }
-}
-
-enum SupportUpdateIntroStep: CaseIterable, Hashable {
-    case support
-    case social
-
-    var next: SupportUpdateIntroStep? {
-        switch self {
-        case .support: return .social
-        case .social: return nil
-        }
-    }
-
-    var previous: SupportUpdateIntroStep? {
-        switch self {
-        case .support: return nil
-        case .social: return .support
-        }
     }
 }
 
@@ -1284,11 +1265,12 @@ enum Defaults {
         DefaultsKey.snippetSoundEnabled: false,
         DefaultsKey.snippetSoundName: defaultSnippetSoundName,
         DefaultsKey.notchShowPlayingMusic: true,
+        DefaultsKey.notchIncludeOtherPlayers: false,
         DefaultsKey.notchIdleContent: NotchIdleContent.music.rawValue,
         DefaultsKey.notchHiddenControls: NotchControlItem.defaultHidden,
         DefaultsKey.notchScratchpadControlHidden: false,
         DefaultsKey.notchControlOrder: "",
-        DefaultsKey.notchSize: NotchSize.compact.rawValue,
+        DefaultsKey.notchSize: NotchSize.spacious.rawValue,
         DefaultsKey.notchOutlineEnabled: false,
         DefaultsKey.notchCustomWidth: NotchSize.defaultWidth,
         DefaultsKey.notchCustomHeight: NotchSize.defaultHeight,
@@ -1803,12 +1785,19 @@ enum Defaults {
     }
 
     /// Keep the previous implicit choices for people who already configured
-    /// the island. A fresh setup gets the new registered defaults instead.
+    /// the island. A fresh setup gets the new profile instead.
     static func migrateExistingNotchDefaults(in defaults: UserDefaults,
                                              domainName: String? = Bundle.main.bundleIdentifier) {
         guard let domainName else { return }
         let saved = defaults.persistentDomain(forName: domainName) ?? [:]
-        guard saved[DefaultsKey.notchDefaultProfileInitialized] == nil else { return }
+        guard saved[DefaultsKey.notchDefaultProfileInitialized] == nil else {
+            // The previous profile registered Compact without persisting it.
+            // Preserve that implicit choice before registering Spacious.
+            if saved[DefaultsKey.notchSize] == nil {
+                defaults.set(NotchSize.compact.rawValue, forKey: DefaultsKey.notchSize)
+            }
+            return
+        }
         let automaticKeys: Set<String> = [DefaultsKey.notchScratchpadControlHidden,
                                           DefaultsKey.notchHidesMenuBarIcon]
         let wasConfigured = saved.keys.contains {
@@ -1838,6 +1827,11 @@ enum Defaults {
             for (key, value) in previous where saved[key] == nil {
                 defaults.set(value, forKey: key)
             }
+        }
+        if !wasConfigured {
+            // Pin the new choice so subsequent launches cannot mistake this
+            // setup for an older profile with an implicit Compact size.
+            defaults.set(NotchSize.spacious.rawValue, forKey: DefaultsKey.notchSize)
         }
         defaults.set(true, forKey: DefaultsKey.notchDefaultProfileInitialized)
     }

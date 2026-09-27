@@ -70,6 +70,8 @@ enum NotchHoverTests {
         var departingNotice: NotchNotice?
         var departureWork: DispatchWorkItem?
         var compactActivity: NotchCompactActivity?
+        var compactActivities: [NotchCompactActivity] = []
+        var activityPickerMenuOpen = false
         var hoverState = NotchHoverState()
         var hiddenHoverMonitors: [Any] = []
         var hoverWork: DispatchWorkItem?
@@ -134,6 +136,37 @@ enum NotchHoverTests {
         func leave(_ service: Service) {
             NSEvent.mouseLocation = CGPoint(x: service.geometry.screen.minX, y: service.geometry.screen.minY)
             service.hover(false)
+        }
+        for physical in [false, true] {
+            for reduced in [false, true] {
+                let picker = fixture(physical: physical)
+                picker.compactActivity = .agents
+                picker.compactActivities = [.agents, .music]
+                NSWorkspace.shared.accessibilityDisplayShouldReduceMotion = reduced
+                picker.hover(true)
+                suite.expect(picker.showsCompactActivityPicker && picker.hoverWork == nil,
+                             "hover exposes named choices without an automatic opening deadline, including Reduce Motion")
+                DispatchQueue.main.advance(2)
+                suite.expect(picker.openings == 0, "the activity chooser stays available while the person decides")
+                picker.activityPickerMenuOpen = true
+                leave(picker)
+                suite.expect(picker.showsCompactActivityPicker, "moving into the combination menu keeps its picker visible")
+                picker.activityPickerMenuOpen = false
+                leave(picker)
+                suite.expect(!picker.showsCompactActivityPicker, "leaving hides the activity chooser")
+                picker.expanded = true
+                picker.inside = true
+                suite.expect(!picker.showsCompactActivityPicker, "the chooser does not cover an open page")
+                picker.expanded = false
+                picker.captureControls = true
+                suite.expect(!picker.showsCompactActivityPicker, "capture controls retain priority")
+                picker.captureControls = nil
+                picker.notice = volume
+                suite.expect(!picker.showsCompactActivityPicker, "system notices retain priority")
+                picker.notice = nil
+                picker.hiddenInFullscreen = true
+                suite.expect(!picker.showsCompactActivityPicker, "full-screen content hiding retains priority")
+            }
         }
         for physical in [false, true] {
             let clickOnly = fixture(physical: physical)

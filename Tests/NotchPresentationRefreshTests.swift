@@ -136,6 +136,10 @@ enum NotchPresentationRefreshContract {
         }
     }
     class State: ObservableObject {
+        var activitySelection = NotchActivitySelection()
+        var compactActivities: [NotchCompactActivity] = []
+        var compactActivityCompanions: [NotchCompactActivity] = []
+        var showsCompactActivityPicker = false
         var hiddenInFullscreen = false
         var fullscreenCompact: Bool { hiddenInFullscreen && !expanded && !peeking }
         let objectWillChange = ObservableObjectPublisher()
@@ -246,6 +250,20 @@ enum NotchPresentationRefreshContract {
         suite.expect(toolbar.expandedGeometry.headerCameraGap == 210,
                      "leaving capture editing restores the compact header layout")
         captureControlsChecks(suite)
+        let picker = Service()
+        picker.expanded = false
+        picker.compactActivityIsVisible = true
+        picker.showsCompactActivityPicker = true
+        picker.compactActivities = [.timer, .music]
+        picker.activitySelection.select(.music, available: picker.compactActivities)
+        picker.refreshPresentation(animated: false)
+        suite.expect(picker.windowHost!.activationRect.maxY
+                     <= picker.compactActivityGeometry.compactActivitySize.height,
+                     "the native open button never covers the activity choices below the strip")
+        picker.compactActivities = [.timer]
+        picker.refreshPresentation(animated: false)
+        suite.expect(picker.activitySelection.preferred == nil,
+                     "production refresh forgets a chosen activity when it disappears")
         let fullscreen = Service()
         fullscreen.pinned = true
         fullscreen.expanded = false

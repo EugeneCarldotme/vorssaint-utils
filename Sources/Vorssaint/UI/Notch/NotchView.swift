@@ -122,12 +122,21 @@ struct NotchView: View {
             }
             .padding(.horizontal, NotchLayout.horizontalInset).padding(.top, service.geometry.safeContentTop)
         } else if let activity = service.compactActivity {
-            switch activity {
-            case .timer: NotchTimerStrip(service: service)
-            case .downloads: NotchDownloadStrip(service: service)
-            case .agents: NotchAgentStrip(service: service)
-            case .calendar: NotchCalendarStrip(service: service)
-            case .music: NotchMusicStrip(service: service)
+            if service.showsCompactActivityPicker {
+                let layout = service.compactActivityPickerLayout
+                VStack(spacing: 0) {
+                    activityStrip(activity)
+                        .frame(width: service.compactActivityGeometry.compactActivitySize.width,
+                               height: layout.headerHeight, alignment: .top)
+                    NotchActivityPicker(activities: service.compactActivities, selected: activity,
+                                        companions: service.compactActivityCompanions, companion: service.compactCompanion,
+                                        columns: layout.columns, language: l10n.language,
+                                        select: service.selectCompactActivity, combine: service.selectCompactCombination)
+                        .padding(.horizontal, NotchActivityPickerLayout.horizontalInset)
+                        .padding(.vertical, NotchActivityPickerLayout.verticalInset)
+                }
+            } else {
+                activityStrip(activity)
             }
         } else if let departingMusic = service.departingMusic {
             NotchMusicStrip(service: service, snapshot: departingMusic)
@@ -136,6 +145,16 @@ struct NotchView: View {
         } else {
             compact
                 .transition(.opacity)
+        }
+    }
+
+    @ViewBuilder private func activityStrip(_ activity: NotchCompactActivity) -> some View {
+        switch activity {
+        case .timer: NotchTimerStrip(service: service)
+        case .downloads: NotchDownloadStrip(service: service)
+        case .agents: NotchAgentStrip(service: service)
+        case .calendar: NotchCalendarStrip(service: service)
+        case .music: NotchMusicStrip(service: service)
         }
     }
 
@@ -450,13 +469,19 @@ struct NotchView: View {
         .animation(reduceMotion ? nil : .easeOut(duration: 0.15), value: revealed)
     }
 
+    private var navigationTitle: String {
+        let destination = service.reopeningDestination
+        return destination.appPanel || destination.sections
+            ? text.sectionsTitle : destination.module.title(l10n.language)
+    }
+
     private var navigation: some View {
         Button(action: service.toggleSections) {
             HStack(spacing: 9) {
                 Image(systemName: "square.grid.2x2")
                     .font(.system(size: 14, weight: .medium))
                     .foregroundStyle(.white.opacity(0.7))
-                Text(service.reopeningModule.title(l10n.language))
+                Text(navigationTitle)
                     .font(.system(size: 16, weight: .semibold))
                     .lineLimit(1)
             }
@@ -466,7 +491,7 @@ struct NotchView: View {
         }
         .buttonStyle(NotchButtonStyle(cornerRadius: 12, lifts: false))
         .accessibilityLabel(text.switchSection)
-        .accessibilityValue(service.reopeningModule.title(l10n.language))
+        .accessibilityValue(navigationTitle)
         .accessibilityIdentifier("notch.navigation")
         .help(text.switchSection + "  ⌘K")
     }
@@ -598,5 +623,73 @@ private struct NotchPageClip: Shape {
         Path(CGRect(x: rect.minX - NotchLayout.horizontalInset, y: rect.minY - top,
                     width: rect.width + NotchLayout.horizontalInset * 2,
                     height: rect.height + top + NotchLayout.bottomInset))
+    }
+}
+
+/// Named choices appear below the camera, with the current activity highlighted.
+struct NotchActivityPicker: View {
+    let activities: [NotchCompactActivity]
+    let selected: NotchCompactActivity
+    let companions: [NotchCompactActivity]
+    let companion: NotchCompactActivity?
+    let columns: Int
+    let language: AppLanguage
+    let select: (NotchCompactActivity) -> Void
+    let combine: (NotchCompactActivity) -> Void
+
+    var body: some View {
+        VStack(spacing: NotchActivityPickerLayout.spacing) {
+            individualChoices
+            if !companions.isEmpty {
+                Menu {
+                    ForEach(companions) { activity in
+                        Button { combine(activity) } label: {
+                            Label(combinationTitle(activity),
+                                  systemImage: companion == activity ? "checkmark" : activity.module.symbol)
+                        }
+                    }
+                } label: {
+                    Label(companion.map(combinationTitle) ?? FeatureStrings.notch(language).combineActivities,
+                          systemImage: companion == nil ? "plus" : "checkmark")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.white.opacity(companion == nil ? 0.75 : 1))
+                        .frame(height: NotchActivityPickerLayout.combinationHeight)
+                }
+                .menuStyle(.borderlessButton)
+                .fixedSize()
+                .accessibilityIdentifier("notch.activity.combine")
+            }
+        }
+    }
+
+    private func combinationTitle(_ activity: NotchCompactActivity) -> String {
+        NotchCompactActivity.timer.title(language) + " + " + activity.title(language)
+    }
+
+    private var individualChoices: some View {
+        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: NotchActivityPickerLayout.spacing),
+                                 count: columns), spacing: NotchActivityPickerLayout.spacing) {
+            ForEach(activities) { activity in
+                let chosen = activity == selected && companion == nil
+                Button { select(activity) } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: activity.module.symbol)
+                        Text(activity.title(language)).lineLimit(1).minimumScaleFactor(0.8)
+                    }
+                    .font(.system(size: 12, weight: .medium))
+                    .padding(.horizontal, 10)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: NotchActivityPickerLayout.rowHeight)
+                    .foregroundStyle(chosen ? Color.black : Color.white)
+                    .background(chosen ? Color.white : Color.white.opacity(0.12),
+                                in: RoundedRectangle(cornerRadius: 8))
+                    .contentShape(RoundedRectangle(cornerRadius: 8))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(activity.title(language))
+                .accessibilityAddTraits(chosen ? .isSelected : [])
+                .accessibilityIdentifier("notch.activity.\(activity.rawValue)")
+            }
+        }
     }
 }

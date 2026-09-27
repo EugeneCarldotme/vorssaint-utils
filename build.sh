@@ -293,6 +293,8 @@ if (( TEST )); then
         Sources/Vorssaint/Services/Notch/NotchVolumeKeyGate.swift
         Sources/Vorssaint/Services/Notch/NotchMusicSupport.swift
         Sources/Vorssaint/UI/Notch/NotchEqualizerBars.swift
+        Sources/Vorssaint/UI/Notch/NotchAgentAnimationView.swift
+        Sources/Vorssaint/UI/WindowVisibilityReader.swift
         Sources/Vorssaint/Services/Notch/NotchMusicAutomationSupport.swift
         Sources/Vorssaint/Services/Notch/NotchMusicAutomation.swift
         Sources/Vorssaint/Services/Notch/NotchPlaybackSource.swift
@@ -664,6 +666,10 @@ fi
 if [[ -d Resources/Gifs ]]; then
     mkdir -p "$STAGE/Contents/Resources/Gifs"
     cp Resources/Gifs/*.gif "$STAGE/Contents/Resources/Gifs/"
+fi
+if ! cmp -s Resources/Gifs/highlights-notch.gif "$STAGE/Contents/Resources/Gifs/highlights-notch.gif"; then
+    echo "Dynamic Island tour GIF is missing or differs from the bundled copy" >&2
+    exit 1
 fi
 if [[ -d Resources/Images ]]; then
     mkdir -p "$STAGE/Contents/Resources/Images"

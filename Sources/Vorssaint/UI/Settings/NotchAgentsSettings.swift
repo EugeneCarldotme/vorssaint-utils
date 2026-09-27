@@ -347,9 +347,9 @@ private struct NotchAgentStripSample: View {
     private static let camera: CGFloat = 64
 
     var body: some View {
-        TimelineView(.periodic(from: .now, by: 1)) { context in
+        NotchAgentReadoutTimeline(readout: readout) { date in
             let working = usage.snapshot.live.first?.provider ?? provider
-            let shown = sample(at: context.date)
+            let shown = sample(at: date)
             HStack(spacing: 0) {
                 NotchAgentGlyph(provider: working, size: 11)
                     .frame(maxWidth: .infinity, alignment: .leading)

@@ -11,6 +11,7 @@ final class AgentUsageStore {
     private(set) var records: [AgentUsageRecord] = []
     private var billables: [AgentBillable] = []
     private var index: [String: Int] = [:]
+    private let summary = AgentUsageSummaryCache()
     private(set) var limits: [AgentProvider: AgentLimits] = [:]
     private(set) var codexPlan: String?
     private var codexPlanObserved = Date.distantPast
@@ -35,6 +36,15 @@ final class AgentUsageStore {
     }
 
     var live: [AgentLiveSession] { Array(turns.values) }
+
+    /// `limitProviders` keeps the limits of only those agents, when the page
+    /// shows some agents' use but not their own sign-in.
+    func snapshot(plans: [AgentProvider: AgentPlan], providers: Set<AgentProvider>,
+                  limitProviders: Set<AgentProvider>? = nil, hubRoutes: Set<String>? = nil, now: Date,
+                  calendar: Calendar = .current) -> AgentUsageSnapshot {
+        summary.snapshot(records: records, limits: limitProviders.map { kept in limits.filter { kept.contains($0.key) } } ?? limits,
+                         live: live, plans: plans, providers: providers, hubRoutes: hubRoutes, now: now, calendar: calendar)
+    }
 
     /// Applies one file's entries and returns the turns they finished.
     /// `parent` is the log whose turn a subagent's responses count toward.
@@ -115,6 +125,7 @@ final class AgentUsageStore {
             let old = records[position]
             let merged = old.tokens.merged(with: record.tokens)
             guard merged != old.tokens else { return }
+            summary.recordChanged(at: position, previous: old)
             var combined = billables[position]
             combined.tokens = merged
             combined.longCacheWrite = max(combined.longCacheWrite, billable.longCacheWrite)
@@ -133,6 +144,7 @@ final class AgentUsageStore {
             records[position].cost = priced.cost
             records[position].savings = priced.savings
         } else {
+            summary.recordChanged(at: records.count, previous: nil)
             index[key] = records.count
             records.append(record)
             billables.append(billable)
@@ -152,6 +164,7 @@ final class AgentUsageStore {
 
     /// Prices every response again, after a newer list arrives.
     func reprice() {
+        summary.invalidate()
         for position in records.indices {
             let priced = AgentPricing.cost(billables[position], model: records[position].model)
             records[position].cost = priced.cost
@@ -182,6 +195,7 @@ final class AgentUsageStore {
     /// Keeps memory bounded to the history the island can show.
     func dropRecords(before date: Date) {
         guard records.contains(where: { $0.date < date }) else { return }
+        summary.invalidate()
         var kept: [AgentUsageRecord] = []
         var keptBillables: [AgentBillable] = []
         var positions: [Int: Int] = [:]
@@ -286,7 +300,9 @@ enum AgentLogReader {
 
     /// Reads what was appended since the last call and hands over each
     /// complete line. A replaced or truncated file starts over.
-    static func readAppended(_ cursor: AgentLogCursor, line: (Data) -> Void) {
+    static func readAppended(_ cursor: AgentLogCursor, shouldContinue: () -> Bool = { true },
+                             line: (Data) -> Void) {
+        guard shouldContinue() else { return }
         var info = stat()
         guard stat(cursor.path, &info) == 0, (info.st_mode & S_IFMT) == S_IFREG else { return }
         let size = UInt64(max(0, info.st_size))
@@ -303,7 +319,7 @@ enum AgentLogReader {
         guard size > cursor.offset, let handle = FileHandle(forReadingAtPath: cursor.path) else { return }
         defer { try? handle.close() }
         do { try handle.seek(toOffset: cursor.offset) } catch { return }
-        while cursor.offset < size {
+        while cursor.offset < size, shouldContinue() {
             let wanted = Int(min(UInt64(chunkSize), size - cursor.offset))
             // A first read can cover gigabytes; each chunk and what was parsed
             // from it are released before the next one.
@@ -338,9 +354,11 @@ enum AgentLogReader {
                 cursor.discarding = false
                 continue
             }
-            if !range.isEmpty { line(buffer.subdata(in: range)) }
+            if !range.isEmpty, range.count <= maximumLine { line(buffer.subdata(in: range)) }
         }
-        if count - start > maximumLine {
+        // Once a line is oversized, scan only for its terminator. Retaining
+        // subsequent fragments would rebuild a buffer we can never deliver.
+        if cursor.discarding || count - start > maximumLine {
             cursor.pending = Data()
             cursor.discarding = true
         } else {

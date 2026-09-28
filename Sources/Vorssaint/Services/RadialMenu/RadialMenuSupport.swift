@@ -611,6 +611,25 @@ enum RadialNowPlayingSupport {
         return titles.firstIndex { $0.hasPrefix(track) } ?? titles.firstIndex { $0.contains(track) }
     }
 
+    /// Firefox and the browsers built on it. Zen's compact mode and a hidden
+    /// Firefox tab bar leave no tab in the Accessibility tree, and none of them
+    /// takes AppleScript, so only these get the keyboard fallback. A music app
+    /// never receives the keystrokes.
+    static let keyboardTabCyclingBrowsers: Set<String> = [
+        "org.mozilla.firefox", "org.mozilla.firefoxdeveloperedition", "org.mozilla.nightly",
+        "app.zen-browser.zen", "io.gitlab.librewolf-community", "net.waterfox.waterfox",
+        "one.ablaze.floorp", "net.mullvad.mullvadbrowser", "org.torproject.torbrowser",
+    ]
+
+    enum TabCycleStep: Equatable { case found, wrapped, next }
+
+    /// One step of the keyboard fallback, read from the window title after a
+    /// press. A title back at the first tab means the window holds no match.
+    static func tabCycleStep(startTitle: String, currentTitle: String, trackTitle: String) -> TabCycleStep {
+        if playingTabIndex(tabTitles: [currentTitle], trackTitle: trackTitle) != nil { return .found }
+        return currentTitle == startTitle ? .wrapped : .next
+    }
+
     private static func normalizedTabTitle(_ title: String) -> String {
         title.folding(options: [.caseInsensitive, .diacriticInsensitive, .widthInsensitive], locale: nil)
             .replacingOccurrences(of: #"^\s*\(\d+\+?\)\s*"#, with: "", options: .regularExpression)

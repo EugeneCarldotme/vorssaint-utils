@@ -790,6 +790,20 @@ enum UtilitiesFeatureTests {
                 && RadialNowPlayingSupport.playingTabIndex(tabTitles: ["A tour"], trackTitle: "A") == nil
                 && RadialNowPlayingSupport.playingTabIndex(tabTitles: ["Midnight City"], trackTitle: nil) == nil,
                "no tab is chosen without a real title match")
+        let zenStart = "Docs — Zen Browser"
+        suite.expect(RadialNowPlayingSupport.tabCycleStep(
+                    startTitle: zenStart, currentTitle: "she likes spring, I prefer winter | YouTube Music",
+                    trackTitle: "she likes spring, I prefer winter") == .found
+                && RadialNowPlayingSupport.tabCycleStep(startTitle: zenStart, currentTitle: "Inbox — Zen Browser",
+                                                        trackTitle: "Midnight City") == .next
+                && RadialNowPlayingSupport.tabCycleStep(startTitle: zenStart, currentTitle: zenStart,
+                                                        trackTitle: "Midnight City") == .wrapped,
+               "the keyboard fallback stops on the track and gives up once it is back on the first tab")
+        let cycling = RadialNowPlayingSupport.keyboardTabCyclingBrowsers
+        suite.expect(cycling.contains("app.zen-browser.zen") && cycling.contains("org.mozilla.firefox")
+                && !cycling.contains("com.apple.Music") && !cycling.contains("com.spotify.client")
+                && !cycling.contains("com.google.Chrome"),
+               "only Firefox-family browsers get keystrokes, never a music app or a browser that exposes its tabs")
         let nowPlayingBuildScript = (try? String(contentsOfFile: "build.sh", encoding: .utf8)) ?? ""
         suite.expect(nowPlayingBuildScript.contains("Sources/NowPlayingAdapter/NowPlayingAdapter.swift")
                 && nowPlayingBuildScript.contains("Resources/now-playing.pl")

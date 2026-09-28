@@ -288,11 +288,76 @@ enum RadialNowPlayingApplication {
             if !application.activate(from: NSRunningApplication.current, options: [.activateAllWindows]) {
                 application.activate(options: [.activateAllWindows])
             }
+            NowPlayingTabFocus.select(trackTitle: snapshot.title, in: application)
             return
         }
         guard let identifier = snapshot.appBundleIdentifier,
               let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: identifier) else { return }
         NSWorkspace.shared.openApplication(at: url, configuration: NSWorkspace.OpenConfiguration())
+    }
+}
+
+/// Activation brings a browser's front window forward, which may show a
+/// different tab from the one playing. With Accessibility, this finds the tab
+/// whose title carries the track, selects it and raises its window. Tab strips
+/// sit near the top of a window's tree, so the walk skips page content and
+/// gives up after a bounded number of elements. Without Accessibility or a
+/// match, the app stays as activation left it.
+private enum NowPlayingTabFocus {
+    private static let queue = DispatchQueue(label: "com.vorssaint.now-playing-tab", qos: .userInitiated)
+    private static let maximumElements = 1_500
+
+    static func select(trackTitle: String?, in application: NSRunningApplication) {
+        guard let trackTitle, Permissions.shared.accessibility else { return }
+        let pid = application.processIdentifier
+        queue.async {
+            let app = AXUIElementCreateApplication(pid)
+            AXUIElementSetMessagingTimeout(app, 0.25)
+            let windows: [AXUIElement] = attribute(kAXWindowsAttribute, of: app) ?? []
+            var tabs: [(tab: AXUIElement, window: AXUIElement)] = []
+            for window in windows {
+                tabs += tabButtons(in: window).map { ($0, window) }
+            }
+            let titles = tabs.map { attribute(kAXTitleAttribute, of: $0.tab) ?? "" }
+            guard let index = RadialNowPlayingSupport.playingTabIndex(tabTitles: titles, trackTitle: trackTitle) else { return }
+            let (tab, window) = tabs[index]
+            AXUIElementPerformAction(tab, kAXPressAction as CFString)
+            if attribute(kAXMinimizedAttribute, of: window) == true {
+                AXUIElementSetAttributeValue(window, kAXMinimizedAttribute as CFString, kCFBooleanFalse)
+            }
+            AXUIElementSetAttributeValue(app, kAXMainWindowAttribute as CFString, window)
+            AXUIElementSetAttributeValue(window, kAXMainAttribute as CFString, kCFBooleanTrue)
+            AXUIElementPerformAction(window, kAXRaiseAction as CFString)
+        }
+    }
+
+    /// Chrome, Safari and Firefox all expose a tab as a radio button inside a
+    /// tab group, sometimes a level or two further down. The walk reads breadth
+    /// first and never enters a web page.
+    private static func tabButtons(in window: AXUIElement) -> [AXUIElement] {
+        var pending: [(element: AXUIElement, inTabGroup: Bool)] = [(window, false)]
+        var tabs: [AXUIElement] = []
+        var visited = 0
+        while !pending.isEmpty, visited < maximumElements {
+            let (element, inTabGroup) = pending.removeFirst()
+            visited += 1
+            let role: String? = attribute(kAXRoleAttribute, of: element)
+            if role == "AXWebArea" { continue }
+            if inTabGroup, role == kAXRadioButtonRole {
+                tabs.append(element)
+                continue
+            }
+            let children: [AXUIElement] = attribute(kAXChildrenAttribute, of: element) ?? []
+            pending += children.map { ($0, inTabGroup || role == kAXTabGroupRole) }
+        }
+        return tabs
+    }
+
+    private static func attribute<T>(_ name: String, of element: AXUIElement) -> T? {
+        AXUIElementSetMessagingTimeout(element, 0.1)
+        var value: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(element, name as CFString, &value) == .success else { return nil }
+        return value as? T
     }
 }
 

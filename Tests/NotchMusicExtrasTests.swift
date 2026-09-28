@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import CoreGraphics
 import Foundation
+import ImageIO
 
 enum NotchMusicExtrasTests {
     private static func lyricScheduleContracts(_ suite: TestSuite) {
@@ -113,6 +115,21 @@ enum NotchMusicExtrasTests {
                 && NotchBrowserArtworkSupport.centreSquare(width: 300, height: 400)
                     == CGRect(x: 0, y: 50, width: 300, height: 300),
                "a YouTube Music thumbnail crops to its square album art without the side bars")
+        func jpeg(side: Int) -> Data {
+            let context = CGContext(data: nil, width: side, height: side, bitsPerComponent: 8, bytesPerRow: 0,
+                                    space: CGColorSpaceCreateDeviceRGB(),
+                                    bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue)!
+            let output = NSMutableData()
+            let destination = CGImageDestinationCreateWithData(output, "public.jpeg" as CFString, 1, nil)!
+            CGImageDestinationAddImage(destination, context.makeImage()!, nil)
+            CGImageDestinationFinalize(destination)
+            return output as Data
+        }
+        suite.expect(NotchBrowserArtworkSupport.needsCover(nil)
+                && NotchBrowserArtworkSupport.needsCover(jpeg(side: 60))
+                && NotchBrowserArtworkSupport.needsCover(Data("not an image".utf8))
+                && !NotchBrowserArtworkSupport.needsCover(jpeg(side: 720)),
+               "the 60-pixel cover Zen sends for YouTube Music gets replaced, a full-size one stays")
         let track = RadialNowPlayingSnapshot(title: "Song", artist: "Artist", album: nil, artworkData: nil,
                                             appBundleIdentifier: "app.zen-browser.zen", appPID: 7)
         let playback = NotchPlayback(track: track, isPlaying: true, elapsed: 12, duration: 180, rate: 1,

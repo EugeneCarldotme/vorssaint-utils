@@ -3,12 +3,28 @@
 
 import Compression
 import Foundation
+import ImageIO
 
-/// Firefox and the browsers built on it publish no cover to macOS Now Playing.
-/// Their saved session lists every open tab with its title and address, so the
-/// tab that plays the track leads to the site's own thumbnail. YouTube and
-/// YouTube Music are the sites whose cover address follows from the page.
+/// Firefox and the browsers built on it publish no cover to macOS Now Playing,
+/// or a 60-pixel one for YouTube Music. Their saved session lists every open
+/// tab with its title and address, so the tab that plays the track leads to
+/// the site's own thumbnail. YouTube and YouTube Music are the sites whose
+/// cover address follows from the page.
 enum NotchBrowserArtworkSupport {
+    /// The island draws a cover up to 320 pixels across. Anything smaller on
+    /// its short side blurs once stretched, so the lookup replaces it.
+    static let minimumCoverPixels = 300
+
+    /// Whether the browser's own cover is missing or too small to show sharp.
+    static func needsCover(_ artwork: Data?) -> Bool {
+        guard let artwork,
+              let source = CGImageSourceCreateWithData(artwork as CFData, nil),
+              let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
+              let width = properties[kCGImagePropertyPixelWidth] as? Int,
+              let height = properties[kCGImagePropertyPixelHeight] as? Int else { return true }
+        return min(width, height) < minimumCoverPixels
+    }
+
     /// A session with thousands of tabs stays well under this once decoded.
     static let maximumSessionBytes = 256 * 1_024 * 1_024
     /// YouTube's largest thumbnail is a 1280×720 JPEG of a few hundred KB.

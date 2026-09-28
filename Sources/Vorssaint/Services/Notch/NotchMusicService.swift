@@ -145,8 +145,9 @@ final class NotchMusicService: ObservableObject {
             var next = NotchPlayback.decode(data, previousArtwork: cachedArtwork,
                                            commandContext: reply.flatMap(NotchPlaybackContext.init(reply:)),
                                            canSendCommandsDirectly: reply?["canSendCommandsDirectly"] as? Bool == true)
-            // Firefox-family browsers send no cover. One found from the tab
-            // stands in, and a lookup that finishes later redraws the player.
+            // Firefox-family browsers send no cover, or one too small to show
+            // sharp. One found from the tab replaces it, and a lookup that
+            // finishes later redraws the player.
             if let playback = next {
                 if let cover = NotchBrowserArtwork.shared.artwork(for: playback) {
                     next = playback.withArtwork(cover)

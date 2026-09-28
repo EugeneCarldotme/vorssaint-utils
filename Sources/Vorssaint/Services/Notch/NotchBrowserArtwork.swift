@@ -5,9 +5,10 @@ import Foundation
 import ImageIO
 
 /// Finds a cover for a Firefox-family browser, which publishes none to Now
-/// Playing. It reads the browser's saved session for the tab that plays the
-/// track and downloads that video's YouTube thumbnail. Covers stay in memory
-/// for the few most recent tracks, and nothing is written to disk.
+/// Playing, or a 60-pixel one for YouTube Music. It reads the browser's saved
+/// session for the tab that plays the track and downloads that video's YouTube
+/// thumbnail. Covers stay in memory for the few most recent tracks, and
+/// nothing is written to disk.
 final class NotchBrowserArtwork {
     static let shared = NotchBrowserArtwork()
 
@@ -27,10 +28,10 @@ final class NotchBrowserArtwork {
     private var inFlight: String?
 
     private static func key(for playback: NotchPlayback) -> String? {
-        guard playback.track.artworkData == nil,
-              let bundle = playback.track.appBundleIdentifier,
+        guard let bundle = playback.track.appBundleIdentifier,
               NotchBrowserArtworkSupport.profileFolders[bundle] != nil,
-              let title = playback.track.title else { return nil }
+              let title = playback.track.title,
+              NotchBrowserArtworkSupport.needsCover(playback.track.artworkData) else { return nil }
         return bundle + "\n" + title
     }
 

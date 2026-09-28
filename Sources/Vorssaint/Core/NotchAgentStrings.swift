@@ -110,6 +110,7 @@ struct NotchAgentStrings {
     let proxyHideNamesHint: String
     let proxyCustomName: String
     let hubSwitchesNote: String
+    let unknownAccount: String
 
     func tokens(_ count: String) -> String { String(format: tokensFormat, count) }
     func cached(_ share: String) -> String { String(format: cachedFormat, share) }
@@ -286,7 +287,8 @@ extension NotchAgentStrings {
         proxyHideNames: "Hide account names",
         proxyHideNamesHint: "Scrambles and blurs hub account names on the Dynamic Island and here until you point at one. A name you give an account always shows.",
         proxyCustomName: "Custom name",
-        hubSwitchesNote: "With a hub added, Vorssaint reads both agents’ logs for spending and activity. These switches only choose which of this Mac’s sign-ins get a limits card.")
+        hubSwitchesNote: "With a hub added, Vorssaint reads both agents’ logs for spending and activity. These switches only choose which of this Mac’s sign-ins get a limits card.",
+        unknownAccount: "Unknown account")
 
     static let uk = NotchAgentStrings(
         title: "ШІ-агенти",
@@ -394,7 +396,8 @@ extension NotchAgentStrings {
         proxyHideNames: "Приховувати назви облікових записів",
         proxyHideNamesHint: "Перемішує й розмиває назви облікових записів хаба у Dynamic Island і тут, доки ви не наведете на них вказівник. Назва, яку ви дали обліковому запису, показується завжди.",
         proxyCustomName: "Власна назва",
-        hubSwitchesNote: "Коли додано хаб, Vorssaint читає журнали обох агентів для витрат і активності. Ці перемикачі лише вибирають, які входи цього Mac отримають картку лімітів.")
+        hubSwitchesNote: "Коли додано хаб, Vorssaint читає журнали обох агентів для витрат і активності. Ці перемикачі лише вибирають, які входи цього Mac отримають картку лімітів.",
+        unknownAccount: "Невідомий обліковий запис")
 
     static let ptBR = NotchAgentStrings(
         title: "Agentes de IA",
@@ -502,7 +505,8 @@ extension NotchAgentStrings {
         proxyHideNames: "Ocultar nomes das contas",
         proxyHideNamesHint: "Embaralha e desfoca os nomes das contas do hub no Dynamic Island e aqui até você apontar para um deles. Um nome que você der a uma conta sempre aparece.",
         proxyCustomName: "Nome personalizado",
-        hubSwitchesNote: "Com um hub adicionado, o Vorssaint lê os registros dos dois agentes para gastos e atividade. Estes botões só escolhem quais logins deste Mac ganham um cartão de limites.")
+        hubSwitchesNote: "Com um hub adicionado, o Vorssaint lê os registros dos dois agentes para gastos e atividade. Estes botões só escolhem quais logins deste Mac ganham um cartão de limites.",
+        unknownAccount: "Conta desconhecida")
 
     static let es = NotchAgentStrings(
         title: "Agentes de IA",
@@ -610,7 +614,8 @@ extension NotchAgentStrings {
         proxyHideNames: "Ocultar nombres de cuenta",
         proxyHideNamesHint: "Mezcla y desenfoca los nombres de las cuentas del hub en el Dynamic Island y aquí hasta que apuntes a uno. Un nombre que des a una cuenta siempre se muestra.",
         proxyCustomName: "Nombre personalizado",
-        hubSwitchesNote: "Con un hub añadido, Vorssaint lee los registros de ambos agentes para el gasto y la actividad. Estos interruptores solo eligen qué inicios de sesión de este Mac tienen una tarjeta de límites.")
+        hubSwitchesNote: "Con un hub añadido, Vorssaint lee los registros de ambos agentes para el gasto y la actividad. Estos interruptores solo eligen qué inicios de sesión de este Mac tienen una tarjeta de límites.",
+        unknownAccount: "Cuenta desconocida")
 
     static let sk = NotchAgentStrings(
         title: "AI agenti",
@@ -718,7 +723,8 @@ extension NotchAgentStrings {
         proxyHideNames: "Skryť názvy účtov",
         proxyHideNamesHint: "Zamieša a rozmaže názvy účtov hubu v Dynamic Island aj tu, kým na niektorý neukážete. Názov, ktorý účtu dáte, sa zobrazí vždy.",
         proxyCustomName: "Vlastný názov",
-        hubSwitchesNote: "Keď je pridaný hub, Vorssaint číta záznamy oboch agentov pre výdavky a aktivitu. Tieto prepínače len vyberajú, ktoré prihlásenia tohto Macu dostanú kartu limitov.")
+        hubSwitchesNote: "Keď je pridaný hub, Vorssaint číta záznamy oboch agentov pre výdavky a aktivitu. Tieto prepínače len vyberajú, ktoré prihlásenia tohto Macu dostanú kartu limitov.",
+        unknownAccount: "Neznámy účet")
 
     static let de = NotchAgentStrings(
         title: "KI-Agenten",
@@ -826,7 +832,8 @@ extension NotchAgentStrings {
         proxyHideNames: "Kontonamen ausblenden",
         proxyHideNamesHint: "Verwürfelt und verwischt die Namen der Hub-Konten in der Dynamic Island und hier, bis du auf einen zeigst. Ein Name, den du einem Konto gibst, bleibt immer sichtbar.",
         proxyCustomName: "Eigener Name",
-        hubSwitchesNote: "Mit einem Hub liest Vorssaint die Protokolle beider Agenten für Ausgaben und Aktivität. Diese Schalter wählen nur, welche Anmeldungen dieses Macs eine Limitkarte bekommen.")
+        hubSwitchesNote: "Mit einem Hub liest Vorssaint die Protokolle beider Agenten für Ausgaben und Aktivität. Diese Schalter wählen nur, welche Anmeldungen dieses Macs eine Limitkarte bekommen.",
+        unknownAccount: "Unbekanntes Konto")
 
     static let fr = NotchAgentStrings(
         title: "Agents IA",
@@ -934,7 +941,8 @@ extension NotchAgentStrings {
         proxyHideNames: "Masquer les noms de compte",
         proxyHideNamesHint: "Brouille et floute les noms des comptes du hub dans le Dynamic Island et ici jusqu’à ce que vous pointiez l’un d’eux. Un nom que vous donnez à un compte reste toujours visible.",
         proxyCustomName: "Nom personnalisé",
-        hubSwitchesNote: "Avec un hub ajouté, Vorssaint lit les journaux des deux agents pour les dépenses et l’activité. Ces interrupteurs choisissent seulement quelles connexions de ce Mac ont une carte de limites.")
+        hubSwitchesNote: "Avec un hub ajouté, Vorssaint lit les journaux des deux agents pour les dépenses et l’activité. Ces interrupteurs choisissent seulement quelles connexions de ce Mac ont une carte de limites.",
+        unknownAccount: "Compte inconnu")
 
     static let it = NotchAgentStrings(
         title: "Agenti IA",
@@ -1042,7 +1050,8 @@ extension NotchAgentStrings {
         proxyHideNames: "Nascondi i nomi degli account",
         proxyHideNamesHint: "Mescola e sfoca i nomi degli account dell’hub nel Dynamic Island e qui finché non ci passi sopra con il puntatore. Un nome che dai a un account resta sempre visibile.",
         proxyCustomName: "Nome personalizzato",
-        hubSwitchesNote: "Con un hub aggiunto, Vorssaint legge i registri di entrambi gli agenti per spesa e attività. Questi interruttori scelgono solo quali accessi di questo Mac hanno una scheda dei limiti.")
+        hubSwitchesNote: "Con un hub aggiunto, Vorssaint legge i registri di entrambi gli agenti per spesa e attività. Questi interruttori scelgono solo quali accessi di questo Mac hanno una scheda dei limiti.",
+        unknownAccount: "Account sconosciuto")
 
     static let ru = NotchAgentStrings(
         title: "ИИ-агенты",
@@ -1150,7 +1159,8 @@ extension NotchAgentStrings {
         proxyHideNames: "Скрывать названия учётных записей",
         proxyHideNamesHint: "Перемешивает и размывает названия учётных записей хаба в Dynamic Island и здесь, пока вы не наведёте на них указатель. Название, которое вы дали учётной записи, показывается всегда.",
         proxyCustomName: "Своё название",
-        hubSwitchesNote: "Когда добавлен хаб, Vorssaint читает журналы обоих агентов для расходов и активности. Эти переключатели лишь выбирают, какие входы этого Mac получают карточку лимитов.")
+        hubSwitchesNote: "Когда добавлен хаб, Vorssaint читает журналы обоих агентов для расходов и активности. Эти переключатели лишь выбирают, какие входы этого Mac получают карточку лимитов.",
+        unknownAccount: "Неизвестная учётная запись")
 
     static let tr = NotchAgentStrings(
         title: "YZ Ajanları",
@@ -1258,7 +1268,8 @@ extension NotchAgentStrings {
         proxyHideNames: "Hesap adlarını gizle",
         proxyHideNamesHint: "Hub hesap adlarını, üzerine gelene kadar Dynamic Island’da ve burada karıştırır ve bulanıklaştırır. Bir hesaba verdiğiniz ad her zaman görünür.",
         proxyCustomName: "Özel ad",
-        hubSwitchesNote: "Bir hub eklendiğinde Vorssaint, harcama ve etkinlik için iki ajanın da günlüklerini okur. Bu anahtarlar yalnızca bu Mac’teki hangi oturumların limit kartı alacağını seçer.")
+        hubSwitchesNote: "Bir hub eklendiğinde Vorssaint, harcama ve etkinlik için iki ajanın da günlüklerini okur. Bu anahtarlar yalnızca bu Mac’teki hangi oturumların limit kartı alacağını seçer.",
+        unknownAccount: "Bilinmeyen hesap")
 
     static let ja = NotchAgentStrings(
         title: "AIエージェント",
@@ -1366,7 +1377,8 @@ extension NotchAgentStrings {
         proxyHideNames: "アカウント名を隠す",
         proxyHideNamesHint: "ポインタを合わせるまで、Dynamic Island とここに表示されるハブのアカウント名を置き換えてぼかします。アカウントに付けた名前は常に表示されます。",
         proxyCustomName: "カスタム名",
-        hubSwitchesNote: "ハブを追加すると、Vorssaintは費用とアクティビティのために両方のエージェントのログを読み取ります。これらのスイッチは、このMacのどのサインインに上限カードを表示するかだけを選びます。")
+        hubSwitchesNote: "ハブを追加すると、Vorssaintは費用とアクティビティのために両方のエージェントのログを読み取ります。これらのスイッチは、このMacのどのサインインに上限カードを表示するかだけを選びます。",
+        unknownAccount: "不明なアカウント")
 
     static let ko = NotchAgentStrings(
         title: "AI 에이전트",
@@ -1474,7 +1486,8 @@ extension NotchAgentStrings {
         proxyHideNames: "계정 이름 숨기기",
         proxyHideNamesHint: "포인터를 올리기 전까지 Dynamic Island와 이곳에 있는 허브 계정 이름을 뒤섞고 흐리게 표시합니다. 계정에 지정한 이름은 항상 표시됩니다.",
         proxyCustomName: "사용자 지정 이름",
-        hubSwitchesNote: "허브를 추가하면 Vorssaint는 지출과 활동을 위해 두 에이전트의 로그를 모두 읽습니다. 이 스위치는 이 Mac의 어떤 로그인에 한도 카드를 표시할지만 정합니다.")
+        hubSwitchesNote: "허브를 추가하면 Vorssaint는 지출과 활동을 위해 두 에이전트의 로그를 모두 읽습니다. 이 스위치는 이 Mac의 어떤 로그인에 한도 카드를 표시할지만 정합니다.",
+        unknownAccount: "알 수 없는 계정")
 
     static let zhHans = NotchAgentStrings(
         title: "AI 智能体",
@@ -1582,7 +1595,8 @@ extension NotchAgentStrings {
         proxyHideNames: "隐藏账户名称",
         proxyHideNamesHint: "在你将指针移到上面之前，打乱并模糊 Dynamic Island 和此处的中心账户名称。你为账户设置的名称始终显示。",
         proxyCustomName: "自定名称",
-        hubSwitchesNote: "添加中心后，Vorssaint 会读取两个代理的日志来统计花费和活动。这些开关只决定这台 Mac 上哪些登录显示限额卡片。")
+        hubSwitchesNote: "添加中心后，Vorssaint 会读取两个代理的日志来统计花费和活动。这些开关只决定这台 Mac 上哪些登录显示限额卡片。",
+        unknownAccount: "未知账户")
 
     static let zhTW = NotchAgentStrings(
         title: "AI 代理",
@@ -1690,7 +1704,8 @@ extension NotchAgentStrings {
         proxyHideNames: "隱藏帳號名稱",
         proxyHideNamesHint: "在你將指標移到上面之前，打亂並模糊 Dynamic Island 和此處的中心帳號名稱。你為帳號設定的名稱一律顯示。",
         proxyCustomName: "自訂名稱",
-        hubSwitchesNote: "加入中樞後，Vorssaint 會讀取兩個代理的紀錄來統計花費和活動。這些開關只決定這台 Mac 上哪些登入顯示限額卡片。")
+        hubSwitchesNote: "加入中樞後，Vorssaint 會讀取兩個代理的紀錄來統計花費和活動。這些開關只決定這台 Mac 上哪些登入顯示限額卡片。",
+        unknownAccount: "未知帳號")
 
     static let zhHK = NotchAgentStrings(
         title: "AI 代理",
@@ -1798,5 +1813,6 @@ extension NotchAgentStrings {
         proxyHideNames: "隱藏帳户名稱",
         proxyHideNamesHint: "在你將指標移到上面之前，打亂並模糊 Dynamic Island 和此處的中心帳户名稱。你為帳户設定的名稱一律顯示。",
         proxyCustomName: "自訂名稱",
-        hubSwitchesNote: "加入中樞後，Vorssaint 會讀取兩個代理的記錄來統計開支和活動。這些開關只決定這部 Mac 上哪些登入顯示限額卡片。")
+        hubSwitchesNote: "加入中樞後，Vorssaint 會讀取兩個代理的記錄來統計開支和活動。這些開關只決定這部 Mac 上哪些登入顯示限額卡片。",
+        unknownAccount: "未知帳戶")
 }

@@ -72,6 +72,11 @@ struct AgentUsageRecord: Equatable {
     /// The model provider a Codex session named, empty for the ChatGPT
     /// sign-in, as on a live turn.
     var route = ""
+    /// Whose API issued the response, from its id. Claude Code logs the id
+    /// the upstream service gave, so an OpenAI id means a proxy stood
+    /// between. Nil when the id says nothing, as with Codex, whose proxies
+    /// hand back ids of the same shape whoever served the turn.
+    var issuer: AgentProvider?
 }
 
 /// A usage allowance and how much of it is spent, as the provider reports it.
@@ -129,6 +134,8 @@ struct AgentLiveSession: Equatable, Identifiable {
     /// The model provider a Codex session names in its log, empty for the
     /// ChatGPT sign-in. A provider pointed at a hub routes the turn there.
     var route = ""
+    /// Whose API issued the turn's latest response, as on its records.
+    var issuer: AgentProvider?
 }
 
 /// Something worth a moment in the closed island.

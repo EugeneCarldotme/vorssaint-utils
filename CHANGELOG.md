@@ -9,10 +9,12 @@ All notable changes to this project are documented here. The format follows
 ### Changed
 - A Plan limit reading beside the camera turns orange and then red as the allowance runs low, and the Settings preview shows how it looks at the warning share.
 - With a CLIProxyAPI hub added, Spending, Now, Trend, Models, Projects and Activity count every installed agent, even one switched off. The switches then only choose which of this Mac's sign-ins get a limits card.
-- Spending, Trend and Models count a turn through a hub under the kind of account that served it. Claude models go under Claude and other models under Codex, whichever agent asked. The plan multiple counts only spending on the plan itself, and every response is counted once.
+- Spending, Trend and Models count a turn through a hub under the kind of account that served it, whichever agent asked. The hub's own list of models for each account decides that, along with the API that issued a Claude Code response, never the model's name. Use the evidence cannot place shows as Unknown account. The plan multiple counts only spending on the plan itself, and every response is counted once.
 
 ### Fixed
-- A turn that goes through a CLIProxyAPI hub no longer shows the agent's own plan limit beside the camera. The reading now shows the account with the least left among every account the working turns draw on.
+- A turn that goes through a CLIProxyAPI hub no longer shows the agent's own plan limit beside the camera. The reading now shows the account with the least left among the accounts the working turns can use: those on the hub each turn reaches, serving its model.
+- Removing a hub, replacing its key or turning the AI section off cancels a hub reading still under way, and a key revoked while accounts are being read stops every further request instead of counting toward the hub's ban.
+- The Claude card shared with a hub account raises limit warnings from the same latest reading it shows.
 
 ## [3.4.0] - 2026-09-27
 

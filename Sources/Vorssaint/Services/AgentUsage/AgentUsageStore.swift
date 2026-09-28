@@ -40,10 +40,10 @@ final class AgentUsageStore {
     /// `limitProviders` keeps the limits of only those agents, when the page
     /// shows some agents' use but not their own sign-in.
     func snapshot(plans: [AgentProvider: AgentPlan], providers: Set<AgentProvider>,
-                  limitProviders: Set<AgentProvider>? = nil, hubRoutes: Set<String>? = nil, now: Date,
+                  limitProviders: Set<AgentProvider>? = nil, hubs: AgentHubContext? = nil, now: Date,
                   calendar: Calendar = .current) -> AgentUsageSnapshot {
         summary.snapshot(records: records, limits: limitProviders.map { kept in limits.filter { kept.contains($0.key) } } ?? limits,
-                         live: live, plans: plans, providers: providers, hubRoutes: hubRoutes, now: now, calendar: calendar)
+                         live: live, plans: plans, providers: providers, hubs: hubs, now: now, calendar: calendar)
     }
 
     /// Applies one file's entries and returns the turns they finished.
@@ -156,6 +156,7 @@ final class AgentUsageStore {
         turn.cost += extra
         turn.lastActivity = max(turn.lastActivity, record.date)
         if !subagent {
+            if record.issuer != nil { turn.issuer = record.issuer }
             if !record.model.isEmpty { turn.model = record.model }
             if !record.project.isEmpty { turn.project = record.project }
         }

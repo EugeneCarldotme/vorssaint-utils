@@ -20,10 +20,18 @@ enum AgentHubClient {
     private static let concurrency = 4
     private static let maximumSize = 8 << 20
 
-    static func read(_ hub: AgentHub) async -> Reading {
+    /// Reads the hub's accounts, a few at a time. A refusal of the hub itself,
+    /// like a key revoked after the listing, ends the reading there. Every
+    /// later call would carry the same key, and wrong keys count toward the
+    /// hub's ban. A cancelled reading starts no further request.
+    /// Sends one management request with the hub's key. Tests pass their
+    /// own to script a hub's answers.
+    typealias Sender = @Sendable (URLRequest, String) async -> Outcome
+
+    static func read(_ hub: AgentHub, send: @escaping Sender = { await AgentHubClient.send($0, key: $1) }) async -> Reading {
         guard let url = hub.management("auth-files") else { return Reading(state: .failed(status: 0), accounts: nil) }
         let listing: Response
-        switch await send(URLRequest(url: url), key: hub.key) {
+        switch await send(URLRequest(url: url), hub.key) {
         case .failure(let state): return Reading(state: state, accounts: nil)
         case .success(let response): listing = response
         }
@@ -35,24 +43,67 @@ enum AgentHubClient {
         }
         var start = 0
         while start < accounts.count {
+            if Task.isCancelled { return Reading(state: .checking, accounts: nil) }
             let end = min(accounts.count, start + concurrency)
-            await withTaskGroup(of: (Int, AgentHubAccount).self) { group in
+            var refusal: AgentHubState?
+            await withTaskGroup(of: (Int, AccountOutcome).self) { group in
                 for position in start..<end {
                     let account = accounts[position]
-                    group.addTask { (position, await limits(of: account, hub: hub)) }
+                    group.addTask { (position, await read(account, hub: hub, send: send)) }
                 }
-                for await (position, account) in group { accounts[position] = account }
+                for await (position, outcome) in group {
+                    switch outcome {
+                    case .account(let account): accounts[position] = account
+                    case .refused(let state):
+                        refusal = refusal ?? state
+                        group.cancelAll()
+                    }
+                }
             }
+            if let refusal { return Reading(state: refusal, accounts: nil) }
             start = end
         }
+        if Task.isCancelled { return Reading(state: .checking, accounts: nil) }
         return Reading(state: .ready(accounts: accounts.count), accounts: accounts)
     }
 
+    private enum AccountOutcome {
+        case account(AgentHubAccount)
+        /// The management API refused the hub's key or address.
+        case refused(AgentHubState)
+    }
+
+    /// One account's limits, then the models the hub serves with it.
+    private static func read(_ account: AgentHubAccount, hub: AgentHub, send: Sender) async -> AccountOutcome {
+        var result = account
+        switch await limits(of: account, hub: hub, send: send) {
+        case .refused(let state): return .refused(state)
+        case .account(let read): result = read
+        }
+        guard let file = account.file, !Task.isCancelled,
+              var parts = hub.management("auth-files/models").flatMap({ URLComponents(url: $0, resolvingAgainstBaseURL: false) })
+        else { return .account(result) }
+        parts.queryItems = [URLQueryItem(name: "name", value: file)]
+        guard let url = parts.url else { return .account(result) }
+        switch await send(URLRequest(url: url), hub.key) {
+        case .success(let response) where response.status == 200:
+            if let models = AgentHubParser.models(response.body) { result.models = models }
+        case .success(let response):
+            let state = AgentHubParser.state(status: response.status, body: response.body)
+            if AgentHubParser.refusesHub(state) { return .refused(state) }
+        case .failure:
+            break
+        }
+        return .account(result)
+    }
+
     /// One account's limits through the hub's `api-call`, which puts the
-    /// account's token where `$TOKEN$` stands.
-    private static func limits(of account: AgentHubAccount, hub: AgentHub) async -> AgentHubAccount {
+    /// account's token where `$TOKEN$` stands. A 401 from the hub refuses the
+    /// management key. A 401 inside a proxied answer belongs to the account.
+    private static func limits(of account: AgentHubAccount, hub: AgentHub, send: Sender) async -> AccountOutcome {
         var result = account
         result.failed = true
+        guard !Task.isCancelled else { return .account(result) }
         var header = ["Authorization": "Bearer $TOKEN$"]
         switch account.provider {
         case .claude:
@@ -65,36 +116,40 @@ enum AgentHubClient {
         let call: [String: Any] = ["auth_index": account.index, "method": "GET",
                                    "url": account.provider == .claude ? claudeUsage : codexUsage, "header": header]
         guard let url = hub.management("api-call"), let body = try? JSONSerialization.data(withJSONObject: call) else {
-            return result
+            return .account(result)
         }
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.httpBody = body
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        guard case .success(let response) = await send(request, key: hub.key), response.status == 200,
-              let proxied = AgentHubParser.proxied(response.body), (200..<300).contains(proxied.status) else {
-            return result
+        guard case .success(let response) = await send(request, hub.key) else { return .account(result) }
+        guard response.status == 200 else {
+            let state = AgentHubParser.state(status: response.status, body: response.body)
+            return AgentHubParser.refusesHub(state) ? .refused(state) : .account(result)
+        }
+        guard let proxied = AgentHubParser.proxied(response.body), (200..<300).contains(proxied.status) else {
+            return .account(result)
         }
         let now = Date()
         switch account.provider {
         case .claude:
-            guard let windows = AgentHubParser.claudeWindows(proxied.body) else { return result }
+            guard let windows = AgentHubParser.claudeWindows(proxied.body) else { return .account(result) }
             result.limits = AgentLimits(provider: .claude, windows: windows, observedAt: now, source: .hub)
         case .codex:
-            guard let usage = AgentHubParser.codexUsage(proxied.body, observed: now) else { return result }
+            guard let usage = AgentHubParser.codexUsage(proxied.body, observed: now) else { return .account(result) }
             result.limits = AgentLimits(provider: .codex, windows: usage.windows, observedAt: now, source: .hub)
             if let plan = usage.plan { result.plan = plan }
         }
         result.failed = false
-        return result
+        return .account(result)
     }
 
-    private struct Response {
+    struct Response {
         let status: Int
         let body: Data
     }
 
-    private enum Outcome {
+    enum Outcome {
         case success(Response)
         case failure(AgentHubState)
     }

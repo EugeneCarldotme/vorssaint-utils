@@ -69,7 +69,10 @@ final class AgentUsageService: ObservableObject {
     /// When the list on disk was downloaded; nil until the queue has looked.
     private var pricesSaved: Date?
     private var hubAsked: [String: Date] = [:]
-    private var hubsInFlight: Set<String> = []
+    /// The reading in flight for each hub. Removing a hub, replacing its key
+    /// or stopping cancels it, so no request goes out with an old key. The
+    /// token tells a cancelled reading's late answer from a newer one.
+    private var hubTasks: [String: (token: UUID, task: Task<Void, Never>)] = [:]
     /// Hubs not to ask again before a time. A wrong key waits for a new one,
     /// since every attempt counts toward the hub's ban. This outlives a
     /// stop for the same reason.
@@ -105,8 +108,11 @@ final class AgentUsageService: ObservableObject {
     /// Every hub's accounts as last read, in the order of `hubOrder`.
     private var hubAccounts: [String: [AgentHubAccount]] = [:]
     private var hubOrder: [String] = []
-    /// The Codex model providers that point at a hub, from Codex's config.
-    private var hubRoutes: Set<String> = []
+    /// The Codex model providers that point at a hub, from Codex's config,
+    /// each with the hub it reaches.
+    private var hubRoutes: [String: String] = [:]
+    /// The hub Claude Code's settings send it to.
+    private var claudeHub: String?
     private var budgetDay: Date?
     private var lastRootCheck = Date.distantPast
 
@@ -195,7 +201,8 @@ final class AgentUsageService: ObservableObject {
         let now = Date()
         hubStates = hubStates.filter { (hubHolds[$0.key] ?? .distantPast) > now }
         hubAsked = [:]
-        hubsInFlight = []
+        hubTasks.values.forEach { $0.task.cancel() }
+        hubTasks = [:]
         queue.async { [self] in
             readerSession = -1
             readerCancellation = nil
@@ -214,7 +221,8 @@ final class AgentUsageService: ObservableObject {
             claudeOrganization = nil
             claudeEmail = nil
             hubAccounts = [:]
-            hubRoutes = []
+            hubRoutes = [:]
+            claudeHub = nil
             claudeProfileModified = nil
             claudeAppModified = nil
             claudeAppSamples = []
@@ -275,7 +283,7 @@ final class AgentUsageService: ObservableObject {
                store.records.lazy.filter({ $0.date >= today }).reduce(0.0, { $0 + ($1.cost ?? 0) }) >= budget {
                 budgetDay = today
             }
-            hubRoutes = AgentHubRoutes.codex(home: home, hubs: hubOrder)
+            readRoutes()
             watch(roots)
             startPolling()
             publish()
@@ -414,12 +422,9 @@ final class AgentUsageService: ObservableObject {
                 }
                 lastRootCheck = now
                 readClaudePlan()
-                // Codex's config may have gained or lost a hub provider.
-                let routes = AgentHubRoutes.codex(home: home, hubs: hubOrder)
-                if routes != hubRoutes {
-                    hubRoutes = routes
-                    changed = true
-                }
+                // Codex's config or Claude Code's settings may have gained
+                // or lost a hub.
+                if readRoutes() { changed = true }
             }
             readClaudeApp(now: now)
             checkLimits()
@@ -455,20 +460,15 @@ final class AgentUsageService: ObservableObject {
         var plans: [AgentProvider: AgentPlan] = [:]
         if let claudePlan { plans[.claude] = claudePlan }
         if let codex = AgentPlans.codex(planType: store.codexPlan) { plans[.codex] = codex }
+        let hubs = hubContext
         var next = store.snapshot(plans: plans.filter { shown.contains($0.key) }, providers: enabled,
-                                  limitProviders: shown, hubRoutes: hubOrder.isEmpty ? nil : hubRoutes, now: Date())
+                                  limitProviders: shown, hubs: hubs, now: Date())
         let merged = mergedAccounts
         let claudeTile = shown.contains(.claude) && next.seen.contains(.claude)
-        for account in orderedAccounts where merged.contains(account.id) {
-            // The account signed in here keeps one tile, with the newer reading.
-            if claudeTile, let limits = account.limits,
-               limits.observedAt > next.limits[.claude]?.observedAt ?? .distantPast {
-                next.limits[.claude] = limits
-            }
-        }
+        if claudeTile, let reading = claudeReading() { next.limits[.claude] = reading }
         next.accounts = orderedAccounts.filter { !merged.contains($0.id) || !claudeTile }
         next.pool = orderedAccounts
-        next.hubRoutes = hubRoutes
+        next.hubs = hubs
         published = next
         checkBudget(next)
         let checked = shown.contains(.claude) ? claudeAppSamples.last(where: {
@@ -529,10 +529,43 @@ final class AgentUsageService: ObservableObject {
         var current: [String: (limits: AgentLimits, account: String?)] = [:]
         for (provider, limits) in store.limits where shown.contains(provider) { current[provider.rawValue] = (limits, nil) }
         let merged = store.limits[.claude] == nil ? [] : mergedAccounts
+        // The merged tile and its alerts read the same, latest reading. Its
+        // windows go by what they cover, so a reading from the Claude app
+        // and one from the hub compare as the same allowance.
+        if shown.contains(.claude), let reading = claudeReading(), !merged.isEmpty {
+            current[AgentProvider.claude.rawValue] = (AgentLimitSupport.canonical(reading), nil)
+        }
         for account in orderedAccounts where !merged.contains(account.id) {
             if let limits = account.limits { current[account.id] = (limits, account.id) }
         }
         return current
+    }
+
+    /// The Claude sign-in on this Mac, as the newer of the reading the Claude
+    /// app saved and one a hub took of the same account. Runs on `queue`.
+    private func claudeReading() -> AgentLimits? {
+        let merged = mergedAccounts
+        let hub = orderedAccounts.filter { merged.contains($0.id) }.compactMap(\.limits)
+        return ([store.limits[.claude]].compactMap { $0 } + hub).max { $0.observedAt < $1.observedAt }
+    }
+
+    /// What ties turns to hubs and accounts. Nil until the person adds a hub.
+    /// Runs on `queue`.
+    private var hubContext: AgentHubContext? {
+        hubOrder.isEmpty ? nil
+            : AgentHubContext(codexRoutes: hubRoutes, claudeHub: claudeHub, accounts: orderedAccounts)
+    }
+
+    /// Reads which Codex providers and which Claude Code settings reach a
+    /// hub. True when that changed. Runs on `queue`.
+    @discardableResult
+    private func readRoutes() -> Bool {
+        let routes = AgentHubRoutes.codex(home: home, hubs: hubOrder)
+        let claude = AgentHubRoutes.claude(home: home, hubs: hubOrder)
+        guard routes != hubRoutes || claude != claudeHub else { return false }
+        hubRoutes = routes
+        claudeHub = claude
+        return true
     }
 
     /// A warned window that renews brings its agent back: worth a word.
@@ -663,6 +696,7 @@ final class AgentUsageService: ObservableObject {
         hubStates[id] = nil
         hubAsked[id] = nil
         hubHolds[id] = nil
+        hubTasks.removeValue(forKey: id)?.task.cancel()
     }
 
     private func hubsChanged() {
@@ -673,7 +707,7 @@ final class AgentUsageService: ObservableObject {
             guard readerSession == session else { return }
             hubOrder = ids
             hubAccounts = hubAccounts.filter { ids.contains($0.key) }
-            hubRoutes = AgentHubRoutes.codex(home: home, hubs: ids)
+            readRoutes()
             checkLimits()
             publish()
         }
@@ -686,22 +720,29 @@ final class AgentUsageService: ObservableObject {
     private func askHubs() {
         guard running, !paused else { return }
         let now = Date()
-        for hub in hubs where !hubsInFlight.contains(hub.id) {
+        for hub in hubs where hubTasks[hub.id] == nil {
             if let hold = hubHolds[hub.id], hold > now { continue }
             if let asked = hubAsked[hub.id], now.timeIntervalSince(asked) < Self.hubInterval { continue }
-            hubsInFlight.insert(hub.id)
             hubAsked[hub.id] = now
             if hubStates[hub.id] == nil { hubStates[hub.id] = .checking }
             let session = self.session
-            Task.detached(priority: .utility) {
+            let token = UUID()
+            let task = Task.detached(priority: .utility) {
                 let reading = await AgentHubClient.read(hub)
-                DispatchQueue.main.async { AgentUsageService.shared.hubAnswered(hub, reading, session: session) }
+                guard !Task.isCancelled else { return }
+                DispatchQueue.main.async {
+                    AgentUsageService.shared.hubAnswered(hub, reading, session: session, token: token)
+                }
             }
+            hubTasks[hub.id] = (token, task)
         }
     }
 
-    private func hubAnswered(_ hub: AgentHub, _ reading: AgentHubClient.Reading, session: Int) {
-        hubsInFlight.remove(hub.id)
+    private func hubAnswered(_ hub: AgentHub, _ reading: AgentHubClient.Reading, session: Int, token: UUID) {
+        // Only the reading still in flight counts. A cancelled one's late
+        // answer would otherwise clear the newer reading's place.
+        guard hubTasks[hub.id]?.token == token else { return }
+        hubTasks[hub.id] = nil
         // A hub removed or given a new key meanwhile keeps nothing from before.
         guard running, self.session == session, hubs.contains(where: { $0.sameConnection(as: hub) }) else { return }
         hubStates[hub.id] = reading.state
@@ -716,8 +757,11 @@ final class AgentUsageService: ObservableObject {
             let previous = Dictionary(hubAccounts[hub.id, default: []].map { ($0.id, $0) }) { first, _ in first }
             hubAccounts[hub.id] = accounts.map { account in
                 // A failed read keeps the last good one, shown as older.
-                guard account.failed, let before = previous[account.id] else { return account }
+                guard let before = previous[account.id] else { return account }
                 var kept = account
+                // A listing that failed keeps the models listed before.
+                if kept.models.isEmpty { kept.models = before.models }
+                guard account.failed else { return kept }
                 kept.limits = before.limits
                 kept.plan = account.plan ?? before.plan
                 return kept

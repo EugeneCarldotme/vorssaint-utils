@@ -193,34 +193,34 @@ enum NotchAgentSupport {
         }
     }
 
-    /// Whether a turn goes through a CLIProxyAPI hub rather than the agent's
-    /// own sign-in, by the same rule its responses follow.
-    static func viaHub(_ session: AgentLiveSession, routes: Set<String>) -> Bool {
-        AgentUsageSummary.viaHub(provider: session.provider, model: session.model, route: session.route, routes: routes)
-    }
-
-    /// A hub picks the account by the model asked for. Claude models go to
-    /// its Claude accounts, everything else to its ChatGPT ones.
-    static func hubAccounts(for session: AgentLiveSession) -> AgentProvider {
-        AgentUsageSummary.hubAccounts(model: session.model)
+    /// Whose account a working turn draws on, by the same evidence as its
+    /// responses.
+    static func account(of session: AgentLiveSession, hubs: AgentHubContext?) -> AgentAccount {
+        AgentUsageSummary.account(provider: session.provider, model: session.model, route: session.route,
+                                  issuer: session.issuer, hubs: hubs)
     }
 
     /// The share used of the tightest allowance any working turn draws on,
-    /// with the agent running that turn. A turn through a hub draws on the
-    /// hub's accounts for its model, and the one with the least left binds
-    /// first. A turn on the agent's own sign-in draws on that plan. Nil
-    /// while none of them has a reading, and never the agent's own plan for
-    /// a turn that does not spend it.
+    /// with the agent running that turn. A turn on the agent's own sign-in
+    /// draws on that plan. A turn through a hub draws on that hub's accounts
+    /// of the kind serving it, and only those serving its model, and the one
+    /// with the least left binds first. A turn whose hub or account the
+    /// evidence cannot name counts toward none. Nil while no candidate has a
+    /// reading.
     static func liveLimit(_ snapshot: AgentUsageSnapshot, now: Date) -> (provider: AgentProvider, used: Double)? {
         var tightest: (provider: AgentProvider, used: Double)?
         for session in snapshot.live {
             let windows: [AgentLimitWindow]
-            if viaHub(session, routes: snapshot.hubRoutes) {
-                let family = hubAccounts(for: session)
-                windows = snapshot.pool.filter { $0.provider == family }
+            switch account(of: session, hubs: snapshot.hubs) {
+            case .own(let provider):
+                windows = AgentLimitSupport.binding(snapshot.limits[provider], now: now).map { [$0] } ?? []
+            case .proxy(let hub?, let kind?):
+                let model = session.model.lowercased()
+                windows = snapshot.pool
+                    .filter { $0.hub == hub && $0.provider == kind && ($0.models.isEmpty || $0.models.contains(model)) }
                     .compactMap { AgentLimitSupport.binding($0.limits, now: now) }
-            } else {
-                windows = AgentLimitSupport.binding(snapshot.limits[session.provider], now: now).map { [$0] } ?? []
+            case .proxy:
+                windows = []
             }
             for window in windows where window.usedFraction > tightest?.used ?? -1 {
                 tightest = (session.provider, window.usedFraction)

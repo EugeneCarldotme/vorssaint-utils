@@ -413,13 +413,15 @@ private struct NotchAgentSpendCard: View {
         }
     }
 
-    /// Claude, then Codex, by whose account paid. A turn through a hub counts
-    /// under the account that served it, and every response sits in one log,
-    /// so the parts add up to the total without counting any twice. An
-    /// account kind appears even when only the other agent used it.
+    /// Claude, then Codex, by whose account paid, then use whose account the
+    /// evidence cannot name. A turn through a hub counts under the account
+    /// that served it, and every response sits in one log, so the parts add
+    /// up to the total without counting any twice. An account kind appears
+    /// even when only the other agent used it.
     private func parts(_ usage: AgentPeriodUsage) -> [(name: String, tint: Color, totals: AgentTotals)] {
         AgentProvider.allCases.filter { providers.contains($0) || usage.byProvider[$0] != nil }
             .map { ($0.displayName, $0.tint, usage.byProvider[$0] ?? AgentTotals()) }
+            + (usage.unattributed.requests > 0 ? [(text.unknownAccount, agentUnknownTint, usage.unattributed)] : [])
     }
 
     @ViewBuilder private func split(_ usage: AgentPeriodUsage) -> some View {

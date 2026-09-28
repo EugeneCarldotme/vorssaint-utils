@@ -57,26 +57,26 @@ struct AgentHub: Codable, Equatable, Identifiable {
     }
 }
 
-/// Which Codex sessions go through a hub. Codex names the model provider a
+/// Which sessions go through which hub. Codex names the model provider a
 /// session uses in its log, and the provider's address lives in Codex's
-/// config. A hub serves its API at the same address as its management.
+/// config. Claude Code logs no address, so only a base URL in its own
+/// settings ties its sessions to a hub. A hub serves its API at the same
+/// address as its management.
 enum AgentHubRoutes {
     private static let loopback: Set<String> = ["127.0.0.1", "localhost", "::1", "[::1]", "0.0.0.0"]
     private static let maximumSize = 1 << 20
 
-    static func codex(home: URL = FileManager.default.homeDirectoryForCurrentUser, hubs: [String]) -> Set<String> {
-        let url = home.appending(path: ".codex/config.toml", directoryHint: .notDirectory)
-        guard !hubs.isEmpty,
-              let size = (try? url.resourceValues(forKeys: [.fileSizeKey]))?.fileSize, size <= maximumSize,
-              let data = try? Data(contentsOf: url), let text = String(data: data, encoding: .utf8) else { return [] }
+    static func codex(home: URL = FileManager.default.homeDirectoryForCurrentUser, hubs: [String]) -> [String: String] {
+        guard !hubs.isEmpty, let text = read(home.appending(path: ".codex/config.toml", directoryHint: .notDirectory))
+        else { return [:] }
         return codex(config: text, hubs: hubs)
     }
 
     /// The `[model_providers.NAME]` sections whose `base_url` reaches one of
-    /// `hubs`, by host and port. Every loopback name counts as the same host.
-    static func codex(config: String, hubs: [String]) -> Set<String> {
-        let targets = Set(hubs.compactMap { URLComponents(string: $0).flatMap(endpoint) })
-        var routes: Set<String> = []
+    /// `hubs`, by host and port, each with the hub it reaches. Every loopback
+    /// name counts as the same host.
+    static func codex(config: String, hubs: [String]) -> [String: String] {
+        var routes: [String: String] = [:]
         var section: String?
         for raw in config.split(whereSeparator: \.isNewline) {
             let line = raw.trimmingCharacters(in: .whitespaces)
@@ -91,11 +91,34 @@ enum AgentHubRoutes {
             guard let section, line.hasPrefix("base_url"), let equals = line.firstIndex(of: "=") else { continue }
             let value = line[line.index(after: equals)...].trimmingCharacters(in: .whitespaces)
                 .trimmingCharacters(in: CharacterSet(charactersIn: "\"'"))
-            if let address = URLComponents(string: value).flatMap(endpoint), targets.contains(address) {
-                routes.insert(section)
-            }
+            if let hub = hub(reachedBy: value, among: hubs) { routes[section] = hub }
         }
         return routes
+    }
+
+    /// The hub Claude Code's own settings send it to. A base URL set only in
+    /// a shell leaves no trace on disk, and then this is nil.
+    static func claude(home: URL = FileManager.default.homeDirectoryForCurrentUser, hubs: [String]) -> String? {
+        guard !hubs.isEmpty, let text = read(home.appending(path: ".claude/settings.json", directoryHint: .notDirectory))
+        else { return nil }
+        return claude(settings: Data(text.utf8), hubs: hubs)
+    }
+
+    static func claude(settings: Data, hubs: [String]) -> String? {
+        guard let json = (try? JSONSerialization.jsonObject(with: settings)) as? [String: Any],
+              let base = (json["env"] as? [String: Any])?["ANTHROPIC_BASE_URL"] as? String else { return nil }
+        return hub(reachedBy: base, among: hubs)
+    }
+
+    private static func hub(reachedBy address: String, among hubs: [String]) -> String? {
+        guard let target = URLComponents(string: address).flatMap(endpoint) else { return nil }
+        return hubs.first { URLComponents(string: $0).flatMap(endpoint) == target }
+    }
+
+    private static func read(_ url: URL) -> String? {
+        guard let size = (try? url.resourceValues(forKeys: [.fileSizeKey]))?.fileSize, size <= maximumSize,
+              let data = try? Data(contentsOf: url) else { return nil }
+        return String(data: data, encoding: .utf8)
     }
 
     /// Host and port, with the scheme's own port filled in.
@@ -122,6 +145,11 @@ struct AgentHubAccount: Equatable, Identifiable {
     var limits: AgentLimits?
     /// The last attempt to read its limits failed. Earlier readings stay.
     var failed = false
+    /// The account's file name on the hub, which its model listing takes.
+    var file: String?
+    /// The models the hub serves with this account, lowercased. Empty until
+    /// the hub lists them.
+    var models: Set<String> = []
 
     var id: String { hub + "#" + index }
 }
@@ -178,13 +206,32 @@ enum AgentHubParser {
             let plan = provider == .codex ? AgentPlans.codex(planType: claims?["chatgpt_plan_type"] as? String) : nil
             return AgentHubAccount(hub: hub.id, hubName: hub.name, index: index, provider: provider,
                                    name: email ?? text(file["label"]) ?? fileName ?? index, email: email,
-                                   chatGPTAccount: text(claims?["chatgpt_account_id"]), plan: plan)
+                                   chatGPTAccount: text(claims?["chatgpt_account_id"]), plan: plan,
+                                   file: text(file["name"]))
         }
         .sorted { $0.provider != $1.provider ? $0.provider == .claude : $0.name < $1.name }
     }
 
     /// The upstream answer inside an `api-call` response. It holds the
     /// provider's status and its body, which the hub hands back as a string.
+    /// The model ids in an `auth-files/models` listing, lowercased. Nil for
+    /// a body in another shape.
+    static func models(_ data: Data) -> Set<String>? {
+        guard let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
+              let models = json["models"] as? [[String: Any]] else { return nil }
+        return Set(models.compactMap { ($0["id"] as? String)?.lowercased() }.filter { !$0.isEmpty })
+    }
+
+    /// Whether a management answer refuses the hub itself rather than one
+    /// account. Every later call would carry the same key and meet the same
+    /// refusal, and wrong keys count toward the hub's ban.
+    static func refusesHub(_ state: AgentHubState) -> Bool {
+        switch state {
+        case .wrongKey, .blocked, .remoteDisabled, .managementOff, .insecure: return true
+        default: return false
+        }
+    }
+
     static func proxied(_ data: Data) -> (status: Int, body: Data)? {
         guard let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
               let status = (json["status_code"] as? NSNumber)?.intValue else { return nil }

@@ -106,7 +106,8 @@ enum AgentLogParser {
             let priced = AgentPricing.cost(billable, model: model)
             entries.append(.usage(key: key, record: AgentUsageRecord(
                 provider: .claude, date: date, model: model, project: state.project, session: state.session,
-                tokens: billable.tokens, cost: priced.cost, savings: priced.savings), billable: billable))
+                tokens: billable.tokens, cost: priced.cost, savings: priced.savings, issuer: issuer(of: id)),
+                billable: billable))
         }
         // A subagent's own ending is not the end of the turn it serves.
         guard json["isSidechain"] as? Bool != true else { return entries }
@@ -123,6 +124,15 @@ enum AgentLogParser {
             state.turnOpen = true
         }
         return entries
+    }
+
+    /// The API that issued a response, by its id. Anthropic's ids start with
+    /// `msg_`. OpenAI's Responses and Chat Completions ids start with `resp_`
+    /// and `chatcmpl-`, which a proxy passes through to Claude Code.
+    static func issuer(of id: String) -> AgentProvider? {
+        if id.hasPrefix("msg_") { return .claude }
+        if id.hasPrefix("resp_") || id.hasPrefix("chatcmpl-") { return .codex }
+        return nil
     }
 
     /// The interruption or local command output the person's message holds,

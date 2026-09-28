@@ -402,35 +402,38 @@ enum WindowEnumerator {
                 && SwitcherSupport.isConfirmedHiddenAppWindow(
                     appIsHidden: isAppHidden,
                     windowSpaces: spaces(of: CGWindowID(windowID)))
-            // A sibling the app never described gets the same treatment as a
-            // window whose owner did not answer at all.
             let axSnapshot = accessibilityWindows[windowOwnerPID]
-                .flatMap { $0.unansweredIDs.contains(CGWindowID(windowID)) ? nil : $0 }
             let axWindow = axSnapshot?.byID[CGWindowID(windowID)]
             // Accessibility may list only the owner's visible-Space windows.
             // A sibling in that list says nothing about this window's existence.
             let hiddenSpaceSurfaceIsWitnessed = isOnHiddenSpace(CGWindowID(windowID))
-            if axSnapshot != nil, axWindow == nil {
-                guard SwitcherSupport.keepsUnmatchedWindow(
-                    isOnHiddenSpace: hiddenSpaceSurfaceIsWitnessed,
-                    isConfirmedHiddenAppWindow: isConfirmedHiddenAppWindow,
-                    isExcludedFromWindowCycle: SpaceWindowBridge.isExcludedFromWindowCycle(CGWindowID(windowID)),
-                    isOrderedIn: hiddenSpaceSurfaceIsWitnessed && !isConfirmedHiddenAppWindow
-                        ? SpaceWindowBridge.isWindowOrderedIn(CGWindowID(windowID)) : nil,
-                    allowsUnverifiedHiddenSpace: axSnapshot?.ordered.isEmpty == true
-                        || isOnFullscreenSpace(CGWindowID(windowID))
-                ) else { continue }
-            } else if axSnapshot == nil,
-                      SwitcherSupport.unwitnessedSurfaceIsLeftover(
+            let witness = axSnapshot.map {
+                SwitcherSupport.accessibilityWitness(
+                    isDescribed: axWindow != nil,
+                    isUnanswered: $0.unansweredIDs.contains(CGWindowID(windowID)))
+            }
+            // With no Accessibility witness, the owner was too busy to answer
+            // or is shutting down. That used to wave every one of its surfaces
+            // through, closed windows included (issue #807), so the window
+            // server's own leftover signature decides instead.
+            guard SwitcherSupport.keepsSurface(
+                witness: witness,
+                keepsUnmatched: {
+                    SwitcherSupport.keepsUnmatchedWindow(
+                        isOnHiddenSpace: hiddenSpaceSurfaceIsWitnessed,
+                        isConfirmedHiddenAppWindow: isConfirmedHiddenAppWindow,
+                        isExcludedFromWindowCycle: SpaceWindowBridge.isExcludedFromWindowCycle(CGWindowID(windowID)),
+                        isOrderedIn: hiddenSpaceSurfaceIsWitnessed && !isConfirmedHiddenAppWindow
+                            ? SpaceWindowBridge.isWindowOrderedIn(CGWindowID(windowID)) : nil,
+                        allowsUnverifiedHiddenSpace: axSnapshot?.ordered.isEmpty == true
+                            || isOnFullscreenSpace(CGWindowID(windowID)))
+                },
+                isLeftover: {
+                    SwitcherSupport.unwitnessedSurfaceIsLeftover(
                         isOnScreen: isOnScreen,
                         canResolveSpaces: SpaceWindowBridge.canResolveSpaces,
-                        windowSpacesCount: spaces(of: CGWindowID(windowID)).count) {
-                // No Accessibility witness at all: the owner was too busy to
-                // answer or is shutting down, which used to wave every one of
-                // its surfaces through, closed windows included (issue #807).
-                // The window server's own leftover signature decides instead.
-                continue
-            }
+                        windowSpacesCount: spaces(of: CGWindowID(windowID)).count)
+                }) else { continue }
             let cgFrame = CGRect(x: (boundsDict["X"] as? NSNumber)?.doubleValue ?? 0,
                                  y: (boundsDict["Y"] as? NSNumber)?.doubleValue ?? 0,
                                  width: (boundsDict["Width"] as? NSNumber)?.doubleValue ?? 0,
@@ -764,23 +767,22 @@ enum WindowEnumerator {
             }
         }
 
+        let unansweredIDs = Set(unansweredWindows.compactMap(AXWindowResolver.windowID(for:)))
         // An app that answers with zero user-facing windows normally vetoes
-        // its CG surfaces as stale ghosts. SwitcherSupport decides when an
-        // empty answer is too incomplete to do that.
+        // its CG surfaces as stale ghosts. Windows that timed out escape that
+        // veto one by one, and the rest keep it.
         if axWindows.isEmpty {
-            return SwitcherSupport.emptyAccessibilityAnswerVetoesSurfaces(
+            return SwitcherSupport.emptyAccessibilityAnswerIsUsable(
                 acceptsUndescribedSubroles: acceptsUndescribedSubroles,
-                unansweredWindowCount: unansweredWindows.count)
-                ? AccessibilityWindowSnapshotList(ordered: ordered, byID: byID)
+                unansweredWindowCount: unansweredWindows.count,
+                resolvedUnansweredIDCount: unansweredIDs.count)
+                ? AccessibilityWindowSnapshotList(ordered: ordered, byID: byID, unansweredIDs: unansweredIDs)
                 : nil
         }
         // If an app reports AX windows but none resolve to WindowServer ids,
         // keep the old behavior instead of hiding a real window for that app.
         if !ordered.isEmpty {
-            return AccessibilityWindowSnapshotList(
-                ordered: ordered,
-                byID: byID,
-                unansweredIDs: Set(unansweredWindows.compactMap(AXWindowResolver.windowID(for:))))
+            return AccessibilityWindowSnapshotList(ordered: ordered, byID: byID, unansweredIDs: unansweredIDs)
         }
         return nil
     }
@@ -1024,7 +1026,9 @@ enum WindowEnumerator {
             guard app.isRegular,
                   pid != ownPID,
                   regularApps[pid]?.isEmpty == false,
-                  accessibilityWindows[pid]?.ordered.isEmpty == true
+                  accessibilityWindows[pid]?.ordered.isEmpty == true,
+                  // A window that timed out may still be real.
+                  accessibilityWindows[pid]?.unansweredIDs.isEmpty == true
             else { return nil }
             return SwitcherAppCandidate(pid: pid, bundleIdentifier: app.bundleIdentifier)
         }

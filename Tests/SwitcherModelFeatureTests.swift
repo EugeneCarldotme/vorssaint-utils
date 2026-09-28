@@ -627,17 +627,49 @@ enum SwitcherModelFeatureTests {
             suite.expect(!SwitcherSupport.isUnansweredAccessibilityRead(error),
                    "an app that reports a missing attribute has still answered")
         }
-        suite.expect(SwitcherSupport.emptyAccessibilityAnswerVetoesSurfaces(
-            acceptsUndescribedSubroles: false, unansweredWindowCount: 0),
+        suite.expect(SwitcherSupport.emptyAccessibilityAnswerIsUsable(
+            acceptsUndescribedSubroles: false, unansweredWindowCount: 0, resolvedUnansweredIDCount: 0),
                "an app that described every window and kept none still vetoes its ghosts")
-        suite.expect(!SwitcherSupport.emptyAccessibilityAnswerVetoesSurfaces(
-            acceptsUndescribedSubroles: false, unansweredWindowCount: 1),
-               "a window that timed out cannot hide the app's on-screen workspace")
-        suite.expect(!SwitcherSupport.emptyAccessibilityAnswerVetoesSurfaces(
-            acceptsUndescribedSubroles: true, unansweredWindowCount: 0),
+        suite.expect(SwitcherSupport.emptyAccessibilityAnswerIsUsable(
+            acceptsUndescribedSubroles: false, unansweredWindowCount: 1, resolvedUnansweredIDCount: 1),
+               "a timed-out window does not discard the app's verdicts on its other windows")
+        suite.expect(!SwitcherSupport.emptyAccessibilityAnswerIsUsable(
+            acceptsUndescribedSubroles: false, unansweredWindowCount: 1, resolvedUnansweredIDCount: 0),
+               "a timed-out window with no window server id leaves the app unwitnessed")
+        suite.expect(!SwitcherSupport.emptyAccessibilityAnswerIsUsable(
+            acceptsUndescribedSubroles: true, unansweredWindowCount: 0, resolvedUnansweredIDCount: 0),
                "compatibility-hosted apps keep their veto exception")
-        suite.expect(placementCode.contains("$0.unansweredIDs.contains(CGWindowID(windowID)) ? nil : $0"),
-               "a partial Accessibility answer does not veto a sibling that timed out")
+        suite.expect(SwitcherSupport.accessibilityWitness(isDescribed: true, isUnanswered: false) == .described
+               && SwitcherSupport.accessibilityWitness(isDescribed: false, isUnanswered: true) == .unanswered
+               && SwitcherSupport.accessibilityWitness(isDescribed: false, isUnanswered: false) == .rejected,
+               "each window gets its own Accessibility verdict")
+        // An app with one timed-out workspace and a visible normal-level helper
+        // that it keeps out of window cycling. Both surfaces sit on screen on
+        // the current desktop.
+        let keepsMixed = { (witness: SwitcherSupport.AccessibilityWitness, excluded: Bool) in
+            SwitcherSupport.keepsSurface(
+                witness: witness,
+                keepsUnmatched: {
+                    SwitcherSupport.keepsUnmatchedWindow(
+                        isOnHiddenSpace: false, isConfirmedHiddenAppWindow: false,
+                        isExcludedFromWindowCycle: excluded, isOrderedIn: nil,
+                        allowsUnverifiedHiddenSpace: true)
+                },
+                isLeftover: {
+                    SwitcherSupport.unwitnessedSurfaceIsLeftover(
+                        isOnScreen: true, canResolveSpaces: true, windowSpacesCount: 1)
+                })
+        }
+        suite.expect(keepsMixed(.unanswered, false),
+               "the timed-out workspace stays in the switcher")
+        suite.expect(!keepsMixed(.rejected, true),
+               "the rejected helper beside it stays out")
+        suite.expect(!SwitcherSupport.keepsSurface(witness: nil, keepsUnmatched: { true },
+                                                   isLeftover: { true }),
+               "an owner that never answered still loses its leftover surfaces")
+        suite.expect(placementCode.contains("isUnanswered: $0.unansweredIDs.contains(CGWindowID(windowID))")
+               && placementCode.contains("accessibilityWindows[pid]?.unansweredIDs.isEmpty == true"),
+               "the enumerator judges timed-out windows one by one and never calls their app windowless")
 
         // MARK: Stale surfaces without an Accessibility witness (issue #807)
 

@@ -7,7 +7,7 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Fixed
-- App Switcher keeps showing apps such as Adobe Premiere Pro when they are too busy to describe their windows to Accessibility in time.
+- App Switcher keeps showing apps that are too busy to describe their windows to Accessibility in time.
 
 ## [3.4.0] - 2026-09-27
 

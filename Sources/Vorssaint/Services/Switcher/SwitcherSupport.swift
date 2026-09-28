@@ -919,18 +919,49 @@ enum SwitcherSupport {
         error == .cannotComplete
     }
 
-    /// Whether an app that listed windows but described none of them as user
-    /// facing has shown that its window server surfaces are ghosts.
+    /// What an app's Accessibility answer says about one of its surfaces.
+    enum AccessibilityWitness: Equatable {
+        /// The app described the window as user facing.
+        case described
+        /// The app answered and the window did not qualify.
+        case rejected
+        /// The app listed the window but its reads timed out.
+        case unanswered
+    }
+
+    static func accessibilityWitness(isDescribed: Bool, isUnanswered: Bool) -> AccessibilityWitness {
+        if isDescribed { return .described }
+        return isUnanswered ? .unanswered : .rejected
+    }
+
+    /// Whether a window server surface stays in the list after the
+    /// Accessibility cross-check. `witness` is nil when the owner gave no
+    /// answer at all. A window that timed out gets the same treatment as one
+    /// whose owner never answered. Its siblings keep their own verdicts, so a
+    /// rejected helper cannot slip back in beside it.
+    static func keepsSurface(witness: AccessibilityWitness?,
+                             keepsUnmatched: () -> Bool,
+                             isLeftover: () -> Bool) -> Bool {
+        switch witness {
+        case .described: return true
+        case .rejected: return keepsUnmatched()
+        case .unanswered, nil: return !isLeftover()
+        }
+    }
+
+    /// Whether an app that described no window as user facing still gives a
+    /// usable answer for each window.
     ///
-    /// The veto only holds when the app described every window it listed.
-    /// Heavy editors such as Premiere Pro can list their windows and then
-    /// time out on the role and subrole reads that follow. That silence says
-    /// nothing about the window, so it cannot hide the app's real on-screen
-    /// workspace. Compatibility-hosted apps keep their own exception, because
-    /// Accessibility cannot describe their windows at all.
-    static func emptyAccessibilityAnswerVetoesSurfaces(acceptsUndescribedSubroles: Bool,
-                                                       unansweredWindowCount: Int) -> Bool {
-        !acceptsUndescribedSubroles && unansweredWindowCount == 0
+    /// A busy editor can list its windows and then time out on the role and
+    /// subrole reads that follow. Its answer still rejects the windows it did
+    /// describe, but only when every timed-out window resolves to a window
+    /// server id that can be singled out. Compatibility-hosted apps keep their
+    /// own exception, because Accessibility cannot describe their windows at
+    /// all.
+    static func emptyAccessibilityAnswerIsUsable(acceptsUndescribedSubroles: Bool,
+                                                 unansweredWindowCount: Int,
+                                                 resolvedUnansweredIDCount: Int) -> Bool {
+        !acceptsUndescribedSubroles && resolvedUnansweredIDCount == unansweredWindowCount
     }
 
     /// Downsamples a capture into a small alpha grid for classification.

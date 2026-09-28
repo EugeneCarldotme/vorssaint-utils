@@ -24,7 +24,9 @@ Everyday controls and package management behave more reliably across desktop lay
 - Homebrew commands and app update checks use proxy and mirror settings exported by the user's shell, allowing package operations on networks where direct access is blocked.
 - A turn that goes through a CLIProxyAPI hub no longer shows the agent's own plan limit beside the camera. The reading now shows the account with the least left among the accounts the working turns can use: those on the hub each turn reaches, serving its model.
 - Removing a hub, replacing its key or turning the AI section off cancels a hub reading still under way, and a key revoked while accounts are being read stops every further request instead of counting toward the hub's ban.
-- The Claude card shared with a hub account raises limit warnings from the same latest reading it shows.
+- The Claude card shared with a hub account raises limit warnings from the same latest reading it shows, including the first hub reply after launch.
+- Removing a hub or replacing its key drops that hub's pending limit renewals.
+- A Claude Code response goes to a hub only when its own project's settings name the hub. Without that evidence, and with a hub pooling Claude accounts, it shows as Unknown account rather than counting against the plan on this Mac.
 
 ### Contributors
 Thanks to @abdulshahid1, @ahfornitani, @arsarsars1, @IanHollow, @iva-zhu, @Kernel-Hunter, @PathGao, @shlok1806, @trac3r00, @tyteachestech and @Yahddyyp.

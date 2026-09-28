@@ -1129,10 +1129,25 @@ enum NotchAgentTests {
         suite.expect(AgentHubRoutes.codex(config: config, hubs: [local, remote]) == ["cliproxy": local, "remote": remote]
                         && AgentHubRoutes.codex(config: config, hubs: []).isEmpty,
                      "each Codex model provider maps to the one hub its host and port reach")
-        suite.expect(AgentHubRoutes.claude(settings: Data(#"{"env":{"ANTHROPIC_BASE_URL":"http://localhost:8317"}}"#.utf8),
-                                           hubs: [remote, local]) == local
-                        && AgentHubRoutes.claude(settings: Data(#"{"env":{}}"#.utf8), hubs: [local]) == nil,
-                     "Claude Code reaches a hub only when its settings name the hub's address")
+        suite.expect(AgentClaudeSettings.baseURL(settings: Data(#"{"env":{"ANTHROPIC_BASE_URL":"http://localhost:8317"}}"#.utf8))
+                        == "http://localhost:8317"
+                        && AgentClaudeSettings.baseURL(settings: Data(#"{"env":{}}"#.utf8)) == nil
+                        && AgentHubRoutes.hub(reachedBy: "http://localhost:8317", among: [remote, local]) == local,
+                     "a project's Claude Code settings name the base URL its sessions use")
+        let home = FileManager.default.temporaryDirectory.appending(path: "vorssaint-claude-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: home) }
+        let repo = home.appending(path: "code/app")
+        try? FileManager.default.createDirectory(at: repo.appending(path: "src/.claude"), withIntermediateDirectories: true)
+        try? FileManager.default.createDirectory(at: repo.appending(path: ".claude"), withIntermediateDirectories: true)
+        try? FileManager.default.createDirectory(at: home.appending(path: ".claude"), withIntermediateDirectories: true)
+        try? Data(#"{"env":{"ANTHROPIC_BASE_URL":"http://127.0.0.1:8317"}}"#.utf8)
+            .write(to: repo.appending(path: ".claude/settings.local.json"))
+        try? Data(#"{"env":{"ANTHROPIC_BASE_URL":"https://hub.example.net:8310"}}"#.utf8)
+            .write(to: home.appending(path: ".claude/settings.json"))
+        suite.expect(AgentClaudeSettings.baseURL(project: repo.appending(path: "src").path, home: home.path)
+                        == "http://127.0.0.1:8317"
+                        && AgentClaudeSettings.baseURL(project: home.appending(path: "code").path, home: home.path) == nil,
+                     "a session reads its project's settings, never the global file every session shares")
         suite.expect(AgentLogParser.issuer(of: "msg_011C") == .claude && AgentLogParser.issuer(of: "resp_031f") == .codex
                         && AgentLogParser.issuer(of: "chatcmpl-9x") == .codex && AgentLogParser.issuer(of: "") == nil,
                      "a response id names the API that issued it")
@@ -1170,7 +1185,7 @@ enum NotchAgentTests {
                     account("free", .codex, used: 99, models: ["gpt-5.6-sol"]),
                     account("anthropic", .claude, used: 5, models: ["claude-opus-5-5", "cs4.5"]),
                     account("other", .codex, hub: remote, used: 98, models: ["gpt-6-astra"])]
-        let hubs = AgentHubContext(codexRoutes: ["cliproxy": local, "remote": remote], claudeHub: nil, accounts: pool)
+        let hubs = AgentHubContext(hubs: [local, remote], codexRoutes: ["cliproxy": local, "remote": remote], accounts: pool)
         suite.expect(hubs.account(serving: "GPT-6-Astra", on: local, issuer: nil) == .codex
                         && hubs.account(serving: "cs4.5", on: local, issuer: nil) == .claude
                         && hubs.account(serving: "mystery", on: local, issuer: nil) == nil
@@ -1178,10 +1193,10 @@ enum NotchAgentTests {
                      "a hub names the account kind from the models it lists, and an issuer settles what it does not")
 
         func session(_ provider: AgentProvider, model: String, route: String = "",
-                     issuer: AgentProvider? = nil) -> AgentLiveSession {
+                     issuer: AgentProvider? = nil, endpoint: String? = nil) -> AgentLiveSession {
             AgentLiveSession(id: provider.rawValue + model, provider: provider, started: now.addingTimeInterval(-60),
                              lastActivity: now, model: model, project: "", tokens: AgentTokens(), cost: 0,
-                             route: route, issuer: issuer)
+                             route: route, issuer: issuer, endpoint: endpoint)
         }
         func snapshot(_ live: [AgentLiveSession], context: AgentHubContext = hubs,
                       pool: [AgentHubAccount] = pool) -> AgentUsageSnapshot {
@@ -1204,13 +1219,12 @@ enum NotchAgentTests {
                      "a turn routed to another hub reads that hub's accounts")
         suite.expect(NotchAgentSupport.liveLimit(snapshot([session(.codex, model: "gpt-6-astra")]), now: now)?.used == 0.1,
                      "a turn on the agent's own sign-in reads its own plan")
-        let borrowed = snapshot([session(.claude, model: "gpt-5.6-sol", issuer: .codex)],
-                                context: AgentHubContext(codexRoutes: [:], claudeHub: local, accounts: pool))
+        let borrowed = snapshot([session(.claude, model: "gpt-5.6-sol", issuer: .codex, endpoint: "http://localhost:8317")])
         suite.expect(NotchAgentSupport.liveLimit(borrowed, now: now)?.used == 0.99
                         && NotchAgentSupport.liveLimit(borrowed, now: now)?.provider == .claude,
-                     "Claude Code sent to a hub by its settings reads that hub's accounts serving its model")
-        let claudeThroughHub = snapshot([session(.claude, model: "claude-opus-5-5", issuer: .claude)],
-                                        context: AgentHubContext(codexRoutes: [:], claudeHub: local, accounts: pool))
+                     "Claude Code sent to a hub by its project settings reads that hub's accounts serving its model")
+        let claudeThroughHub = snapshot([session(.claude, model: "claude-opus-5-5", issuer: .claude,
+                                                 endpoint: "http://127.0.0.1:8317")])
         suite.expect(NotchAgentSupport.liveLimit(claudeThroughHub, now: now)?.used == 0.05,
                      "a Claude model through the hub reads the hub's Claude account, not the local sign-in")
         let unknownHub = snapshot([session(.claude, model: "gpt-5.6-sol", issuer: .codex)])
@@ -1223,12 +1237,12 @@ enum NotchAgentTests {
                      "without a hub reading, a routed turn has no limit to show")
 
         func record(_ provider: AgentProvider, model: String, route: String = "", issuer: AgentProvider? = nil,
-                    cost: Double) -> AgentUsageRecord {
+                    endpoint: String? = nil, cost: Double) -> AgentUsageRecord {
             AgentUsageRecord(provider: provider, date: now.addingTimeInterval(-600), model: model, project: "app", session: "s",
                              tokens: AgentTokens(input: 100, cacheWrite: 0, cacheRead: 0, output: 10), cost: cost, savings: 0,
-                             route: route, issuer: issuer)
+                             route: route, issuer: issuer, endpoint: endpoint)
         }
-        let records = [record(.claude, model: "claude-opus-5-5", issuer: .claude, cost: 5),
+        let records = [record(.claude, model: "claude-opus-5-5", issuer: .claude, endpoint: "https://api.anthropic.com", cost: 5),
                        record(.claude, model: "gpt-5.6-sol", issuer: .codex, cost: 2),
                        record(.codex, model: "gpt-6-astra", cost: 3),
                        record(.codex, model: "gpt-6-astra", route: "cliproxy", cost: 4),
@@ -1248,10 +1262,22 @@ enum NotchAgentTests {
                         && spent.models.first { $0.name == AgentPricing.displayName("cs4.5") }?.provider == .claude,
                      "the trend and the models follow the same account as spending, aliases included")
         let throughSettings = AgentUsageSummary.snapshot(
-            records: [record(.claude, model: "claude-opus-5-5", issuer: .claude, cost: 5)], limits: [:], live: [], plans: [:],
-            providers: [.claude], hubs: AgentHubContext(codexRoutes: [:], claudeHub: local, accounts: pool), now: now).usage(.today)
+            records: [record(.claude, model: "claude-opus-5-5", issuer: .claude, endpoint: "http://127.0.0.1:8317", cost: 5)],
+            limits: [:], live: [], plans: [:], providers: [.claude], hubs: hubs, now: now).usage(.today)
         suite.expect(throughSettings.byProvider[.claude]?.cost == 5 && throughSettings.own(.claude).cost == 0,
-                     "Claude Code sent to a hub by its settings leaves the local plan multiple alone")
+                     "a msg_ response whose project settings name the hub counts against the hub, not the local plan")
+        let unproven = AgentUsageSummary.snapshot(
+            records: [record(.claude, model: "claude-opus-5-5", issuer: .claude, cost: 5)],
+            limits: [:], live: [], plans: [:], providers: [.claude], hubs: hubs, now: now).usage(.today)
+        suite.expect(unproven.unattributed.cost == 5 && unproven.own(.claude).cost == 0,
+                     "a msg_ response with no session evidence, beside a hub pooling Claude accounts, stays unknown")
+        let codexOnly = AgentHubContext(hubs: [local], codexRoutes: ["cliproxy": local],
+                                        accounts: pool.filter { $0.provider == .codex })
+        let noClaudePool = AgentUsageSummary.snapshot(
+            records: [record(.claude, model: "claude-opus-5-5", issuer: .claude, cost: 5)],
+            limits: [:], live: [], plans: [:], providers: [.claude], hubs: codexOnly, now: now).usage(.today)
+        suite.expect(noClaudePool.own(.claude).cost == 5,
+                     "with no hub pooling Claude accounts, an Anthropic response is the sign-in on this Mac")
         let noHub = AgentUsageSummary.snapshot(records: records, limits: [:], live: [], plans: [:], providers: [.claude, .codex],
                                                now: now).usage(.today)
         suite.expect(noHub.byProvider[.claude]?.cost == 7 && noHub.byProvider[.codex]?.cost == 8.75 && noHub.viaHub.isEmpty,
@@ -1270,6 +1296,49 @@ enum NotchAgentTests {
         suite.expect(AgentLimitSupport.crossings(previous: AgentLimitSupport.canonical(app),
                                                  current: AgentLimitSupport.canonical(hubReading), threshold: 80).count == 1,
                      "a Claude app reading and a hub reading of the same account compare window by window")
+
+        // The service's own alert path, from the launch baseline to the
+        // first hub reply for the Claude sign-in on this Mac.
+        var mergedAccount = account("me", .claude, used: nil, models: [])
+        var alerts = AgentLimitAlerts()
+        alerts.baseline(AgentLimitAlerts.current(local: [.claude: app], shown: [.claude], claude: app,
+                                                 accounts: [mergedAccount], merged: [mergedAccount.id]))
+        mergedAccount.limits = hubReading
+        let first = alerts.check(AgentLimitAlerts.current(local: [.claude: app], shown: [.claude], claude: hubReading,
+                                                          accounts: [mergedAccount], merged: [mergedAccount.id]),
+                                 threshold: 80)
+        suite.expect(first.count == 1 && first.first?.account == nil && first.first?.window.usedPercent == 85,
+                     "the first hub reply for the local Claude sign-in warns once, against the Claude app's baseline")
+
+        // A warned hub account whose hub is then removed never renews out loud.
+        func hubLimits(_ id: String, used: Double, resets: Date) -> AgentHubAccount {
+            var result = account(id, .codex, used: nil, models: [])
+            result.limits = AgentLimits(provider: .codex, windows: [AgentLimitWindow(id: "w", kind: .session, minutes: 300,
+                                                                                      scope: nil, usedPercent: used,
+                                                                                      resetsAt: resets)],
+                                        observedAt: now, source: .hub)
+            return result
+        }
+        let soon = now.addingTimeInterval(60)
+        var removal = AgentLimitAlerts()
+        removal.baseline(AgentLimitAlerts.current(local: [:], shown: [], claude: nil,
+                                                  accounts: [hubLimits("a", used: 50, resets: soon)], merged: []))
+        let warned = removal.check(AgentLimitAlerts.current(local: [:], shown: [], claude: nil,
+                                                            accounts: [hubLimits("a", used: 90, resets: soon)], merged: []),
+                                   threshold: 80)
+        removal.discard(hub: local)
+        suite.expect(warned.count == 1 && removal.renewals(now: soon.addingTimeInterval(1)).isEmpty
+                        && removal.previous.isEmpty,
+                     "removing a hub after a warning drops its pending renewal and its readings")
+        var kept = AgentLimitAlerts()
+        _ = kept.check([:], threshold: 80)
+        kept.baseline(AgentLimitAlerts.current(local: [:], shown: [], claude: nil,
+                                               accounts: [hubLimits("a", used: 50, resets: soon)], merged: []))
+        _ = kept.check(AgentLimitAlerts.current(local: [:], shown: [], claude: nil,
+                                                accounts: [hubLimits("a", used: 90, resets: soon)], merged: []), threshold: 80)
+        kept.discard(hub: remote)
+        suite.expect(kept.renewals(now: soon.addingTimeInterval(1)).count == 1,
+                     "removing another hub keeps this hub's pending renewal")
     }
 
     // MARK: Hub client

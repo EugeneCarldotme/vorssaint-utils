@@ -32,6 +32,8 @@ struct AgentLogState: Equatable {
     var lastTotal: AgentTokens?
     /// Codex runs the thread on the fast tier, which bills at a premium.
     var fast = false
+    /// The base URL the Claude Code session's project settings name.
+    var endpoint: String?
     /// The model provider the Codex session named.
     var route = ""
 }
@@ -106,7 +108,8 @@ enum AgentLogParser {
             let priced = AgentPricing.cost(billable, model: model)
             entries.append(.usage(key: key, record: AgentUsageRecord(
                 provider: .claude, date: date, model: model, project: state.project, session: state.session,
-                tokens: billable.tokens, cost: priced.cost, savings: priced.savings, issuer: issuer(of: id)),
+                tokens: billable.tokens, cost: priced.cost, savings: priced.savings, issuer: issuer(of: id),
+                endpoint: state.endpoint),
                 billable: billable))
         }
         // A subagent's own ending is not the end of the turn it serves.
@@ -154,7 +157,10 @@ enum AgentLogParser {
 
     private static func adopt(_ json: [String: Any], into state: inout AgentLogState) {
         if let session = json["sessionId"] as? String, !session.isEmpty { state.session = native(session) }
-        if let cwd = json["cwd"] as? String, !cwd.isEmpty { state.project = projectName(cwd) }
+        if let cwd = json["cwd"] as? String, !cwd.isEmpty {
+            state.project = projectName(cwd)
+            state.endpoint = AgentClaudeSettings.baseURL(project: cwd)
+        }
     }
 
     // MARK: Codex
@@ -417,5 +423,48 @@ enum AgentTimestamp {
         let days = era * 146_097 + doe - 719_468
         let seconds = Double(days * 86_400 + hour * 3600 + minute * 60 + second - offset) + fraction
         return Date(timeIntervalSince1970: seconds)
+    }
+}
+
+/// The base URL a project's Claude Code settings send its sessions to. Only
+/// project settings tie a URL to one session. The global file applies to
+/// every session, past ones included, and a shell variable leaves no trace.
+enum AgentClaudeSettings {
+    private static let lock = NSLock()
+    private static var cache: [String: String?] = [:]
+    private static let maximumSize = 1 << 20
+
+    /// The nearest `.claude/settings.local.json` or `.claude/settings.json`
+    /// from `project` up to the home folder that sets `ANTHROPIC_BASE_URL`.
+    /// Each folder is read once per launch.
+    static func baseURL(project: String, home: String = NSHomeDirectory()) -> String? {
+        if let known = lock.withLock({ cache[project] }) { return known }
+        var folder = URL(fileURLWithPath: project, isDirectory: true).standardizedFileURL
+        var found: String?
+        let stop = URL(fileURLWithPath: home, isDirectory: true).standardizedFileURL.path
+        search: for _ in 0..<32 {
+            for name in ["settings.local.json", "settings.json"] {
+                let file = folder.appending(path: ".claude/" + name, directoryHint: .notDirectory)
+                // The home folder's own file is the global one, not a project's.
+                guard folder.path != stop,
+                      let size = (try? file.resourceValues(forKeys: [.fileSizeKey]))?.fileSize, size <= maximumSize,
+                      let data = try? Data(contentsOf: file), let value = baseURL(settings: data) else { continue }
+                found = value
+                break search
+            }
+            let parent = folder.deletingLastPathComponent()
+            if folder.path == stop || parent.path == folder.path { break }
+            folder = parent
+        }
+        let result = found.map(AgentLogParser.native)
+        lock.withLock { cache[project] = .some(result) }
+        return result
+    }
+
+    static func baseURL(settings: Data) -> String? {
+        guard let json = (try? JSONSerialization.jsonObject(with: settings)) as? [String: Any],
+              let base = (json["env"] as? [String: Any])?["ANTHROPIC_BASE_URL"] as? String,
+              !base.trimmingCharacters(in: .whitespaces).isEmpty else { return nil }
+        return base
     }
 }

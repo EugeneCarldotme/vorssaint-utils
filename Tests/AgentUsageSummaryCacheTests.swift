@@ -116,7 +116,7 @@ enum AgentUsageSummaryCacheTests {
         // turns carry no issuer here and no setting names a hub, so they stay
         // unattributed, which the cache must also keep apart.
         var routes: AgentHubContext? = AgentHubContext(
-            codexRoutes: ["cliproxy": "http://127.0.0.1:8317"], claudeHub: nil,
+            hubs: ["http://127.0.0.1:8317"], codexRoutes: ["cliproxy": "http://127.0.0.1:8317"], kinds: [.codex],
             served: ["http://127.0.0.1:8317": ["gpt-6-astra": [.codex], "claude-opus-5-5": [.claude]]])
         func check(_ message: String) {
             let actual = cache.snapshot(records: records, limits: [:], live: [], plans: [:], providers: [.claude, .codex],

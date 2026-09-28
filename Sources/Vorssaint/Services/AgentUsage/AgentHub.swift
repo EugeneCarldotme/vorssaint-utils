@@ -59,9 +59,9 @@ struct AgentHub: Codable, Equatable, Identifiable {
 
 /// Which sessions go through which hub. Codex names the model provider a
 /// session uses in its log, and the provider's address lives in Codex's
-/// config. Claude Code logs no address, so only a base URL in its own
-/// settings ties its sessions to a hub. A hub serves its API at the same
-/// address as its management.
+/// config. Claude Code logs no address, so only its project settings tie a
+/// session to one. A hub serves its API at the same address as its
+/// management.
 enum AgentHubRoutes {
     private static let loopback: Set<String> = ["127.0.0.1", "localhost", "::1", "[::1]", "0.0.0.0"]
     private static let maximumSize = 1 << 20
@@ -96,21 +96,8 @@ enum AgentHubRoutes {
         return routes
     }
 
-    /// The hub Claude Code's own settings send it to. A base URL set only in
-    /// a shell leaves no trace on disk, and then this is nil.
-    static func claude(home: URL = FileManager.default.homeDirectoryForCurrentUser, hubs: [String]) -> String? {
-        guard !hubs.isEmpty, let text = read(home.appending(path: ".claude/settings.json", directoryHint: .notDirectory))
-        else { return nil }
-        return claude(settings: Data(text.utf8), hubs: hubs)
-    }
-
-    static func claude(settings: Data, hubs: [String]) -> String? {
-        guard let json = (try? JSONSerialization.jsonObject(with: settings)) as? [String: Any],
-              let base = (json["env"] as? [String: Any])?["ANTHROPIC_BASE_URL"] as? String else { return nil }
-        return hub(reachedBy: base, among: hubs)
-    }
-
-    private static func hub(reachedBy address: String, among hubs: [String]) -> String? {
+    /// The added hub an address reaches, by host and port.
+    static func hub(reachedBy address: String, among hubs: [String]) -> String? {
         guard let target = URLComponents(string: address).flatMap(endpoint) else { return nil }
         return hubs.first { URLComponents(string: $0).flatMap(endpoint) == target }
     }

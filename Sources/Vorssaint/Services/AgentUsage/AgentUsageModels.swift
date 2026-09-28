@@ -77,6 +77,9 @@ struct AgentUsageRecord: Equatable {
     /// between. Nil when the id says nothing, as with Codex, whose proxies
     /// hand back ids of the same shape whoever served the turn.
     var issuer: AgentProvider?
+    /// The base URL a Claude Code session's project settings name, nil when
+    /// none does. A shell variable leaves no trace, so nil proves nothing.
+    var endpoint: String?
 }
 
 /// A usage allowance and how much of it is spent, as the provider reports it.
@@ -136,6 +139,8 @@ struct AgentLiveSession: Equatable, Identifiable {
     var route = ""
     /// Whose API issued the turn's latest response, as on its records.
     var issuer: AgentProvider?
+    /// The base URL its project settings name, as on its records.
+    var endpoint: String?
 }
 
 /// Something worth a moment in the closed island.

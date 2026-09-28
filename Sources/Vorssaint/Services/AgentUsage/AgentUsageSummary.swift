@@ -78,28 +78,32 @@ enum AgentAccount: Equatable {
 
 /// What ties a turn to a hub and to one of its accounts.
 struct AgentHubContext: Equatable {
+    /// Every added hub's address.
+    var hubs: [String] = []
     /// Codex model providers, each with the hub its address reaches.
     var codexRoutes: [String: String] = [:]
-    /// The hub Claude Code's settings send it to.
-    var claudeHub: String?
+    /// The kinds of account the hubs pool, which say whether a response
+    /// could have gone through one.
+    var kinds: Set<AgentProvider> = []
     /// The kinds of account each hub serves a model with, by hub and by
     /// lowercased model id.
     var served: [String: [String: Set<AgentProvider>]] = [:]
 
-    init(codexRoutes: [String: String] = [:], claudeHub: String? = nil,
+    init(hubs: [String] = [], codexRoutes: [String: String] = [:], kinds: Set<AgentProvider> = [],
          served: [String: [String: Set<AgentProvider>]] = [:]) {
+        self.hubs = hubs
         self.codexRoutes = codexRoutes
-        self.claudeHub = claudeHub
+        self.kinds = kinds
         self.served = served
     }
 
-    /// Builds the served models from each hub's account listing.
-    init(codexRoutes: [String: String], claudeHub: String?, accounts: [AgentHubAccount]) {
+    /// Builds the kinds and served models from each hub's account listing.
+    init(hubs: [String], codexRoutes: [String: String], accounts: [AgentHubAccount]) {
         var served: [String: [String: Set<AgentProvider>]] = [:]
         for account in accounts {
             for model in account.models { served[account.hub, default: [:]][model, default: []].insert(account.provider) }
         }
-        self.init(codexRoutes: codexRoutes, claudeHub: claudeHub, served: served)
+        self.init(hubs: hubs, codexRoutes: codexRoutes, kinds: Set(accounts.map(\.provider)), served: served)
     }
 
     /// The one kind of account `hub` serves `model` with. When the hub lists
@@ -220,16 +224,20 @@ enum AgentUsageSummary {
 
     /// Whose account paid for a response, from evidence alone.
     ///
-    /// The connection comes from configuration. A Codex session names its
-    /// model provider, and Codex's config says which hub that reaches.
-    /// Claude Code logs no address, so only a base URL in its settings ties
-    /// it to a hub. The account comes from the hub, which lists the models
-    /// each account serves, or from the id of a Claude Code response, which
-    /// the upstream API issued. A model's name decides nothing, because a hub
-    /// can serve aliases and providers of its own. Whatever the evidence
-    /// cannot settle stays unknown.
+    /// The connection must be the session's own. A Codex session names its
+    /// model provider, and Codex's config says which hub that reaches. A
+    /// Claude Code session counts as reaching a hub only when its project
+    /// settings name the hub's address. The account comes from the models
+    /// the hub lists for each account, or from the API that issued a
+    /// response. A model's name decides nothing, because a hub can serve
+    /// aliases and providers of its own.
+    ///
+    /// A Claude Code response Anthropic issued with no project setting might
+    /// still have gone through a hub that pools Claude accounts, set from a
+    /// shell or the global settings. It then stays unknown rather than
+    /// counting against the plan on this Mac.
     static func account(provider: AgentProvider, model: String, route: String, issuer: AgentProvider?,
-                        hubs: AgentHubContext?) -> AgentAccount {
+                        endpoint: String? = nil, hubs: AgentHubContext?) -> AgentAccount {
         guard let hubs else { return .own(provider) }
         switch provider {
         case .codex:
@@ -238,13 +246,16 @@ enum AgentUsageSummary {
             guard let hub = hubs.codexRoutes[route] else { return .proxy(hub: nil, account: nil) }
             return .proxy(hub: hub, account: hubs.account(serving: model, on: hub, issuer: nil))
         case .claude:
-            if let hub = hubs.claudeHub {
-                return .proxy(hub: hub, account: hubs.account(serving: model, on: hub, issuer: issuer))
+            if let endpoint {
+                if let hub = AgentHubRoutes.hub(reachedBy: endpoint, among: hubs.hubs) {
+                    return .proxy(hub: hub, account: hubs.account(serving: model, on: hub, issuer: issuer))
+                }
+                if URLComponents(string: endpoint)?.host?.lowercased() == "api.anthropic.com" { return .own(.claude) }
+                return .proxy(hub: nil, account: issuer)
             }
-            // Anthropic issued the response, and no setting sends Claude Code
-            // anywhere else, so this is the sign-in on this Mac.
-            if issuer == .claude { return .own(.claude) }
-            return .proxy(hub: nil, account: issuer)
+            // Only a proxy hands Claude Code a response from another API.
+            if let issuer, issuer != .claude { return .proxy(hub: nil, account: issuer) }
+            return hubs.kinds.contains(.claude) ? .proxy(hub: nil, account: nil) : .own(.claude)
         }
     }
 
@@ -286,7 +297,7 @@ enum AgentUsageSummary {
             guard let first = starts.first, record.date >= first, record.date < tomorrow,
                   let day = index(of: record.date, in: starts) else { continue }
             let paid = account(provider: record.provider, model: record.model, route: record.route,
-                               issuer: record.issuer, hubs: hubs)
+                               issuer: record.issuer, endpoint: record.endpoint, hubs: hubs)
             var delta = AgentTotals()
             delta.add(record)
             days[day].add(delta, paidBy: paid.paidBy)
@@ -528,7 +539,7 @@ final class AgentUsageSummaryCache {
         // The same response keeps its model and route when it streams again,
         // so its earlier reading sat under the same account.
         let paid = AgentUsageSummary.account(provider: record.provider, model: record.model, route: record.route,
-                                             issuer: record.issuer, hubs: hubs)
+                                             issuer: record.issuer, endpoint: record.endpoint, hubs: hubs)
         history!.days[day].add(delta, paidBy: paid.paidBy)
         if day == starts.count - 1, let hour = AgentUsageSummary.index(of: record.date, in: hourStarts) {
             history!.hours[hour].add(delta, paidBy: paid.paidBy)
@@ -603,5 +614,88 @@ enum AgentLimitSupport {
             if let was = before.resetsAt, let now = window.resetsAt, now.timeIntervalSince(was) > 60 { return true }
             return before.usedPercent < threshold
         }
+    }
+}
+
+/// One account's limits, keyed as the alerts track them.
+struct AgentTrackedLimits: Equatable {
+    let limits: AgentLimits
+    /// A hub account's id. Nil for a sign-in on this Mac.
+    let account: String?
+}
+
+/// Which windows crossed the warning share and which of those renewed,
+/// across every account. The usage service keeps one and feeds it each
+/// reading.
+struct AgentLimitAlerts {
+    struct Warned: Equatable {
+        let provider: AgentProvider
+        let window: AgentLimitWindow
+        let account: String?
+    }
+
+    private(set) var previous: [String: AgentLimits] = [:]
+    private(set) var warned: [String: Warned] = [:]
+
+    /// Every account's limits by key. This Mac's agents go under their names
+    /// and hub accounts under their ids. The Claude sign-in always reads by
+    /// what each window covers, whether its latest reading came from the
+    /// Claude app or from a hub, so the first hub reply compares with the
+    /// app's reading before it. A hub account that is that same sign-in
+    /// stays out of the list, so a crossing warns once.
+    static func current(local: [AgentProvider: AgentLimits], shown: Set<AgentProvider>, claude: AgentLimits?,
+                        accounts: [AgentHubAccount], merged: Set<String>) -> [String: AgentTrackedLimits] {
+        var current: [String: AgentTrackedLimits] = [:]
+        for (provider, limits) in local where shown.contains(provider) && provider != .claude {
+            current[provider.rawValue] = AgentTrackedLimits(limits: limits, account: nil)
+        }
+        if shown.contains(.claude), let reading = claude ?? local[.claude] {
+            current[AgentProvider.claude.rawValue] = AgentTrackedLimits(limits: AgentLimitSupport.canonical(reading),
+                                                                         account: nil)
+        }
+        let folded = shown.contains(.claude) && (claude ?? local[.claude]) != nil ? merged : []
+        for account in accounts where !folded.contains(account.id) {
+            if let limits = account.limits { current[account.id] = AgentTrackedLimits(limits: limits, account: account.id) }
+        }
+        return current
+    }
+
+    /// Takes a reading as the starting point without warning, as on launch.
+    mutating func baseline(_ current: [String: AgentTrackedLimits]) {
+        previous = current.mapValues(\.limits)
+    }
+
+    /// The windows that crossed `threshold` since the last reading.
+    mutating func check(_ current: [String: AgentTrackedLimits], threshold: Double) -> [Warned] {
+        var crossed: [Warned] = []
+        for (key, entry) in current {
+            for window in AgentLimitSupport.crossings(previous: previous[key], current: entry.limits, threshold: threshold) {
+                let warning = Warned(provider: entry.limits.provider, window: window, account: entry.account)
+                warned[key + "|" + window.id] = warning
+                crossed.append(warning)
+            }
+        }
+        previous = current.mapValues(\.limits)
+        return crossed
+    }
+
+    /// Warned windows whose renewal time has come, each reported once.
+    mutating func renewals(now: Date) -> [Warned] {
+        var renewed: [Warned] = []
+        for (key, entry) in warned {
+            guard let resets = entry.window.resetsAt, resets <= now else { continue }
+            warned[key] = nil
+            renewed.append(entry)
+        }
+        return renewed
+    }
+
+    /// Forgets every warning and reading of a hub's accounts, once the
+    /// person removes the hub or gives it another key. Its accounts then
+    /// never renew out loud.
+    mutating func discard(hub: String) {
+        let prefix = hub + "#"
+        warned = warned.filter { !($0.value.account?.hasPrefix(prefix) ?? false) }
+        previous = previous.filter { !$0.key.hasPrefix(prefix) }
     }
 }

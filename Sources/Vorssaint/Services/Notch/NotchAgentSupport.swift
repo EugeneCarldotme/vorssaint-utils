@@ -197,7 +197,7 @@ enum NotchAgentSupport {
     /// responses.
     static func account(of session: AgentLiveSession, hubs: AgentHubContext?) -> AgentAccount {
         AgentUsageSummary.account(provider: session.provider, model: session.model, route: session.route,
-                                  issuer: session.issuer, hubs: hubs)
+                                  issuer: session.issuer, endpoint: session.endpoint, hubs: hubs)
     }
 
     /// The share used of the tightest allowance any working turn draws on,

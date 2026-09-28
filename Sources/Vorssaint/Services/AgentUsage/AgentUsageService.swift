@@ -99,10 +99,8 @@ final class AgentUsageService: ObservableObject {
     private var claudeAppModified: Date?
     private var claudeAppSamples: [AgentClaudeAppUsage.Sample] = []
     private var shippedPrices: AgentPriceList?
-    /// The last limits of each account, keyed like `limitKeys` makes them.
-    private var previousLimits: [String: AgentLimits] = [:]
-    /// Warned windows, each waiting for its renewal.
-    private var warned: [String: (provider: AgentProvider, window: AgentLimitWindow, account: String?)] = [:]
+    /// Each account's last limits, and the warned windows waiting to renew.
+    private var alerts = AgentLimitAlerts()
     /// The email Claude Code signs in with, to spot the same account in a hub.
     private var claudeEmail: String?
     /// Every hub's accounts as last read, in the order of `hubOrder`.
@@ -111,8 +109,6 @@ final class AgentUsageService: ObservableObject {
     /// The Codex model providers that point at a hub, from Codex's config,
     /// each with the hub it reaches.
     private var hubRoutes: [String: String] = [:]
-    /// The hub Claude Code's settings send it to.
-    private var claudeHub: String?
     private var budgetDay: Date?
     private var lastRootCheck = Date.distantPast
 
@@ -214,15 +210,13 @@ final class AgentUsageService: ObservableObject {
             store = AgentUsageStore()
             cursors.removeAll()
             published = AgentUsageSnapshot()
-            previousLimits.removeAll()
-            warned.removeAll()
+            alerts = AgentLimitAlerts()
             budgetDay = nil
             claudePlan = nil
             claudeOrganization = nil
             claudeEmail = nil
             hubAccounts = [:]
             hubRoutes = [:]
-            claudeHub = nil
             claudeProfileModified = nil
             claudeAppModified = nil
             claudeAppSamples = []
@@ -276,7 +270,7 @@ final class AgentUsageService: ObservableObject {
             readClaudePlan()
             readClaudeApp(now: now)
             store.reportsTransitions = true
-            previousLimits = currentLimits().mapValues(\.limits)
+            alerts.baseline(currentLimits())
             // A budget already passed before launch is history, not news.
             let today = Calendar.autoupdatingCurrent.startOfDay(for: now)
             if let budget = NotchAgentSupport.dailyBudget(),
@@ -422,8 +416,7 @@ final class AgentUsageService: ObservableObject {
                 }
                 lastRootCheck = now
                 readClaudePlan()
-                // Codex's config or Claude Code's settings may have gained
-                // or lost a hub.
+                // Codex's config may have gained or lost a hub provider.
                 if readRoutes() { changed = true }
             }
             readClaudeApp(now: now)
@@ -510,35 +503,15 @@ final class AgentUsageService: ObservableObject {
     private func checkLimits() {
         guard store.reportsTransitions else { return }
         let threshold = NotchAgentSupport.limitThreshold() ?? NotchAgentSupport.defaultLimitThreshold
-        let current = currentLimits()
-        for (key, entry) in current {
-            for window in AgentLimitSupport.crossings(previous: previousLimits[key], current: entry.limits,
-                                                      threshold: threshold) {
-                warned[key + "|" + window.id] = (entry.limits.provider, window, entry.account)
-                report(.limitWarning(provider: entry.limits.provider, window: window, account: entry.account))
-            }
+        for warning in alerts.check(currentLimits(), threshold: threshold) {
+            report(.limitWarning(provider: warning.provider, window: warning.window, account: warning.account))
         }
-        previousLimits = current.mapValues(\.limits)
     }
 
-    /// Every account's limits. This Mac's agents go under their names and
-    /// hub accounts under their ids. A hub account that is the one signed in
-    /// here stays out while this Mac has limits of its own, so a crossing
-    /// warns once.
-    private func currentLimits() -> [String: (limits: AgentLimits, account: String?)] {
-        var current: [String: (limits: AgentLimits, account: String?)] = [:]
-        for (provider, limits) in store.limits where shown.contains(provider) { current[provider.rawValue] = (limits, nil) }
-        let merged = store.limits[.claude] == nil ? [] : mergedAccounts
-        // The merged tile and its alerts read the same, latest reading. Its
-        // windows go by what they cover, so a reading from the Claude app
-        // and one from the hub compare as the same allowance.
-        if shown.contains(.claude), let reading = claudeReading(), !merged.isEmpty {
-            current[AgentProvider.claude.rawValue] = (AgentLimitSupport.canonical(reading), nil)
-        }
-        for account in orderedAccounts where !merged.contains(account.id) {
-            if let limits = account.limits { current[account.id] = (limits, account.id) }
-        }
-        return current
+    /// Runs on `queue`.
+    private func currentLimits() -> [String: AgentTrackedLimits] {
+        AgentLimitAlerts.current(local: store.limits, shown: shown, claude: claudeReading(),
+                                 accounts: orderedAccounts, merged: mergedAccounts)
     }
 
     /// The Claude sign-in on this Mac, as the newer of the reading the Claude
@@ -553,26 +526,22 @@ final class AgentUsageService: ObservableObject {
     /// Runs on `queue`.
     private var hubContext: AgentHubContext? {
         hubOrder.isEmpty ? nil
-            : AgentHubContext(codexRoutes: hubRoutes, claudeHub: claudeHub, accounts: orderedAccounts)
+            : AgentHubContext(hubs: hubOrder, codexRoutes: hubRoutes, accounts: orderedAccounts)
     }
 
-    /// Reads which Codex providers and which Claude Code settings reach a
-    /// hub. True when that changed. Runs on `queue`.
+    /// Reads which Codex providers reach a hub. True when that changed.
+    /// Runs on `queue`.
     @discardableResult
     private func readRoutes() -> Bool {
         let routes = AgentHubRoutes.codex(home: home, hubs: hubOrder)
-        let claude = AgentHubRoutes.claude(home: home, hubs: hubOrder)
-        guard routes != hubRoutes || claude != claudeHub else { return false }
+        guard routes != hubRoutes else { return false }
         hubRoutes = routes
-        claudeHub = claude
         return true
     }
 
     /// A warned window that renews brings its agent back: worth a word.
     private func reportRenewals(now: Date) {
-        for (id, entry) in warned {
-            guard let resets = entry.window.resetsAt, resets <= now else { continue }
-            warned[id] = nil
+        for entry in alerts.renewals(now: now) {
             report(.limitReset(provider: entry.provider, window: entry.window, account: entry.account))
         }
     }
@@ -657,7 +626,7 @@ final class AgentUsageService: ObservableObject {
         guard AgentHubStore.save(next) else { return false }
         forgetHub(hub.id)
         hubs = next
-        hubsChanged()
+        hubsChanged(dropping: hub.id)
         return true
     }
 
@@ -666,7 +635,7 @@ final class AgentUsageService: ObservableObject {
         guard next != hubs, AgentHubStore.save(next) else { return }
         forgetHub(id)
         hubs = next
-        hubsChanged()
+        hubsChanged(dropping: id)
     }
 
     /// Gives a hub account a name of its own. An empty name brings back the
@@ -699,14 +668,19 @@ final class AgentUsageService: ObservableObject {
         hubTasks.removeValue(forKey: id)?.task.cancel()
     }
 
-    private func hubsChanged() {
+    /// `dropping` names a hub removed or reached with another key. Its
+    /// accounts, readings and pending renewals go, since they belonged to
+    /// the old connection.
+    private func hubsChanged(dropping dropped: String) {
         guard running else { return }
         let ids = hubs.map(\.id)
         let session = self.session
         queue.async { [self] in
             guard readerSession == session else { return }
             hubOrder = ids
+            hubAccounts[dropped] = nil
             hubAccounts = hubAccounts.filter { ids.contains($0.key) }
+            alerts.discard(hub: dropped)
             readRoutes()
             checkLimits()
             publish()

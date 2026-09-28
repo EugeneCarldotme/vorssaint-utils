@@ -157,6 +157,7 @@ final class AgentUsageStore {
         turn.lastActivity = max(turn.lastActivity, record.date)
         if !subagent {
             if record.issuer != nil { turn.issuer = record.issuer }
+            if record.endpoint != nil { turn.endpoint = record.endpoint }
             if !record.model.isEmpty { turn.model = record.model }
             if !record.project.isEmpty { turn.project = record.project }
         }

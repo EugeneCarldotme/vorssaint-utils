@@ -5,10 +5,12 @@ import Foundation
 import ImageIO
 
 /// Finds a cover for a Firefox-family browser, which publishes none to Now
-/// Playing, or a 60-pixel one for YouTube Music. It reads the browser's saved
-/// session for the tab that plays the track and downloads that video's YouTube
-/// thumbnail. Covers stay in memory for the few most recent tracks, and
-/// nothing is written to disk.
+/// Playing, or a 60-pixel one for YouTube Music. The playing tab's YouTube
+/// thumbnail comes first, found through the browser's saved session. YouTube
+/// Music keeps playing while the tab shows another page, and then the session
+/// holds no video, so Apple's catalog supplies the album art instead. Covers
+/// stay in memory for the few most recent tracks, and nothing is written to
+/// disk.
 final class NotchBrowserArtwork {
     static let shared = NotchBrowserArtwork()
 
@@ -27,6 +29,14 @@ final class NotchBrowserArtwork {
     private var wanted: String?
     private var inFlight: String?
 
+    private struct Lookup {
+        let key: String
+        let bundle: String
+        let title: String
+        let artist: String?
+        let found: () -> Void
+    }
+
     private static func key(for playback: NotchPlayback) -> String? {
         guard let bundle = playback.track.appBundleIdentifier,
               NotchBrowserArtworkSupport.profileFolders[bundle] != nil,
@@ -43,7 +53,8 @@ final class NotchBrowserArtwork {
     /// Starts one lookup per track. `found` runs on the lookup queue once a
     /// cover is ready for `artwork(for:)`.
     func request(for playback: NotchPlayback, found: @escaping () -> Void) {
-        guard let key = Self.key(for: playback), let bundle = playback.track.appBundleIdentifier else { return }
+        guard let key = Self.key(for: playback), let bundle = playback.track.appBundleIdentifier,
+              let title = playback.track.title else { return }
         let starts = lock.withLock { () -> Bool in
             wanted = key
             guard covers[key] == nil, inFlight != key,
@@ -52,36 +63,57 @@ final class NotchBrowserArtwork {
             return true
         }
         guard starts else { return }
-        attempt(0, key: key, bundle: bundle, title: playback.track.title, found: found)
+        attempt(0, Lookup(key: key, bundle: bundle, title: title, artist: playback.track.artist, found: found))
     }
 
-    private func attempt(_ index: Int, key: String, bundle: String, title: String?, found: @escaping () -> Void) {
+    private func attempt(_ index: Int, _ lookup: Lookup) {
         queue.asyncAfter(deadline: .now() + Self.attemptDelays[index]) { [self] in
             // A newer track took over. Its own request runs its own lookup.
-            guard lock.withLock({ wanted == key }) else { return finish(key, failed: false) }
-            let urls = latestSession(bundle: bundle).map {
-                NotchBrowserArtworkSupport.artworkURLs(forTrack: title, in: NotchBrowserArtworkSupport.openTabs(inSession: $0))
+            guard lock.withLock({ wanted == lookup.key }) else { return finish(lookup.key, failed: false) }
+            let urls = latestSession(bundle: lookup.bundle).map {
+                NotchBrowserArtworkSupport.artworkURLs(forTrack: lookup.title,
+                                                       in: NotchBrowserArtworkSupport.openTabs(inSession: $0))
             } ?? []
-            guard !urls.isEmpty else {
-                if index + 1 < Self.attemptDelays.count {
-                    attempt(index + 1, key: key, bundle: bundle, title: title, found: found)
-                } else {
-                    finish(key, failed: true)
+            if !urls.isEmpty {
+                download(urls) { [self] data in
+                    if let data { store(data, for: lookup) } else { finish(lookup.key, failed: true) }
                 }
                 return
             }
-            download(urls) { [self] data in
-                guard let data else { return finish(key, failed: true) }
-                lock.withLock {
-                    covers[key] = data
-                    coverOrder.removeAll { $0 == key }
-                    coverOrder.append(key)
-                    while coverOrder.count > Self.rememberedCovers { covers[coverOrder.removeFirst()] = nil }
+            // The first miss asks Apple at once, since waiting on the session
+            // only helps a tab that is about to open the song's own page.
+            guard index == 0, let search = NotchBrowserArtworkSupport.appleMusicSearchURL(
+                title: lookup.title, artist: lookup.artist,
+                country: Locale.current.region?.identifier) else { return retry(index, lookup) }
+            NotchBrowserArtworkDownload.load(search, accept: "application/json") { [self] reply in
+                queue.async { [self] in
+                    guard let reply, let cover = NotchBrowserArtworkSupport.appleMusicArtworkURL(
+                        inSearch: reply, title: lookup.title, artist: lookup.artist) else { return retry(index, lookup) }
+                    download([cover]) { [self] data in
+                        if let data { store(data, for: lookup) } else { retry(index, lookup) }
+                    }
                 }
-                finish(key, failed: false)
-                found()
             }
         }
+    }
+
+    private func retry(_ index: Int, _ lookup: Lookup) {
+        if index + 1 < Self.attemptDelays.count {
+            attempt(index + 1, lookup)
+        } else {
+            finish(lookup.key, failed: true)
+        }
+    }
+
+    private func store(_ data: Data, for lookup: Lookup) {
+        lock.withLock {
+            covers[lookup.key] = data
+            coverOrder.removeAll { $0 == lookup.key }
+            coverOrder.append(lookup.key)
+            while coverOrder.count > Self.rememberedCovers { covers[coverOrder.removeFirst()] = nil }
+        }
+        finish(lookup.key, failed: false)
+        lookup.found()
     }
 
     private func finish(_ key: String, failed: Bool) {
@@ -115,7 +147,7 @@ final class NotchBrowserArtwork {
     /// Tries each address in turn and keeps the first real image.
     private func download(_ urls: [URL], completion: @escaping (Data?) -> Void) {
         guard let url = urls.first else { return completion(nil) }
-        NotchBrowserArtworkDownload.load(url) { [self] data in
+        NotchBrowserArtworkDownload.load(url, accept: "image/jpeg") { [self] data in
             queue.async {
                 if let data, let square = Self.squareCover(data) {
                     completion(square)
@@ -145,15 +177,15 @@ final class NotchBrowserArtwork {
 }
 
 /// A single ephemeral request with no cookies or cache, bounded while bytes
-/// arrive. The delegate refuses redirects, so the request only ever reaches
-/// YouTube's thumbnail host.
+/// arrive. The delegate refuses redirects, so a request only ever reaches the
+/// host it names, whether YouTube's thumbnails, Apple's search or Apple's artwork.
 private final class NotchBrowserArtworkDownload: NSObject, URLSessionDataDelegate {
     private var data = Data()
     private var accepted = false
     private let completion: (Data?) -> Void
     private init(completion: @escaping (Data?) -> Void) { self.completion = completion }
 
-    static func load(_ url: URL, completion: @escaping (Data?) -> Void) {
+    static func load(_ url: URL, accept: String, completion: @escaping (Data?) -> Void) {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.timeoutIntervalForRequest = 10
         configuration.timeoutIntervalForResource = 15
@@ -161,7 +193,7 @@ private final class NotchBrowserArtworkDownload: NSObject, URLSessionDataDelegat
         configuration.urlCredentialStorage = nil
         configuration.httpCookieStorage = nil
         configuration.httpShouldSetCookies = false
-        configuration.httpAdditionalHeaders = ["User-Agent": "Vorssaint", "Accept": "image/jpeg"]
+        configuration.httpAdditionalHeaders = ["User-Agent": "Vorssaint", "Accept": accept]
         let delegate = NotchBrowserArtworkDownload(completion: completion)
         let session = URLSession(configuration: configuration, delegate: delegate, delegateQueue: nil)
         session.dataTask(with: url).resume()

@@ -115,6 +115,33 @@ enum NotchMusicExtrasTests {
                 && NotchBrowserArtworkSupport.centreSquare(width: 300, height: 400)
                     == CGRect(x: 0, y: 50, width: 300, height: 300),
                "a YouTube Music thumbnail crops to its square album art without the side bars")
+        let search = NotchBrowserArtworkSupport.appleMusicSearchURL(title: "less of you", artist: "keshi", country: "PH")
+        let searchItems = search.flatMap { URLComponents(url: $0, resolvingAgainstBaseURL: false)?.queryItems } ?? []
+        suite.expect(search?.host == "itunes.apple.com"
+                && searchItems.contains(URLQueryItem(name: "term", value: "keshi less of you"))
+                && searchItems.contains(URLQueryItem(name: "country", value: "PH"))
+                && NotchBrowserArtworkSupport.appleMusicSearchURL(title: "less of you", artist: nil, country: nil) == nil
+                && NotchBrowserArtworkSupport.appleMusicSearchURL(title: "x", artist: "y", country: "bogus")
+                    .map { $0.absoluteString.contains("country=US") } == true,
+               "the Apple search names the artist and the song, and never runs on a title alone")
+        let appleReply = Data("""
+            {"resultCount":3,"results":[
+              {"trackName":"Skeletons (Piano Version)","artistName":"thepianokid",
+               "artworkUrl100":"https://is1-ssl.mzstatic.com/image/thumb/a/piano.jpg/100x100bb.jpg"},
+              {"trackName":"less of you","artistName":"thepianokid",
+               "artworkUrl100":"https://is1-ssl.mzstatic.com/image/thumb/a/cover.jpg/100x100bb.jpg"},
+              {"trackName":"Less Of You","artistName":"keshi",
+               "artworkUrl100":"https://is1-ssl.mzstatic.com/image/thumb/Music114/v4/83/20UMGIM13994.rgb.jpg/100x100bb.jpg"}
+            ]}
+            """.utf8)
+        suite.expect(NotchBrowserArtworkSupport.appleMusicArtworkURL(inSearch: appleReply, title: "less of you", artist: "keshi")?
+                    .absoluteString == "https://is1-ssl.mzstatic.com/image/thumb/Music114/v4/83/20UMGIM13994.rgb.jpg/600x600bb.jpg",
+               "the Apple result with the same song and artist gives its 600-pixel album art")
+        suite.expect(NotchBrowserArtworkSupport.appleMusicArtworkURL(inSearch: appleReply, title: "skeletons", artist: "keshi") == nil
+                && NotchBrowserArtworkSupport.appleMusicArtworkURL(
+                    inSearch: appleReply, title: "My favorite browser is (kind of) dead", artist: "Theo - t3.gg") == nil
+                && NotchBrowserArtworkSupport.appleMusicArtworkURL(inSearch: Data("{}".utf8), title: "a", artist: "b") == nil,
+               "a piano version, a cover by someone else or a YouTube video never borrows an album's art")
         func jpeg(side: Int) -> Data {
             let context = CGContext(data: nil, width: side, height: side, bitsPerComponent: 8, bytesPerRow: 0,
                                     space: CGColorSpaceCreateDeviceRGB(),

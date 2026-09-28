@@ -106,6 +106,46 @@ enum NotchBrowserArtworkSupport {
             .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
+    /// A search of Apple's music catalog for one song, by its title and artist.
+    /// Without an artist, a title alone would match covers of other songs.
+    static func appleMusicSearchURL(title: String, artist: String?, country: String?) -> URL? {
+        guard let artist, !artist.trimmingCharacters(in: .whitespaces).isEmpty,
+              !title.trimmingCharacters(in: .whitespaces).isEmpty else { return nil }
+        var url = URLComponents(string: "https://itunes.apple.com/search")!
+        url.queryItems = [
+            URLQueryItem(name: "term", value: "\(artist) \(title)"),
+            URLQueryItem(name: "media", value: "music"),
+            URLQueryItem(name: "entity", value: "song"),
+            URLQueryItem(name: "limit", value: "10"),
+            URLQueryItem(name: "country", value: country.flatMap { $0.count == 2 ? $0 : nil } ?? "US"),
+        ]
+        return url.url
+    }
+
+    /// The 600-pixel album art of the result whose title and artist both match
+    /// the track. A near miss such as a piano version or a cover by someone
+    /// else counts as no match, so a wrong cover never shows.
+    static func appleMusicArtworkURL(inSearch json: Data, title: String, artist: String?) -> URL? {
+        guard let artist,
+              let root = try? JSONSerialization.jsonObject(with: json) as? [String: Any],
+              let results = root["results"] as? [[String: Any]] else { return nil }
+        let wantedTitle = folded(title)
+        let wantedArtist = folded(artist)
+        guard let match = results.first(where: { result in
+            guard let name = result["trackName"] as? String,
+                  let credit = result["artistName"] as? String else { return false }
+            let artists = folded(credit)
+            return folded(name) == wantedTitle && (artists.contains(wantedArtist) || wantedArtist.contains(artists))
+        }), let small = match["artworkUrl100"] as? String,
+              small.hasPrefix("https://"), small.hasSuffix("/100x100bb.jpg") else { return nil }
+        return URL(string: String(small.dropLast("100x100bb.jpg".count)) + "600x600bb.jpg")
+    }
+
+    private static func folded(_ text: String) -> String {
+        text.folding(options: [.caseInsensitive, .diacriticInsensitive, .widthInsensitive], locale: nil)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
     /// The largest square centred in an image of this size, in pixels.
     static func centreSquare(width: Int, height: Int) -> CGRect {
         let side = max(0, min(width, height))

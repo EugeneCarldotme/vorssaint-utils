@@ -22,6 +22,9 @@ enum QuickToolHUD {
     /// Bumped by every show(). A dismiss whose fade-out was overtaken by a
     /// newer show() must not order the panel out from its completion handler.
     private static var generation = 0
+    /// Runs once when the confirmation on screen goes away, either faded out
+    /// or replaced by the next one.
+    private static var presentationEnded: (() -> Void)?
 
     /// The confirmation panel, when one is on screen. A recording in progress
     /// leaves it out of the picture; nothing else needs to know it exists.
@@ -173,15 +176,18 @@ enum QuickToolHUD {
     /// states. Each click swaps the message and the button title and reports
     /// the new state. The panel still never takes focus, so the app the
     /// person copied into keeps the keyboard. It stays up while the pointer
-    /// rests on it and fades once the pointer leaves.
+    /// rests on it and fades once the pointer leaves. `onEnd` runs once the
+    /// confirmation is gone, so the caller can let go of what the button
+    /// would have acted on.
     static func showToggle(icon: String,
                            off: ToggleFace,
                            on: ToggleFace,
                            isOn: Bool,
-                           onChange: @escaping (Bool) -> Void) {
+                           onChange: @escaping (Bool) -> Void,
+                           onEnd: @escaping () -> Void) {
         guard Thread.isMainThread else {
             DispatchQueue.main.async {
-                showToggle(icon: icon, off: off, on: on, isOn: isOn, onChange: onChange)
+                showToggle(icon: icon, off: off, on: on, isOn: isOn, onChange: onChange, onEnd: onEnd)
             }
             return
         }
@@ -195,7 +201,32 @@ enum QuickToolHUD {
                                               onChange(model.isOn)
                                           },
                                           onHover: pointerHoverChanged)
-        present(AnyView(content), dismissAfter: 3, interactive: true)
+        present(AnyView(content), dismissAfter: 3, interactive: true, onEnd: onEnd)
+    }
+
+    /// Takes a toggle confirmation down at once, before its button can act on
+    /// something that no longer applies. Only call it while that toggle's
+    /// `onEnd` has not run yet, since that means it is still the one on screen.
+    static func dismissToggle() {
+        guard Thread.isMainThread else {
+            DispatchQueue.main.async { dismissToggle() }
+            return
+        }
+        guard let panel, presentationEnded != nil else { return }
+        dismissWork?.cancel()
+        dismissWork = nil
+        // Overtakes any fade still running, so its completion leaves the
+        // panel alone.
+        generation += 1
+        panel.orderOut(nil)
+        panel.contentViewController = nil
+        endPresentation()
+    }
+
+    private static func endPresentation() {
+        let ended = presentationEnded
+        presentationEnded = nil
+        ended?()
     }
 
     private static func pointerHoverChanged(_ inside: Bool) {
@@ -220,7 +251,10 @@ enum QuickToolHUD {
     private static func present(_ content: AnyView,
                                 dismissAfter: Double,
                                 windowShadow: Bool = true,
-                                interactive: Bool = false) {
+                                interactive: Bool = false,
+                                onEnd: (() -> Void)? = nil) {
+        endPresentation()
+        presentationEnded = onEnd
         let host = FirstClickHostingController(rootView: content)
         host.view.layoutSubtreeIfNeeded()
         let size = host.view.fittingSize
@@ -261,6 +295,7 @@ enum QuickToolHUD {
             panel.orderOut(nil)
             panel.contentViewController = nil
             dismissWork = nil
+            endPresentation()
         })
     }
 

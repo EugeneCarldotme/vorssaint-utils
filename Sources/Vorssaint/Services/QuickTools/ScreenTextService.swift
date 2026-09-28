@@ -17,10 +17,21 @@ final class ScreenTextService: ObservableObject {
     static let shared = ScreenTextService()
 
     private var recognitionGeneration = 0
-    /// The capture the confirmation on screen describes, and the pasteboard
-    /// change count its copy produced.
-    private var confirmedCopy: QuickToolsSupport.RecognizedCopy?
-    private var confirmedChangeCount = 0
+    /// The capture the confirmation on screen describes. It lives exactly as
+    /// long as that confirmation does.
+    private var confirmation: Confirmation?
+
+    /// One copy confirmation and the capture its button acts on.
+    private final class Confirmation {
+        var copy: QuickToolsSupport.RecognizedCopy
+        /// The pasteboard change count the latest copy of this capture produced.
+        var changeCount: Int
+
+        init(copy: QuickToolsSupport.RecognizedCopy, changeCount: Int) {
+            self.copy = copy
+            self.changeCount = changeCount
+        }
+    }
 
     private init() {}
 
@@ -37,6 +48,11 @@ final class ScreenTextService: ObservableObject {
 
     private func cancelSession() {
         recognitionGeneration += 1
+        // Left up, the confirmation could still rewrite the clipboard and the
+        // setting after the person turned the tool off.
+        guard confirmation != nil else { return }
+        confirmation = nil
+        QuickToolHUD.dismissToggle()
     }
 
     func capture() {
@@ -111,28 +127,35 @@ final class ScreenTextService: ObservableObject {
     }
 
     private func confirm(_ copy: QuickToolsSupport.RecognizedCopy) {
-        confirmedCopy = copy
-        confirmedChangeCount = Self.copyToPasteboard(copy.text)
+        let confirmation = Confirmation(copy: copy, changeCount: Self.copyToPasteboard(copy.text))
+        self.confirmation = confirmation
         let strings = L10n.shared.s
+        // Both callbacks first check that this capture is still the current
+        // one. After its confirmation ends or a newer capture replaces it, the
+        // button does nothing and the service drops the recognized text.
         QuickToolHUD.showToggle(icon: "text.viewfinder",
                                 off: .init(message: strings.ocrCopied, actionTitle: strings.ocrCutBreaks),
                                 on: .init(message: strings.ocrCopiedWithoutBreaks, actionTitle: strings.ocrAddBreaks),
-                                isOn: copy.removesLineBreaks) { [weak self] removesLineBreaks in
-            self?.setRemovesLineBreaks(removesLineBreaks)
-        }
+                                isOn: copy.removesLineBreaks,
+                                onChange: { [weak self, weak confirmation] removesLineBreaks in
+                                    guard let self, let confirmation, self.confirmation === confirmation else { return }
+                                    self.setRemovesLineBreaks(removesLineBreaks, in: confirmation)
+                                },
+                                onEnd: { [weak self, weak confirmation] in
+                                    guard let self, let confirmation, self.confirmation === confirmation else { return }
+                                    self.confirmation = nil
+                                })
     }
 
     /// The confirmation's button. It changes the setting for later captures
     /// and copies this capture again in the new form.
-    private func setRemovesLineBreaks(_ removesLineBreaks: Bool) {
+    private func setRemovesLineBreaks(_ removesLineBreaks: Bool, in confirmation: Confirmation) {
         UserDefaults.standard.set(removesLineBreaks, forKey: DefaultsKey.screenOCRRemoveLineBreaks)
-        guard var copy = confirmedCopy else { return }
-        copy.removesLineBreaks = removesLineBreaks
-        confirmedCopy = copy
+        confirmation.copy.removesLineBreaks = removesLineBreaks
         // Anything copied after the capture belongs to the person. The button
         // only replaces the clipboard while it still holds this capture.
-        guard NSPasteboard.general.changeCount == confirmedChangeCount else { return }
-        confirmedChangeCount = Self.copyToPasteboard(copy.text)
+        guard NSPasteboard.general.changeCount == confirmation.changeCount else { return }
+        confirmation.changeCount = Self.copyToPasteboard(confirmation.copy.text)
     }
 
     private static func recognizedLines(

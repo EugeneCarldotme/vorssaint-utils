@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Vorssaint
 
 import AppKit
+import Carbon.HIToolbox
 import Foundation
 import SwiftUI
 
@@ -299,18 +300,21 @@ enum RadialNowPlayingApplication {
 
 /// Activation brings a browser's front window forward, which may show a
 /// different tab from the one playing. With Accessibility, this finds the tab
-/// whose title carries the track, selects it and raises its window. Tab strips
-/// sit near the top of a window's tree, so the walk skips page content and
-/// gives up after a bounded number of elements. Without Accessibility or a
-/// match, the app stays as activation left it.
+/// whose title carries the track, selects it and raises its window. It tries
+/// three ways, cheapest first. A tab strip the browser exposes gets its tab
+/// pressed. A window whose title already shows the track only gets raised.
+/// A Firefox-family browser that hides its tabs, as Zen does in compact mode,
+/// gets Control-Page Down until its window title shows the track. Without
+/// Accessibility or a match, the app stays as activation left it.
 private enum NowPlayingTabFocus {
     private static let queue = DispatchQueue(label: "com.vorssaint.now-playing-tab", qos: .userInitiated)
     private static let maximumElements = 1_500
+    private static let maximumCycledTabs = 50
 
     static func select(trackTitle: String?, in application: NSRunningApplication) {
         guard let trackTitle, Permissions.shared.accessibility else { return }
-        let pid = application.processIdentifier
         queue.async {
+            let pid = application.processIdentifier
             let app = AXUIElementCreateApplication(pid)
             AXUIElementSetMessagingTimeout(app, 0.25)
             let windows: [AXUIElement] = attribute(kAXWindowsAttribute, of: app) ?? []
@@ -318,17 +322,89 @@ private enum NowPlayingTabFocus {
             for window in windows {
                 tabs += tabButtons(in: window).map { ($0, window) }
             }
-            let titles = tabs.map { attribute(kAXTitleAttribute, of: $0.tab) ?? "" }
-            guard let index = RadialNowPlayingSupport.playingTabIndex(tabTitles: titles, trackTitle: trackTitle) else { return }
-            let (tab, window) = tabs[index]
-            AXUIElementPerformAction(tab, kAXPressAction as CFString)
-            if attribute(kAXMinimizedAttribute, of: window) == true {
-                AXUIElementSetAttributeValue(window, kAXMinimizedAttribute as CFString, kCFBooleanFalse)
+            let tabTitles = tabs.map { attribute(kAXTitleAttribute, of: $0.tab) ?? "" }
+            if let index = RadialNowPlayingSupport.playingTabIndex(tabTitles: tabTitles, trackTitle: trackTitle) {
+                AXUIElementPerformAction(tabs[index].tab, kAXPressAction as CFString)
+                raise(tabs[index].window, in: app)
+                return
             }
-            AXUIElementSetAttributeValue(app, kAXMainWindowAttribute as CFString, window)
-            AXUIElementSetAttributeValue(window, kAXMainAttribute as CFString, kCFBooleanTrue)
-            AXUIElementPerformAction(window, kAXRaiseAction as CFString)
+            let windowTitles = windows.map { attribute(kAXTitleAttribute, of: $0) ?? "" }
+            if let index = RadialNowPlayingSupport.playingTabIndex(tabTitles: windowTitles, trackTitle: trackTitle) {
+                raise(windows[index], in: app)
+                return
+            }
+            guard tabs.isEmpty,
+                  RadialNowPlayingSupport.keyboardTabCyclingBrowsers.contains(application.bundleIdentifier ?? ""),
+                  waitUntilActive(application) else { return }
+            for window in windows where attribute(kAXMinimizedAttribute, of: window) != true {
+                raise(window, in: app)
+                if cycleTabs(of: window, pid: pid, trackTitle: trackTitle) { return }
+            }
+            if let front = windows.first { raise(front, in: app) }
         }
+    }
+
+    private static func raise(_ window: AXUIElement, in app: AXUIElement) {
+        if attribute(kAXMinimizedAttribute, of: window) == true {
+            AXUIElementSetAttributeValue(window, kAXMinimizedAttribute as CFString, kCFBooleanFalse)
+        }
+        AXUIElementSetAttributeValue(app, kAXMainWindowAttribute as CFString, window)
+        AXUIElementSetAttributeValue(window, kAXMainAttribute as CFString, kCFBooleanTrue)
+        AXUIElementSetAttributeValue(window, kAXFocusedAttribute as CFString, kCFBooleanTrue)
+        AXUIElementPerformAction(window, kAXRaiseAction as CFString)
+    }
+
+    /// Keystrokes land in the browser's key window, so they wait until the
+    /// activation that `open` asked for has taken effect.
+    private static func waitUntilActive(_ application: NSRunningApplication) -> Bool {
+        for _ in 0..<25 {
+            if application.isActive { return true }
+            Thread.sleep(forTimeInterval: 0.02)
+        }
+        return application.isActive
+    }
+
+    /// Steps through the window's tabs until its title shows the track. It
+    /// stops back on the first tab, and also after two presses that change
+    /// nothing, since the window then has one tab or ignores the shortcut.
+    private static func cycleTabs(of window: AXUIElement, pid: pid_t, trackTitle: String) -> Bool {
+        guard let start: String = attribute(kAXTitleAttribute, of: window) else { return false }
+        var current = start
+        var unchanged = 0
+        for _ in 0..<maximumCycledTabs {
+            pressNextTab(pid: pid)
+            guard let next = titleChange(of: window, from: current) else {
+                unchanged += 1
+                if unchanged == 2 { return false }
+                continue
+            }
+            unchanged = 0
+            current = next
+            switch RadialNowPlayingSupport.tabCycleStep(startTitle: start, currentTitle: current, trackTitle: trackTitle) {
+            case .found: return true
+            case .wrapped: return false
+            case .next: continue
+            }
+        }
+        return false
+    }
+
+    private static func pressNextTab(pid: pid_t) {
+        let source = CGEventSource(stateID: .privateState)
+        for keyDown in [true, false] {
+            guard let event = CGEvent(keyboardEventSource: source, virtualKey: CGKeyCode(kVK_PageDown),
+                                      keyDown: keyDown) else { return }
+            event.flags = .maskControl
+            event.postToPid(pid)
+        }
+    }
+
+    private static func titleChange(of window: AXUIElement, from title: String) -> String? {
+        for _ in 0..<15 {
+            Thread.sleep(forTimeInterval: 0.02)
+            if let current: String = attribute(kAXTitleAttribute, of: window), current != title { return current }
+        }
+        return nil
     }
 
     /// Chrome, Safari and Firefox all expose a tab as a radio button inside a

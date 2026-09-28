@@ -392,6 +392,7 @@ if (( TEST )); then
         Sources/Vorssaint/Services/DockPreview/DockPreviewSupport.swift
         Sources/Vorssaint/Services/DockPreview/DockAutohideHold.swift
         Sources/Vorssaint/Services/Homebrew/HomebrewSupport.swift
+        Sources/Vorssaint/Services/Homebrew/HomebrewEnvironment.swift
         Sources/Vorssaint/Services/AppUpdates/AppUpdatesSupport.swift
         Sources/Vorssaint/Services/AppUpdates/AppUpdateFeedSupport.swift
         Sources/Vorssaint/Core/AppUpdateStrings.swift
@@ -469,6 +470,8 @@ if (( TEST )); then
         Sources/Vorssaint/Core/InputSourceSelection.swift
         Sources/Vorssaint/Services/SessionActivity.swift
         Sources/Vorssaint/Services/SessionActivitySupport.swift
+        Sources/Vorssaint/Services/EventTimestamp.swift
+        Sources/Vorssaint/Services/OwnKeyEvent.swift
         Sources/Vorssaint/Services/ScrollWheelSupport.swift
         Sources/Vorssaint/Services/HorizontalWheelScrolling.swift
         Sources/Vorssaint/Services/SmoothScrollSupport.swift

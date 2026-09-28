@@ -6,15 +6,28 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Summary
+Everyday controls and package management behave more reliably across desktop layouts, large clipboard histories and networks that require a proxy or mirror. The update also improves input timing and makes save failures and system prompts easier to handle.
+
 ### Changed
 - A Plan limit reading beside the camera turns orange and then red as the allowance runs low, and the Settings preview shows how it looks at the warning share.
 - With a CLIProxyAPI hub added, Spending, Now, Trend, Models, Projects and Activity count every installed agent, even one switched off. The switches then only choose which of this Mac's sign-ins get a limits card.
 - Spending, Trend and Models count a turn through a hub under the kind of account that served it, whichever agent asked. The hub's own list of models for each account decides that, along with the API that issued a Claude Code response, never the model's name. Use the evidence cannot place shows as Unknown account. The plan multiple counts only spending on the plan itself, and every response is counted once.
 
 ### Fixed
+- Keyboard and mouse debounce now honor the configured interval on Apple silicon; scrolling features also use consistent event timing.
+- Closing the menu bar panel returns focus to the previous app without switching desktops.
+- Clipboard History search reuses prepared text while typing in long histories, reducing repeated processing.
+- Window Layout edge snapping remains available when displays share Spaces and macOS tiling controls are unavailable.
+- Scratchpad warns in both views when notes cannot be saved and shows a warning if the final save fails while closing.
+- Extra Brightness no longer hides purchase confirmations in the system app store or administrator password prompts.
+- Homebrew commands and app update checks use proxy and mirror settings exported by the user's shell, allowing package operations on networks where direct access is blocked.
 - A turn that goes through a CLIProxyAPI hub no longer shows the agent's own plan limit beside the camera. The reading now shows the account with the least left among the accounts the working turns can use: those on the hub each turn reaches, serving its model.
 - Removing a hub, replacing its key or turning the AI section off cancels a hub reading still under way, and a key revoked while accounts are being read stops every further request instead of counting toward the hub's ban.
 - The Claude card shared with a hub account raises limit warnings from the same latest reading it shows.
+
+### Contributors
+Thanks to @abdulshahid1, @ahfornitani, @arsarsars1, @IanHollow, @iva-zhu, @Kernel-Hunter, @PathGao, @shlok1806, @trac3r00, @tyteachestech and @Yahddyyp.
 
 ## [3.4.0] - 2026-09-27
 

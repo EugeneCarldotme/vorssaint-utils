@@ -93,7 +93,8 @@ def main():
               "    private func armPopoverDriftCorrection(", "    private func endPopoverDriftCorrection(",
               "    private func showPopover(", "    func popoverWillClose(", "    func popoverDidClose(",
               "    private func releasePanelResources(", "    private func anchorAfterForeignClose(",
-              "    private func reopenPanelAfterForeignClose(", "    private func shouldDismissPopover("])
+              "    private func reopenPanelAfterForeignClose(", "    private func shouldDismissPopover(",
+              "    private func closePopoverNow("])
           + "var popoverAnchor: PanelAnchor?\nvar lastGoodPanelAnchor: PanelAnchor?\n"
           + "}\n}\n")
     brightness = "Sources/Vorssaint/Services/Display/BrightnessService.swift"
@@ -135,6 +136,13 @@ def main():
           + declaration("Sources/Vorssaint/Services/QuickTools/ScratchpadService.swift",
                         "    func exportText(")
           + "}\n}\n")
+    write("ScratchpadSave.swift", "import Foundation\n"
+          + "extension ScratchpadSaveContract {\nfinal class Service: Fixture {\n"
+          + "".join(declaration("Sources/Vorssaint/Services/QuickTools/ScratchpadService.swift", prefix)
+                    .replace("private func", "func", 1) for prefix in [
+                        "    func commitEdits(", "    private func flushSave(", "    private func save(",
+                        "    func createPad("])
+          + "}\n}\n")
     write("MusicLaunchBlockerLifecycle.swift", "import AppKit\nimport Foundation\n"
           + "extension MusicLaunchBlockerContract {\nfinal class Service: Fixture {\n"
           + "".join(declaration("Sources/Vorssaint/Services/Audio/MusicLaunchBlocker.swift", prefix)
@@ -168,7 +176,8 @@ def main():
           + declaration(clipboard, "    func updateText(")
           + "".join(declaration(clipboard, prefix).replace("private ", "", 1) for prefix in [
               "    func togglePin(", "    func copy(_ entry:", "    private func touch(",
-              "    private var firstRecentIndex:", "    private func normalizeEntryOrder("])
+              "    private var firstRecentIndex:", "    private func normalizeEntryOrder(",
+              "    func filteredEntries(", "    private func foldedCandidates("])
           + "func setEntries(_ values: [ClipboardHistoryEntry]) { entries = values }\n"
           + "}\n}\n")
     write("CommandBarInputSource.swift", "import Foundation\n"
@@ -268,6 +277,11 @@ def main():
                                    "    private func handleDockHoldInput(type:",
                                    "    private func handle(type:",
                                    "    func commit("])
+          + "}\n")
+    write("KeyboardDebounceTap.swift", "import ApplicationServices\nimport CoreGraphics\nimport Foundation\n"
+          + "extension KeyboardDebounceTapTests.Service {\n"
+          + declaration("Sources/Vorssaint/Services/KeyboardDebounce/KeyboardDebounceService.swift",
+                        "    private func handle(type:").replace("private func", "func", 1)
           + "}\n")
     # Entire input/mute services retain their production control flow. Only
     # visibility, scheduling, defaults and HAL transport are replaced by fixtures.

@@ -237,16 +237,16 @@ enum RadialNowPlayingApplication {
     private static var icons: [String: NSImage] = [:]
     private static var missingIcons = Set<String>()
 
+    /// A browser plays web media from a helper process with no windows of its
+    /// own. When the adapter cannot name the browser, the reported process is
+    /// that helper, so a background process resolves to the app that owns it.
     static func runningApplication(for snapshot: RadialNowPlayingSnapshot) -> NSRunningApplication? {
-        if let bundleIdentifier = snapshot.appBundleIdentifier,
-           let application = NSRunningApplication.runningApplications(
-            withBundleIdentifier: bundleIdentifier).first(where: { !$0.isTerminated }) {
-            return application
-        }
-        if let pid = snapshot.appPID {
-            return NSRunningApplication(processIdentifier: pid_t(pid))
-        }
-        return nil
+        let reported = snapshot.appBundleIdentifier.flatMap {
+            NSRunningApplication.runningApplications(withBundleIdentifier: $0).first(where: { !$0.isTerminated })
+        } ?? snapshot.appPID.flatMap { NSRunningApplication(processIdentifier: pid_t($0)) }
+        guard let reported, reported.activationPolicy != .regular else { return reported }
+        let pid = snapshot.appPID.map { pid_t($0) } ?? reported.processIdentifier
+        return ResponsibleProcess.regularAppOwner(of: pid) ?? reported
     }
 
     static func name(for snapshot: RadialNowPlayingSnapshot) -> String? {

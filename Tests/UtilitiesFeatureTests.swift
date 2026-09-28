@@ -768,6 +768,14 @@ enum UtilitiesFeatureTests {
         suite.expect(adapterAfterWarning?.info[RadialNowPlayingSupport.titleKey] as? String == "Midnight City"
                 && adapterAfterWarning?.pid == 42 && adapterAfterWarning?.isPlaying == true,
                "a perl warning on the shared stderr pipe ahead of the adapter's JSON line still parses")
+        // A browser can report the helper that plays the page, which has no
+        // windows and takes no activation, so opening the player resolves it
+        // to the browser first.
+        let nowPlayingServiceSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/RadialMenu/RadialNowPlayingService.swift",
+            encoding: .utf8)) ?? ""
+        suite.expect(nowPlayingServiceSource.contains("ResponsibleProcess.regularAppOwner(of: pid)"),
+               "a browser's web content helper resolves to the browser that owns it")
         let nowPlayingBuildScript = (try? String(contentsOfFile: "build.sh", encoding: .utf8)) ?? ""
         suite.expect(nowPlayingBuildScript.contains("Sources/NowPlayingAdapter/NowPlayingAdapter.swift")
                 && nowPlayingBuildScript.contains("Resources/now-playing.pl")

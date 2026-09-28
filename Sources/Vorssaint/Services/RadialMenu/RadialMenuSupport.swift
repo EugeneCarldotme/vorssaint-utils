@@ -599,6 +599,24 @@ enum RadialNowPlayingSupport {
                                         appPID: pid)
     }
 
+    /// The browser tab that plays the track, found by the title the page shows.
+    /// Sites wrap the track in their own name ("Title - YouTube") or an unread
+    /// count ("(3) Title"). A tab that starts with the track beats one that
+    /// only mentions it somewhere, and a one-letter title matches nothing.
+    static func playingTabIndex(tabTitles: [String], trackTitle: String?) -> Int? {
+        guard let trackTitle else { return nil }
+        let track = normalizedTabTitle(trackTitle)
+        guard track.count >= 2 else { return nil }
+        let titles = tabTitles.map(normalizedTabTitle)
+        return titles.firstIndex { $0.hasPrefix(track) } ?? titles.firstIndex { $0.contains(track) }
+    }
+
+    private static func normalizedTabTitle(_ title: String) -> String {
+        title.folding(options: [.caseInsensitive, .diacriticInsensitive, .widthInsensitive], locale: nil)
+            .replacingOccurrences(of: #"^\s*\(\d+\+?\)\s*"#, with: "", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
     private static func sanitizedText(_ value: Any?) -> String? {
         guard let value = value as? String else { return nil }
         let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)

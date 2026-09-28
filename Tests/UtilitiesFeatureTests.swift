@@ -776,6 +776,20 @@ enum UtilitiesFeatureTests {
             encoding: .utf8)) ?? ""
         suite.expect(nowPlayingServiceSource.contains("ResponsibleProcess.regularAppOwner(of: pid)"),
                "a browser's web content helper resolves to the browser that owns it")
+        suite.expect(nowPlayingServiceSource.contains("NowPlayingTabFocus.select(trackTitle: snapshot.title, in: application)"),
+               "opening the Now Playing app also selects the tab that plays the track")
+        let browserTabs = ["Inbox (12) - Mail", "Reviews of Midnight City - Blog",
+                           "(3) Midnight City - YouTube", "New Tab"]
+        suite.expect(RadialNowPlayingSupport.playingTabIndex(tabTitles: browserTabs, trackTitle: "Midnight City") == 2,
+               "a tab that starts with the track, past an unread count, beats one that only mentions it")
+        suite.expect(RadialNowPlayingSupport.playingTabIndex(
+                    tabTitles: ["Docs", "Café del Mar • Energy 52 - YouTube Music"], trackTitle: "cafe del mar") == 1,
+               "tab matching ignores case and accents")
+        suite.expect(RadialNowPlayingSupport.playingTabIndex(tabTitles: ["Watch later - YouTube"],
+                                                             trackTitle: "Midnight City - Live") == nil
+                && RadialNowPlayingSupport.playingTabIndex(tabTitles: ["A tour"], trackTitle: "A") == nil
+                && RadialNowPlayingSupport.playingTabIndex(tabTitles: ["Midnight City"], trackTitle: nil) == nil,
+               "no tab is chosen without a real title match")
         let nowPlayingBuildScript = (try? String(contentsOfFile: "build.sh", encoding: .utf8)) ?? ""
         suite.expect(nowPlayingBuildScript.contains("Sources/NowPlayingAdapter/NowPlayingAdapter.swift")
                 && nowPlayingBuildScript.contains("Resources/now-playing.pl")

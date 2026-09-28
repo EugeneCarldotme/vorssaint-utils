@@ -23,11 +23,13 @@ struct MetricsTests {
             ("pointer-input", {
                 PointerOnDisplayContract.run(suite)
                 PointerInputFeatureTests.run(suite)
+                KeyboardDebounceTapTests.run(suite)
                 PointerDisplayLookupContract.run(suite)
                 SuperKeyTapContract.run(suite)
                 PointerScreenContract.run(suite)
             }),
             ("scroll-modifier", { ScrollHorizontalModifierTests.run(suite) }),
+            ("linear-scroll", { LinearScrollTapTests.run(suite) }),
             ("preferences", { PreferencesFeatureTests.run(suite) }),
             ("app-management", { AppManagementFeatureTests.run(suite) }),
             ("window-layout", { WindowLayoutFeatureTests.run(suite) }),
@@ -48,12 +50,15 @@ struct MetricsTests {
                 UpdateFeatureTests.run(suite)
                 PostUpdateStatusItemRecoveryTests.run(suite)
                 UpdateAdminInstallContract.run(suite)
+                UpdateHighlightsTests.run(suite)
+                UpdateIntroFlowTests.run(suite)
             }),
             ("repository", { RepositoryFeatureTests.run(suite) }),
             ("screenshots", {
                 ScreenshotPreviewHoverTests.run(suite)
                 ScreenshotWatermarkTests.run(suite)
                 ScreenshotFeatureTests.run(suite)
+                ScreenshotScrollingCaptureTests.run(suite)
                 ScreenCaptureToolPickerTests.run(suite)
             }),
             ("recorder", {
@@ -99,6 +104,7 @@ struct MetricsTests {
                 ScratchpadStoreContractTests.run(suite)
             }),
             ("quit-protection", { QuitProtectionHUD.progressChecks(suite) }),
+            ("scratchpad", { ScratchpadMarkTests.run { suite.expect($0, $1) } }),
             ("recording", {
                 RecorderSampleTimingTests.run(suite)
                 RecorderWriterTests.run(suite)
@@ -109,7 +115,10 @@ struct MetricsTests {
                 SpeedTestTests.run(suite)
                 NetworkAddressTests.run { suite.expect($0, $1) }
             }),
-            ("app-updates", { AppUpdatesContract.run(suite) }),
+            ("app-updates", {
+                AppUpdatesContract.run(suite)
+                AppUpdateRulesContract.run(suite)
+            }),
             ("localization", {
                 LocalizationTests.run(suite)
                 LocalizationFeatureContractTests.run(suite)
@@ -131,6 +140,7 @@ struct MetricsTests {
             ("switcher", {
                 SwitcherScrollContract.run(suite)
                 SwitcherActivationTests.run(suite)
+                WindowServerCaptureContract.run(suite)
             }),
             ("keep-awake", {
                 KeepAwakeCatalogContract.run(suite)

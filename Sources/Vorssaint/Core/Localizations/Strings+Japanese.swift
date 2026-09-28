@@ -229,6 +229,8 @@ extension Strings {
         switcherTakeOverSystemShortcutsCaption: "Vorssaint のスイッチャーが動作中の間だけ、対応する macOS のアプリとウインドウのショートカットを無効にします。実行中のすべてのアプリに切り替えられます。",
         switcherAppearanceDelay: "表示までの待ち時間",
         switcherAppearanceDelayCaption: "スイッチャーが表示されるまでショートカットを押し続ける時間です。",
+        switcherInstantSelection: "選択を即時に切り替える",
+        switcherInstantSelectionCaption: "アプリやウインドウを選ぶと、ハイライトとスクロール位置をすぐに切り替えます。",
         switcherMergeTabs: "アプリごとに1つにまとめて表示",
         switcherMergeTabsCaption: "スイッチャーで、アプリのすべてのウインドウをウインドウごとではなく1つの項目にまとめます。",
         switcherWindowlessApps: "ウインドウなしのアプリ",
@@ -299,6 +301,7 @@ extension Strings {
         autoQuitStep1: "アプリの最後のウインドウを閉じます（⌘W または赤いボタン）。",
         autoQuitStep2: "アプリは自動的に終了します。「変更を保存しますか？」のダイアログは引き続き表示されます。",
         autoQuitPredictableNote: "通常ウインドウなしで動作するアプリは、終了されることはありません。",
+        autoQuitOngoingWorkNote: "収録が始まったあとの画面収録アプリのように、最後のウインドウを閉じても動作を続けるアプリがあります。例外リストになければ、これらも終了されます。",
         autoQuitExceptionsTitle: "例外",
         autoQuitExceptionsCaption: "このリストのアプリは、ウインドウがなくても開いたままになります。",
         autoQuitExceptionsEmpty: "例外はありません",
@@ -1076,6 +1079,9 @@ extension Strings {
         smoothScrollCoastLabel: "慣性",
         mouseAccelerationName: "マウス加速を無効にする",
         mouseAccelerationCaption: "接続したマウスのポインタ加速を無効にします。オフにするか Vorssaint を終了すると以前の設定に戻ります。",
+        linearScrollName: "リニアスクロール",
+        linearScrollCaption: "マウスホイールの1目盛りで、回す速さに関係なく常に同じ距離をスクロールします。トラックパッドは変わりません。",
+        linearScrollLinesLabel: "1目盛りあたりの行数",
         shelfClearOnClose: "閉じるときに項目を消去",
         shelfClearOnCloseCaption: "閉じるボタンをクリックしたときだけシェルフを空にします。自動的に隠れた場合や折りたたんだ場合は項目を保持します。"
     )

@@ -50,7 +50,7 @@ final class AppSwitcher: ObservableObject {
             updateIconRowLayoutForCurrentSelection()
             revealSelectedIconInVisibleRow()
             if sessionActive, usesIconRowLayout {
-                resizePanel()
+                resizePanel(animated: !UserDefaults.standard.bool(forKey: DefaultsKey.switcherInstantSelection))
             }
         }
     }
@@ -85,6 +85,10 @@ final class AppSwitcher: ObservableObject {
                 || (routeCanStartSession && routePendingSessionStart != nil)),
              sessionStartGeneration)
         }
+    }
+
+    var scrollNavigationActive: Bool {
+        routeLock.withLock { routeSessionActive && !routeCapturing }
     }
 
     private var panel: NSPanel?
@@ -131,6 +135,7 @@ final class AppSwitcher: ObservableObject {
     /// The card currently under the pointer. Kept separate from selection so
     /// a middle click on panel chrome can never close an unrelated window.
     private var hoveredWindowIndex: Int?
+    private var scrollNavigation = SwitcherScrollNavigation()
     /// A protected Q or W waiting for its second press. Tied to the item that
     /// was selected when it started, so moving on never confirms by surprise.
     private struct PendingLetterConfirmation {
@@ -396,6 +401,7 @@ final class AppSwitcher: ObservableObject {
                 | CGEventMask(1 << CGEventType.rightMouseDown.rawValue)
                 | CGEventMask(1 << CGEventType.otherMouseDown.rawValue)
                 | CGEventMask(1 << CGEventType.otherMouseUp.rawValue)
+                | CGEventMask(1 << CGEventType.scrollWheel.rawValue)
             guard let tap = CGEvent.tapCreate(
                 tap: .cgSessionEventTap,
                 place: .headInsertEventTap,
@@ -691,6 +697,16 @@ final class AppSwitcher: ObservableObject {
         }
 
         switch type {
+        case .scrollWheel:
+            guard sessionActive else { return Unmanaged.passUnretained(event) }
+            let delta = scrollNavigation.selectionDelta(for: event)
+            if delta != 0 {
+                // Moving the row must not select the card under a stationary pointer.
+                hoverAnchor = NSEvent.mouseLocation
+                hoveredWindowIndex = nil
+                advanceSelection(by: delta, wrapping: false)
+            }
+            return nil
         case .keyDown:
             return handleKeyDown(event)
         case .flagsChanged:
@@ -1592,6 +1608,7 @@ final class AppSwitcher: ObservableObject {
         hoverAnchor = nil
         hoveredWindowIndex = nil
         cancelIconRowEdgeHover()
+        scrollNavigation = SwitcherScrollNavigation()
         iconRowFirstVisibleIndex = 0
         userNavigated = false
         sessionStartWindowID = nil
@@ -1678,13 +1695,13 @@ final class AppSwitcher: ObservableObject {
     }
 
     /// Re-fits the panel after the grid changed mid-session (e.g. an app quit
-    /// with Q). Animated only when already on screen, so the size change reads
-    /// as intentional instead of a flash.
-    private func resizePanel() {
+    /// with Q). Normally animates only when on screen; instant selection skips
+    /// that animation when browsing changes the panel width.
+    private func resizePanel(animated: Bool = true) {
         guard let panel else { return }
         let frame = centeredFrame(for: currentPanelSize)
         panel.hasShadow = !usesIconRowLayout
-        panel.setFrame(frame, display: true, animate: panel.isVisible)
+        panel.setFrame(frame, display: true, animate: panel.isVisible && animated)
         panel.invalidateShadow()
     }
 

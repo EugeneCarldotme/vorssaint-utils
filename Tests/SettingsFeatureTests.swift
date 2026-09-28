@@ -230,10 +230,17 @@ enum SettingsFeatureTests {
         suite.expect(backupKeys.contains(DefaultsKey.mouseAccelerationDisabled)
                 && backupKeys.contains(DefaultsKey.panelControlMouseAcceleration),
                "mouse acceleration preferences travel with the settings backup")
+        suite.expect(backupKeys.contains(DefaultsKey.linearScrollEnabled)
+                && backupKeys.contains(DefaultsKey.linearScrollLines)
+                && backupKeys.contains(DefaultsKey.panelControlLinearScroll),
+               "linear scrolling preferences travel with the settings backup")
         suite.expect(MouseExceptionScope.allCases.allSatisfy { backupKeys.contains($0.defaultsKey) },
                "the apps each mouse feature leaves alone travel with the settings backup")
         suite.expect(backupKeys.contains(DefaultsKey.clipboardHistoryIgnoredApps),
                "the apps the clipboard history skips travel with the settings backup")
+        suite.expect(!backupKeys.contains(DefaultsKey.clipboardHistoryWindowWidth)
+                && !backupKeys.contains(DefaultsKey.clipboardHistoryWindowHeight),
+               "the clipboard window size stays on the display where it was chosen")
         suite.expect(backupKeys.contains(DefaultsKey.windowLayoutIgnoredApps),
                "the apps that pause window layout travel with the settings backup")
         suite.expect(backupKeys.contains(DefaultsKey.switcherAppRules),
@@ -316,7 +323,8 @@ enum SettingsFeatureTests {
                "the backup never carries a note about a start that did not finish")
         suite.expect(backupKeys.contains(DefaultsKey.hasOnboarded)
                 && backupKeys.contains(DefaultsKey.featuresOnboardingVersion)
-                && backupKeys.contains(DefaultsKey.lastUpdateIntroVersion),
+                && backupKeys.contains(DefaultsKey.lastUpdateIntroVersion)
+                && backupKeys.contains(DefaultsKey.brightnessUpdatePromptState),
                "a restored Mac does not replay onboarding or the intros already seen")
         let backupPayload = SettingsBackupSupport.payload(appVersion: "test") { key in
             key == DefaultsKey.switcherEnabled ? true : nil

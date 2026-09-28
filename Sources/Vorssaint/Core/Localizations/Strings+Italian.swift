@@ -229,6 +229,8 @@ extension Strings {
         switcherTakeOverSystemShortcutsCaption: "Disattiva le scorciatoie macOS corrispondenti solo mentre il selettore Vorssaint è attivo. Tutte le app aperte restano raggiungibili.",
         switcherAppearanceDelay: "Ritardo di comparsa",
         switcherAppearanceDelayCaption: "Per quanto tempo va tenuta premuta la scorciatoia prima che appaia il selettore.",
+        switcherInstantSelection: "Selezione istantanea",
+        switcherInstantSelectionCaption: "Sposta subito l’evidenziazione e scorre l’elenco mentre navighi tra app e finestre.",
         switcherMergeTabs: "Mostra una voce per app",
         switcherMergeTabsCaption: "Raggruppa tutte le finestre di un’app in un’unica voce nel commutatore, anziché una per finestra.",
         switcherWindowlessApps: "App senza finestre aperte",
@@ -299,6 +301,7 @@ extension Strings {
         autoQuitStep1: "Chiudi l’ultima finestra di un’app (⌘W o il pulsante rosso).",
         autoQuitStep2: "L’app esce da sola. I dialoghi “Salvare le modifiche?” continuano ad apparire.",
         autoQuitPredictableNote: "Le app che di norma funzionano senza finestre non vengono mai chiuse.",
+        autoQuitOngoingWorkNote: "Alcune app chiudono l’ultima finestra e continuano a lavorare, come un registratore dello schermo dopo l’avvio della registrazione. Anche queste vengono chiuse, a meno che non siano tra le eccezioni.",
         autoQuitExceptionsTitle: "Eccezioni",
         autoQuitExceptionsCaption: "Le app in questo elenco restano aperte anche senza finestre.",
         autoQuitExceptionsEmpty: "Nessuna eccezione",
@@ -1076,6 +1079,9 @@ extension Strings {
         smoothScrollCoastLabel: "Inerzia",
         mouseAccelerationName: "Disattiva l’accelerazione del mouse",
         mouseAccelerationCaption: "Rimuove l’accelerazione del puntatore per i mouse collegati. L’impostazione precedente viene ripristinata quando disattivi l’opzione o chiudi Vorssaint.",
+        linearScrollName: "Scorrimento lineare",
+        linearScrollCaption: "Ogni scatto della rotellina del mouse scorre la stessa distanza, a prescindere dalla velocità di rotazione. Il trackpad non cambia.",
+        linearScrollLinesLabel: "Righe per scatto",
         shelfClearOnClose: "Svuota alla chiusura",
         shelfClearOnCloseCaption: "Svuota lo scaffale solo quando fai clic sul pulsante di chiusura. Se si nasconde automaticamente o viene ridotto, gli elementi restano."
     )

@@ -229,6 +229,8 @@ extension Strings {
         switcherTakeOverSystemShortcutsCaption: "Desactiva los atajos correspondientes de macOS solo mientras el selector de Vorssaint está activo. Todas las apps abiertas siguen accesibles.",
         switcherAppearanceDelay: "Retardo de aparición",
         switcherAppearanceDelayCaption: "Cuánto tiempo debe mantenerse pulsado el atajo antes de que aparezca el selector.",
+        switcherInstantSelection: "Selección instantánea",
+        switcherInstantSelectionCaption: "Mueve el resaltado y desplaza la lista de inmediato al recorrer apps y ventanas.",
         switcherMergeTabs: "Mostrar una entrada por app",
         switcherMergeTabsCaption: "Agrupa todas las ventanas de una app en una sola entrada del selector, en vez de una por ventana.",
         switcherWindowlessApps: "Apps sin ventanas abiertas",
@@ -299,6 +301,7 @@ extension Strings {
         autoQuitStep1: "Cierra la última ventana de una app (⌘W o el botón rojo).",
         autoQuitStep2: "La app se cierra sola. Los diálogos “¿Guardar cambios?” siguen apareciendo.",
         autoQuitPredictableNote: "Las apps que normalmente funcionan sin ventana nunca se cierran.",
+        autoQuitOngoingWorkNote: "Algunas apps cierran su última ventana y siguen trabajando, como un grabador de pantalla cuando empieza la captura. Esas también se cierran, salvo que estén en la lista de excepciones.",
         autoQuitExceptionsTitle: "Excepciones",
         autoQuitExceptionsCaption: "Las apps de esta lista permanecen abiertas aunque no tengan ventanas.",
         autoQuitExceptionsEmpty: "Sin excepciones",
@@ -1076,6 +1079,9 @@ extension Strings {
         smoothScrollCoastLabel: "Inercia",
         mouseAccelerationName: "Desactivar la aceleración del ratón",
         mouseAccelerationCaption: "Elimina la aceleración del puntero para los ratones conectados. El ajuste anterior vuelve al desactivarlo o salir de Vorssaint.",
+        linearScrollName: "Desplazamiento lineal",
+        linearScrollCaption: "Cada paso de la rueda del ratón desplaza la misma distancia, sin importar la velocidad del giro. El trackpad no cambia.",
+        linearScrollLinesLabel: "Líneas por paso",
         shelfClearOnClose: "Borrar al cerrar",
         shelfClearOnCloseCaption: "Vacía el estante solo al hacer clic en el botón de cierre. Ocultarlo automáticamente y contraerlo conservan los ítems."
     )

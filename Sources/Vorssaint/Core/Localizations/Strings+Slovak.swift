@@ -229,6 +229,8 @@ extension Strings {
         switcherTakeOverSystemShortcutsCaption: "Vypne zodpovedajúce skratky macOS pre aplikácie a okná len na čas, keď je prepínač Vorssaintu aktívny. Všetky spustené aplikácie ostanú dostupné.",
         switcherAppearanceDelay: "Oneskorenie zobrazenia",
         switcherAppearanceDelayCaption: "Ako dlho treba skratku podržať, kým sa prepínač objaví.",
+        switcherInstantSelection: "Okamžitý výber",
+        switcherInstantSelectionCaption: "Pri prechádzaní aplikácií a okien okamžite presunie zvýraznenie a posunie zoznam.",
         switcherMergeTabs: "Zobraziť jednu položku na aplikáciu",
         switcherMergeTabsCaption: "Zlúči všetky okná aplikácie do jednej položky v prepínači namiesto jednej položky na každé okno.",
         switcherWindowlessApps: "Aplikácie bez otvoreného okna",
@@ -299,6 +301,7 @@ extension Strings {
         autoQuitStep1: "Zatvorte posledné okno aplikácie (⌘W alebo červené tlačidlo).",
         autoQuitStep2: "Aplikácia sa sama ukončí. Dialógy „Uložiť zmeny?“ sa stále zobrazujú.",
         autoQuitPredictableNote: "Aplikácie, ktoré bežne bežia bez okna, sa nikdy neukončia.",
+        autoQuitOngoingWorkNote: "Niektoré aplikácie zatvoria posledné okno, ale pracujú ďalej, napríklad nahrávanie obrazovky po spustení záznamu. Ak nie sú v zozname výnimiek, ukončia sa tiež.",
         autoQuitExceptionsTitle: "Výnimky",
         autoQuitExceptionsCaption: "Aplikácie v tomto zozname ostanú otvorené aj bez okien.",
         autoQuitExceptionsEmpty: "Žiadne výnimky",
@@ -1076,6 +1079,9 @@ extension Strings {
         smoothScrollCoastLabel: "Dobeh",
         mouseAccelerationName: "Vypnúť akceleráciu myši",
         mouseAccelerationCaption: "Odstráni akceleráciu kurzora pre pripojené myši. Predchádzajúce nastavenie sa vráti po vypnutí tejto funkcie alebo po ukončení Vorssaintu.",
+        linearScrollName: "Lineárne rolovanie",
+        linearScrollCaption: "Každý krok kolieska myši posunie rovnakú vzdialenosť bez ohľadu na to, ako rýchlo sa točí. Trackpadu sa to netýka.",
+        linearScrollLinesLabel: "Riadky na krok",
         shelfClearOnClose: "Vymazať pri zatvorení",
         shelfClearOnCloseCaption: "Vyprázdni policu len vtedy, keď kliknete na jej tlačidlo zatvorenia. Automatické skrytie a zbalenie položky zachovajú."
     )

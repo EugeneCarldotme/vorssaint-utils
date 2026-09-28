@@ -229,6 +229,8 @@ extension Strings {
         switcherTakeOverSystemShortcutsCaption: "Deaktiviert die passenden macOS-App- und Fensterkurzbefehle nur, solange Vorssaints Umschalter aktiv ist. Alle laufenden Apps bleiben erreichbar.",
         switcherAppearanceDelay: "Einblendverzögerung",
         switcherAppearanceDelayCaption: "Wie lange das Tastenkürzel gehalten werden muss, bevor der Umschalter erscheint.",
+        switcherInstantSelection: "Sofortige Auswahl",
+        switcherInstantSelectionCaption: "Verschiebt Markierung und Liste beim Durchgehen von Apps und Fenstern sofort.",
         switcherMergeTabs: "Einen Eintrag pro App anzeigen",
         switcherMergeTabsCaption: "Fasst alle Fenster einer App zu einem Eintrag im Umschalter zusammen, statt einen Eintrag pro Fenster.",
         switcherWindowlessApps: "Apps ohne geöffnetes Fenster",
@@ -299,6 +301,7 @@ extension Strings {
         autoQuitStep1: "Schließe das letzte Fenster einer App (⌘W oder der rote Knopf).",
         autoQuitStep2: "Die App beendet sich von selbst. „Sichern?“-Dialoge erscheinen weiterhin.",
         autoQuitPredictableNote: "Apps, die normalerweise ohne Fenster laufen, werden nie beendet.",
+        autoQuitOngoingWorkNote: "Manche Apps schließen ihr letztes Fenster und arbeiten weiter, etwa eine Bildschirmaufnahme nach dem Start der Aufnahme. Sie werden ebenfalls beendet, sofern sie nicht in den Ausnahmen stehen.",
         autoQuitExceptionsTitle: "Ausnahmen",
         autoQuitExceptionsCaption: "Apps in dieser Liste bleiben auch ohne Fenster geöffnet.",
         autoQuitExceptionsEmpty: "Keine Ausnahmen",
@@ -1076,6 +1079,9 @@ extension Strings {
         smoothScrollCoastLabel: "Auslauf",
         mouseAccelerationName: "Mausbeschleunigung deaktivieren",
         mouseAccelerationCaption: "Deaktiviert die Zeigerbeschleunigung für angeschlossene Mäuse. Die vorherige Einstellung wird beim Ausschalten oder Beenden von Vorssaint wiederhergestellt.",
+        linearScrollName: "Lineares Scrollen",
+        linearScrollCaption: "Jeder Rastschritt des Mausrads scrollt dieselbe Strecke, egal wie schnell es gedreht wird. Das Trackpad bleibt unverändert.",
+        linearScrollLinesLabel: "Zeilen pro Rastschritt",
         shelfClearOnClose: "Beim Schließen leeren",
         shelfClearOnCloseCaption: "Leert die Ablage nur, wenn du auf die Schließen-Taste klickst. Automatisches Ausblenden und Einklappen behalten die Objekte."
     )

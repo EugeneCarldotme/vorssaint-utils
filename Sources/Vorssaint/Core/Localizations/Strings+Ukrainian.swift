@@ -220,6 +220,8 @@ extension Strings {
         switcherTakeOverSystemShortcutsCaption: "Вимикає відповідні поєднання macOS для програм і вікон лише доти, доки активний перемикач Vorssaint. Усі запущені програми лишаються доступними.",
         switcherAppearanceDelay: "Затримка появи",
         switcherAppearanceDelayCaption: "Як довго потрібно утримувати клавіатурне скорочення, перш ніж з’явиться перемикач.",
+        switcherInstantSelection: "Миттєвий вибір",
+        switcherInstantSelectionCaption: "Під час переходу між програмами та вікнами одразу переміщує виділення і прокручує список.",
         switcherMergeTabs: "Показувати один запис на програму",
         switcherMergeTabsCaption: "Зводить усі вікна програми в один запис у перемикачі замість окремого запису на кожне вікно.",
         switcherWindowlessApps: "Програми без відкритих вікон",
@@ -288,6 +290,7 @@ extension Strings {
         autoQuitStep1: "Закрийте останнє вікно програми (⌘W або червоною кнопкою).",
         autoQuitStep2: "Програма завершиться сама. Діалоги «Зберегти зміни?» продовжують з’являтися.",
         autoQuitPredictableNote: "Програми, які зазвичай працюють без вікна, ніколи не закриваються автоматично.",
+        autoQuitOngoingWorkNote: "Деякі програми закривають останнє вікно, але продовжують працювати, наприклад запис екрана після початку запису. Якщо їх немає у списку винятків, вони теж завершаться.",
         autoQuitExceptionsTitle: "Винятки",
         autoQuitExceptionsCaption: "Програми в цьому списку залишаються відкритими навіть без вікон.",
         autoQuitExceptionsEmpty: "Без винятків",
@@ -1046,6 +1049,9 @@ extension Strings {
         smoothScrollCoastLabel: "Інерція",
         mouseAccelerationName: "Вимкнути прискорення миші",
         mouseAccelerationCaption: "Вимикає прискорення вказівника для підключених мишей. Попереднє налаштування повернеться після вимкнення функції або виходу з Vorssaint.",
+        linearScrollName: "Лінійна прокрутка",
+        linearScrollCaption: "Кожен клац колеса миші прокручує однакову відстань, хоч як швидко воно обертається. Трекпед не змінюється.",
+        linearScrollLinesLabel: "Рядків на клац",
         shelfClearOnClose: "Очищати при закритті",
         shelfClearOnCloseCaption: "Спорожнює полицю лише після натискання кнопки закриття. Автоматичне приховування та згортання зберігають елементи."
     )

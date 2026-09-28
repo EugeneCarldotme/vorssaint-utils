@@ -217,6 +217,7 @@ enum SettingsDirectory {
                                         (.focusFollowsMouse, [s.focusFollowsMouseName,
                                                               s.focusFollowsMouseDelay]),
                                         (.smoothScroll, [s.smoothScrollName]),
+                                        (.linearScroll, [s.linearScrollName, s.linearScrollLinesLabel]),
                                         (.mouseAcceleration, [s.mouseAccelerationName]),
                                         (.mouseNavigation, [s.mouseNavigationEnable]),
                                         (.mouseButtonShortcuts,
@@ -231,7 +232,8 @@ enum SettingsDirectory {
                                        ]),
                 SettingsDirectoryItem(page: .switcher, title: s.tabSwitcher, icon: "rectangle.on.rectangle",
                                        featureKeywords: [
-                                        (.switcher, [s.switcherEnable, s.switcherWindowlessApps,
+                                        (.switcher, [s.switcherEnable, s.switcherInstantSelection,
+                                                     s.switcherWindowlessApps,
                                                      s.switcherShowShortcutHints,
                                                      FeatureStrings.switcherAppRules(language).listTitle,
                                                      FeatureStrings.switcherAppRules(language)

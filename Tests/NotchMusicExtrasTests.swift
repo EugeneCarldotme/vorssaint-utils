@@ -106,6 +106,13 @@ enum NotchMusicExtrasTests {
                 && page("file:///watch?v=1PxhTfmEyQ8") == nil,
                "only a well-formed YouTube video address yields a thumbnail address")
 
+        suite.expect(NotchBrowserArtworkSupport.centreSquare(width: 1280, height: 720)
+                    == CGRect(x: 280, y: 0, width: 720, height: 720)
+                && NotchBrowserArtworkSupport.centreSquare(width: 640, height: 480)
+                    == CGRect(x: 80, y: 0, width: 480, height: 480)
+                && NotchBrowserArtworkSupport.centreSquare(width: 300, height: 400)
+                    == CGRect(x: 0, y: 50, width: 300, height: 300),
+               "a YouTube Music thumbnail crops to its square album art without the side bars")
         let track = RadialNowPlayingSnapshot(title: "Song", artist: "Artist", album: nil, artworkData: nil,
                                             appBundleIdentifier: "app.zen-browser.zen", appPID: 7)
         let playback = NotchPlayback(track: track, isPlaying: true, elapsed: 12, duration: 180, rate: 1,

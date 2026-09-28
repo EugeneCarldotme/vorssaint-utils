@@ -90,6 +90,12 @@ enum NotchBrowserArtworkSupport {
             .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
+    /// The largest square centred in an image of this size, in pixels.
+    static func centreSquare(width: Int, height: Int) -> CGRect {
+        let side = max(0, min(width, height))
+        return CGRect(x: (width - side) / 2, y: (height - side) / 2, width: side, height: side)
+    }
+
     /// YouTube serves every video's thumbnail from the video's ID. The full
     /// size one is missing for some older videos, so the medium one follows.
     /// Both are 16:9 without the black bands `hqdefault` adds, which a square

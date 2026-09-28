@@ -116,14 +116,30 @@ final class NotchBrowserArtwork {
         guard let url = urls.first else { return completion(nil) }
         NotchBrowserArtworkDownload.load(url) { [self] data in
             queue.async {
-                if let data, let source = CGImageSourceCreateWithData(data as CFData, nil),
-                   CGImageSourceGetCount(source) > 0 {
-                    completion(data)
+                if let data, let square = Self.squareCover(data) {
+                    completion(square)
                 } else {
                     self.download(Array(urls.dropFirst()), completion: completion)
                 }
             }
         }
+    }
+
+    /// The island shrinks a cover to 320 pixels on its long edge before it
+    /// crops a square. A 16:9 thumbnail would keep only 180 pixels of height
+    /// and blur when stretched, so the cover arrives as its centre square.
+    /// For YouTube Music that square is the album art without the side bars.
+    private static func squareCover(_ data: Data) -> Data? {
+        guard let source = CGImageSourceCreateWithData(data as CFData, nil),
+              let image = CGImageSourceCreateImageAtIndex(source, 0, nil),
+              let square = image.cropping(to: NotchBrowserArtworkSupport.centreSquare(
+                  width: image.width, height: image.height)) else { return nil }
+        let output = NSMutableData()
+        guard let destination = CGImageDestinationCreateWithData(output, "public.jpeg" as CFString, 1, nil)
+        else { return nil }
+        CGImageDestinationAddImage(destination, square,
+                                   [kCGImageDestinationLossyCompressionQuality: 0.92] as CFDictionary)
+        return CGImageDestinationFinalize(destination) ? output as Data : nil
     }
 }
 

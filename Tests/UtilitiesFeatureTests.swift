@@ -768,6 +768,22 @@ enum UtilitiesFeatureTests {
         suite.expect(adapterAfterWarning?.info[RadialNowPlayingSupport.titleKey] as? String == "Midnight City"
                 && adapterAfterWarning?.pid == 42 && adapterAfterWarning?.isPlaying == true,
                "a perl warning on the shared stderr pipe ahead of the adapter's JSON line still parses")
+        // The island's cover art and the radial card open the player from a
+        // non-activating panel. macOS refuses a bare activate from there, so
+        // the cover played its press animation and nothing came forward.
+        let nowPlayingServiceSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/RadialMenu/RadialNowPlayingService.swift",
+            encoding: .utf8)) ?? ""
+        let openPlayer = nowPlayingServiceSource.range(of: "static func open(_ snapshot: RadialNowPlayingSnapshot)")
+        let playerHandoff = nowPlayingServiceSource.range(of: "ActivationHandoff.yield(to: application)")
+        let playerCooperativeActivate = nowPlayingServiceSource.range(
+            of: "application.activate(from: NSRunningApplication.current, options: [.activateAllWindows])")
+        suite.expect(openPlayer != nil && playerHandoff != nil && playerCooperativeActivate != nil
+                && openPlayer!.lowerBound < playerHandoff!.lowerBound
+                && playerHandoff!.lowerBound < playerCooperativeActivate!.lowerBound,
+               "opening the Now Playing app yields activation before it asks cooperatively")
+        suite.expect(nowPlayingServiceSource.contains("ResponsibleProcess.regularAppOwner(of: pid)"),
+               "a browser's web content helper resolves to the browser that owns it")
         let nowPlayingBuildScript = (try? String(contentsOfFile: "build.sh", encoding: .utf8)) ?? ""
         suite.expect(nowPlayingBuildScript.contains("Sources/NowPlayingAdapter/NowPlayingAdapter.swift")
                 && nowPlayingBuildScript.contains("Resources/now-playing.pl")

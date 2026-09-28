@@ -13,13 +13,13 @@ enum OutputDeviceSoundTests {
     final class NSSound {
         static var paths: [String] = []
         static var beeps = 0
-        static var canLoad = true
+        static var unloadable: Set<String> = []
         var playbackDeviceIdentifier: String?
         var played = false
         var stopped = false
         init?(contentsOfFile path: String, byReference: Bool) {
             Self.paths.append(path)
-            if !Self.canLoad { return nil }
+            if Self.unloadable.contains(path) { return nil }
         }
         func play() { played = true }
         func stop() { stopped = true }
@@ -35,7 +35,7 @@ enum OutputDeviceSoundTests {
     }
     static func run(expect: (Bool, String) -> Void) {
         UserDefaults.enabled = true
-        NSSound.paths = []; NSSound.beeps = 0; NSSound.canLoad = true
+        NSSound.paths = []; NSSound.beeps = 0; NSSound.unloadable = []
         State.alertPath = "/System/Library/Sounds/Blow.aiff"
         Player.playSound(deviceUID: "headphones")
         let first = State.playingSound
@@ -54,11 +54,25 @@ enum OutputDeviceSoundTests {
                "disabled confirmation does not load or play a sound")
         UserDefaults.enabled = true
         State.alertPath = nil
+        NSSound.paths = []
+        Player.playSound(deviceUID: "headphones")
+        expect(NSSound.paths == [Player.fallbackAlertPath] && State.playingSound?.played == true
+               && State.playingSound?.playbackDeviceIdentifier == "headphones",
+               "an unset alert preference plays the fallback sound on the selected output")
+        State.alertPath = "/missing/alert.aiff"; NSSound.unloadable = [State.alertPath!]
+        NSSound.paths = []
         Player.playSound(deviceUID: "speakers")
-        expect(NSSound.beeps == 1, "an unset alert preference uses the macOS default alert")
-        State.alertPath = "/missing/alert.aiff"; NSSound.canLoad = false
-        Player.playSound(deviceUID: "speakers")
-        expect(NSSound.beeps == 2, "an unavailable alert file falls back to the macOS alert")
+        expect(NSSound.paths == ["/missing/alert.aiff", Player.fallbackAlertPath]
+               && State.playingSound?.played == true
+               && State.playingSound?.playbackDeviceIdentifier == "speakers",
+               "a broken alert file falls back to the loadable fallback on the selected output")
+        let previous = State.playingSound
+        NSSound.unloadable.insert(Player.fallbackAlertPath)
+        Player.playSound(deviceUID: "headphones")
+        expect(previous?.stopped == true && State.playingSound == nil,
+               "when neither file loads, nothing plays")
+        expect(NSSound.beeps == 0,
+               "the confirmation never beeps through the separate sound-effects output")
         Player.stopSound()
     }
 }

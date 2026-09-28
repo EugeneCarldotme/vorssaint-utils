@@ -51,9 +51,12 @@ enum OutputDeviceFeedback {
         // confirmation still plays on the selected device.
         let candidates = [alertPath.map { ($0 as NSString).expandingTildeInPath },
                           fallbackAlertPath].compactMap { $0 }
-        guard let sound = candidates.lazy.compactMap({
-            NSSound(contentsOfFile: $0, byReference: false)
-        }).first else { return }
+        // A lazy compactMap followed by first would decode the winning file twice.
+        var loaded: NSSound?
+        for path in candidates where loaded == nil {
+            loaded = NSSound(contentsOfFile: path, byReference: false)
+        }
+        guard let sound = loaded else { return }
         // Alert sounds normally follow the separate macOS sound-effects output.
         // This confirmation belongs on the output the user just selected.
         sound.playbackDeviceIdentifier = deviceUID

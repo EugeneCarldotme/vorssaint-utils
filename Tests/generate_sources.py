@@ -35,6 +35,16 @@ def declaration(path, prefix, scope=None):
     return f'#sourceLocation(file: {json.dumps(path)}, line: {start + 1})\n{body}\n#sourceLocation()\n'
 
 
+def member(path, prefix):
+    """Copy a one-line declaration, such as a stored constant, that has no body for `declaration` to close."""
+    lines = (ROOT / path).read_text().splitlines(keepends=True)
+    starts = [i for i, line in enumerate(lines) if line.startswith(prefix)]
+    if len(starts) != 1:
+        raise ValueError(f"Expected one member {prefix!r} in {path}")
+    start = starts[0]
+    return f'#sourceLocation(file: {json.dumps(path)}, line: {start + 1})\n{lines[start]}#sourceLocation()\n'
+
+
 def write(name, text):
     path = OUTPUT / name
     if not path.exists() or path.read_text() != text:
@@ -458,6 +468,7 @@ def main():
           + declaration("Sources/Vorssaint/Services/Audio/AppVolumeMixer.swift", "    func switchToNextSoundOutput(")
           + "}\n}\n")
     write("OutputDeviceSound.swift", "import Foundation\nextension OutputDeviceSoundTests {\nfinal class Player: State {\n"
+          + member("Sources/Vorssaint/UI/OutputDeviceFeedback.swift", "    private static let fallbackAlertPath").replace("private ", "", 1)
           + declaration("Sources/Vorssaint/UI/OutputDeviceFeedback.swift", "    private static func playSound(").replace("private ", "", 1)
           + declaration("Sources/Vorssaint/UI/OutputDeviceFeedback.swift", "    static func stopSound(")
           + "}\n}\n")

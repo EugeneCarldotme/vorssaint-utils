@@ -7,7 +7,14 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Summary
-Everyday controls and package management behave more reliably across desktop layouts, large clipboard histories and networks that require a proxy or mirror. The update also improves input timing and makes save failures and system prompts easier to handle.
+Scratchpad gains easier formatting and search, and mouse wheels can scroll a fixed distance per notch. The update also improves app updates, Dynamic Island, App Switcher and reliability across input, clipboard, package management and desktop layouts.
+
+### Added
+- App Updates can ignore one release or exclude an app from update results and alerts.
+- Dynamic Island lets you choose which calendars appear, grouped by account; hiding a calendar clears its events immediately.
+- App Switcher can browse apps using a mouse wheel or trackpad, with precise wheel movement and consistent scroll direction.
+- Scratchpad adds a formatting toolbar in both the floating pad and Dynamic Island, native text search and an adjustable text size.
+- Mouse settings add optional linear scrolling with a fixed distance per wheel notch and a separate list of app exceptions.
 
 ### Changed
 - A Plan limit reading beside the camera turns orange and then red as the allowance runs low, and the Settings preview shows how it looks at the warning share.
@@ -27,7 +34,7 @@ Everyday controls and package management behave more reliably across desktop lay
 - The Claude card shared with a hub account raises limit warnings from the same latest reading it shows.
 
 ### Contributors
-Thanks to @abdulshahid1, @ahfornitani, @arsarsars1, @IanHollow, @iva-zhu, @Kernel-Hunter, @PathGao, @shlok1806, @trac3r00, @tyteachestech and @Yahddyyp.
+Thanks to @abdulshahid1, @ahfornitani, @arsarsars1, @Aryan-Saini, @IanHollow, @iva-zhu, @Kernel-Hunter, @muskecan, @PathGao, @renan-tiberio, @sarat03, @shlok1806, @trac3r00, @tyteachestech, @veged and @Yahddyyp.
 
 ## [3.4.0] - 2026-09-27
 

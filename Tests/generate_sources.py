@@ -278,6 +278,17 @@ def main():
                                    "    private func handle(type:",
                                    "    func commit("])
           + "}\n")
+    # The raw wheel tap runs as shipped: linear scrolling's cap, carry and
+    # write-back, then the direction change. Only the services it asks and
+    # the defaults it reads are fixtures.
+    wheel_tap = declaration("Sources/Vorssaint/Services/ScrollInverter.swift", "    private func handle(type:",
+                            scope="final class ScrollInverter:")
+    if wheel_tap.count("AppFeature.linearScroll.isAvailable") != 1:
+        raise ValueError("Expected one linear scrolling availability read in ScrollInverter.handle")
+    write("LinearScrollTap.swift", "import CoreGraphics\nimport Foundation\nextension LinearScrollTapTests.Inverter {\n"
+          + wheel_tap.replace("private func", "func", 1)
+                     .replace("AppFeature.linearScroll.isAvailable", "AppFeature.linearScroll.isAvailable(in: defaults)")
+          + "}\n")
     write("KeyboardDebounceTap.swift", "import ApplicationServices\nimport CoreGraphics\nimport Foundation\n"
           + "extension KeyboardDebounceTapTests.Service {\n"
           + declaration("Sources/Vorssaint/Services/KeyboardDebounce/KeyboardDebounceService.swift",
@@ -385,6 +396,16 @@ def main():
           + declaration(updates, "    private func publisherFindings(").replace("private func", "func", 1).replace("Date()", "self.clock.now()")
           + declaration(updates, "    private func onlineCatalogFindings(").replace("private func", "func", 1).replace("Date()", "self.clock.now()")
           + declaration(updates, "    private func onlineResult(").replace("private func", "func", 1)
+          + "}\n}\n")
+    # Rule mutations and completion stay verbatim; only declaration visibility changes.
+    write("AppUpdateRules.swift", "import Foundation\nextension AppUpdateRulesContract {\n"
+          + "final class Service: State {\n"
+          + "".join(declaration(updates, prefix).replace("private func", "func", 1)
+                    for prefix in ["    func skipVersion(", "    func excludeApp(",
+                                   "    private func setRule(", "    func removeRule(",
+                                   "    private func saveRules(", "    private func reloadRules(",
+                                   "    private func applyRules(", "    private func finishCheck(",
+                                   "    private static func announcedIDs(", "    private static func saveAnnouncedIDs("])
           + "}\n}\n")
     playback_adapter = "Sources/NowPlayingAdapter/NowPlayingSelection.swift"
     adapter_entry = "Sources/NowPlayingAdapter/NowPlayingAdapter.swift"

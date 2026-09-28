@@ -7,6 +7,7 @@ import SwiftUI
 enum OutputDeviceFeedback {
     private static let overlay = TransientOSD<OutputDeviceOSDView>()
     private static var playingSound: NSSound?
+    private static let fallbackAlertPath = "/System/Library/Sounds/Tink.aiff"
 
     private static var isAvailable: Bool {
         AppFeature.mixer.isAvailable && AppFeature.soundOutputSwitcher.isAvailable
@@ -44,12 +45,15 @@ enum OutputDeviceFeedback {
                                               kCFPreferencesAnyApplication,
                                               kCFPreferencesCurrentUser,
                                               kCFPreferencesAnyHost) as? String
-        guard let alertPath,
-              let sound = NSSound(contentsOfFile: (alertPath as NSString).expandingTildeInPath,
-                                  byReference: false) else {
-            NSSound.beep()
-            return
-        }
+        // NSSound.beep() plays through the sound-effects output, which can be
+        // the speakers after the user picked headphones. A missing or broken
+        // preference falls back to a bundled system sound instead, so the
+        // confirmation still plays on the selected device.
+        let candidates = [alertPath.map { ($0 as NSString).expandingTildeInPath },
+                          fallbackAlertPath].compactMap { $0 }
+        guard let sound = candidates.lazy.compactMap({
+            NSSound(contentsOfFile: $0, byReference: false)
+        }).first else { return }
         // Alert sounds normally follow the separate macOS sound-effects output.
         // This confirmation belongs on the output the user just selected.
         sound.playbackDeviceIdentifier = deviceUID

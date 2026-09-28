@@ -619,6 +619,26 @@ enum SwitcherModelFeatureTests {
         }
         DockPreviewScopeTests.run(suite)
 
+        // MARK: Windows whose Accessibility reads time out
+
+        suite.expect(SwitcherSupport.isUnansweredAccessibilityRead(.cannotComplete),
+               "a timed-out Accessibility read counts as no answer")
+        for error: AXError in [.noValue, .attributeUnsupported, .invalidUIElement, .success] {
+            suite.expect(!SwitcherSupport.isUnansweredAccessibilityRead(error),
+                   "an app that reports a missing attribute has still answered")
+        }
+        suite.expect(SwitcherSupport.emptyAccessibilityAnswerVetoesSurfaces(
+            acceptsUndescribedSubroles: false, unansweredWindowCount: 0),
+               "an app that described every window and kept none still vetoes its ghosts")
+        suite.expect(!SwitcherSupport.emptyAccessibilityAnswerVetoesSurfaces(
+            acceptsUndescribedSubroles: false, unansweredWindowCount: 1),
+               "a window that timed out cannot hide the app's on-screen workspace")
+        suite.expect(!SwitcherSupport.emptyAccessibilityAnswerVetoesSurfaces(
+            acceptsUndescribedSubroles: true, unansweredWindowCount: 0),
+               "compatibility-hosted apps keep their veto exception")
+        suite.expect(placementCode.contains("$0.unansweredIDs.contains(CGWindowID(windowID)) ? nil : $0"),
+               "a partial Accessibility answer does not veto a sibling that timed out")
+
         // MARK: Stale surfaces without an Accessibility witness (issue #807)
 
         suite.expect(!SwitcherSupport.unwitnessedSurfaceIsLeftover(isOnScreen: true,

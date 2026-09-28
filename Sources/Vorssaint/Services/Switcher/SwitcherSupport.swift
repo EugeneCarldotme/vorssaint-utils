@@ -912,6 +912,27 @@ enum SwitcherSupport {
         return windowSpacesCount == 0
     }
 
+    /// Whether a failed Accessibility read means the app never answered, as
+    /// opposed to answering that the attribute has no value. The per-window
+    /// messaging timeout reports itself as `cannotComplete`.
+    static func isUnansweredAccessibilityRead(_ error: AXError) -> Bool {
+        error == .cannotComplete
+    }
+
+    /// Whether an app that listed windows but described none of them as user
+    /// facing has shown that its window server surfaces are ghosts.
+    ///
+    /// The veto only holds when the app described every window it listed.
+    /// Heavy editors such as Premiere Pro can list their windows and then
+    /// time out on the role and subrole reads that follow. That silence says
+    /// nothing about the window, so it cannot hide the app's real on-screen
+    /// workspace. Compatibility-hosted apps keep their own exception, because
+    /// Accessibility cannot describe their windows at all.
+    static func emptyAccessibilityAnswerVetoesSurfaces(acceptsUndescribedSubroles: Bool,
+                                                       unansweredWindowCount: Int) -> Bool {
+        !acceptsUndescribedSubroles && unansweredWindowCount == 0
+    }
+
     /// Downsamples a capture into a small alpha grid for classification.
     static func alphaGrid(of image: CGImage, gridSize: Int = captureAlphaGridSize) -> [Double]? {
         guard gridSize > 0 else { return nil }

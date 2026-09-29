@@ -995,32 +995,66 @@ enum SwitcherSupport {
 
     /// Whether a window server surface stays in the list after the
     /// Accessibility cross-check. `witness` is nil when the owner gave no
-    /// answer at all. A window that timed out gets the same treatment as one
-    /// whose owner never answered. Its siblings keep their own verdicts, so a
-    /// rejected helper cannot slip back in beside it.
+    /// answer at all. Its siblings keep their own verdicts, so a rejected
+    /// helper cannot slip back in beside a window that timed out.
+    ///
+    /// A timed-out window gets the leftover check, and it also stays out when
+    /// the window server keeps it out of window cycling. That flag comes from
+    /// the window server by window id, so a busy app cannot withhold it. When
+    /// a whole app is busy, its hidden helpers time out along with its
+    /// workspace, and without the flag they would come back as blank entries.
+    /// An owner that never answered keeps the leftover check alone, which
+    /// compatibility-hosted apps rely on.
     static func keepsSurface(witness: AccessibilityWitness?,
                              keepsUnmatched: () -> Bool,
+                             isExcludedFromWindowCycle: () -> Bool,
                              isLeftover: () -> Bool) -> Bool {
         switch witness {
         case .described: return true
         case .rejected: return keepsUnmatched()
-        case .unanswered, nil: return !isLeftover()
+        case .unanswered: return !isExcludedFromWindowCycle() && !isLeftover()
+        case nil: return !isLeftover()
         }
     }
 
-    /// Whether an app that described no window as user facing still gives a
-    /// usable answer for each window.
+    /// Whether an app's Accessibility answer shows it has no window to switch
+    /// to, so it can get an app-only entry.
     ///
+    /// A window that timed out may still be real, so it blocks the entry,
+    /// unless the window server keeps it out of window cycling. A busy app
+    /// whose only listed windows are such hidden helpers keeps its entry. When
+    /// some timed-out window has no window server id, nothing rules it out.
+    static func accessibilityAnswerShowsNoWindow(describedWindowCount: Int,
+                                                 unansweredIDs: Set<CGWindowID>,
+                                                 everyWindowUnanswered: Bool,
+                                                 isExcludedFromWindowCycle: (CGWindowID) -> Bool) -> Bool {
+        describedWindowCount == 0
+            && !everyWindowUnanswered
+            && unansweredIDs.allSatisfy(isExcludedFromWindowCycle)
+    }
+
+    /// How far to trust an app that described no window as user facing.
+    enum EmptyAccessibilityAnswer: Equatable {
+        /// Every window has its own verdict. Rejected windows stay out.
+        case perWindow
+        /// A timed-out window has no window server id, so no surface can be
+        /// told apart from it. Every surface counts as timed out.
+        case everyWindowUnanswered
+        /// Accessibility cannot describe the app's windows at all.
+        case noAnswer
+    }
+
     /// A busy editor can list its windows and then time out on the role and
     /// subrole reads that follow. Its answer still rejects the windows it did
     /// describe, but only when every timed-out window resolves to a window
     /// server id that can be singled out. Compatibility-hosted apps keep their
     /// own exception, because Accessibility cannot describe their windows at
     /// all.
-    static func emptyAccessibilityAnswerIsUsable(acceptsUndescribedSubroles: Bool,
-                                                 unansweredWindowCount: Int,
-                                                 resolvedUnansweredIDCount: Int) -> Bool {
-        !acceptsUndescribedSubroles && resolvedUnansweredIDCount == unansweredWindowCount
+    static func emptyAccessibilityAnswer(acceptsUndescribedSubroles: Bool,
+                                         unansweredWindowCount: Int,
+                                         resolvedUnansweredIDCount: Int) -> EmptyAccessibilityAnswer {
+        if acceptsUndescribedSubroles { return .noAnswer }
+        return resolvedUnansweredIDCount == unansweredWindowCount ? .perWindow : .everyWindowUnanswered
     }
 
     /// Downsamples a capture into a small alpha grid for classification.

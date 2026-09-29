@@ -410,7 +410,7 @@ enum WindowEnumerator {
             let witness = axSnapshot.map {
                 SwitcherSupport.accessibilityWitness(
                     isDescribed: axWindow != nil,
-                    isUnanswered: $0.unansweredIDs.contains(CGWindowID(windowID)))
+                    isUnanswered: $0.everyWindowUnanswered || $0.unansweredIDs.contains(CGWindowID(windowID)))
             }
             // With no Accessibility witness, the owner was too busy to answer
             // or is shutting down. That used to wave every one of its surfaces
@@ -427,6 +427,9 @@ enum WindowEnumerator {
                             ? SpaceWindowBridge.isWindowOrderedIn(CGWindowID(windowID)) : nil,
                         allowsUnverifiedHiddenSpace: axSnapshot?.ordered.isEmpty == true
                             || isOnFullscreenSpace(CGWindowID(windowID)))
+                },
+                isExcludedFromWindowCycle: {
+                    SpaceWindowBridge.isExcludedFromWindowCycle(CGWindowID(windowID))
                 },
                 isLeftover: {
                     SwitcherSupport.unwitnessedSurfaceIsLeftover(
@@ -612,6 +615,9 @@ enum WindowEnumerator {
         /// Windows the app listed but never described because their reads
         /// timed out. The app's answer cannot vouch for these either way.
         var unansweredIDs: Set<CGWindowID> = []
+        /// Set when a timed-out window has no window server id, so every
+        /// surface of the app counts as timed out.
+        var everyWindowUnanswered = false
     }
 
     /// How Accessibility judged one window of an app.
@@ -772,12 +778,19 @@ enum WindowEnumerator {
         // its CG surfaces as stale ghosts. Windows that timed out escape that
         // veto one by one, and the rest keep it.
         if axWindows.isEmpty {
-            return SwitcherSupport.emptyAccessibilityAnswerIsUsable(
+            switch SwitcherSupport.emptyAccessibilityAnswer(
                 acceptsUndescribedSubroles: acceptsUndescribedSubroles,
                 unansweredWindowCount: unansweredWindows.count,
-                resolvedUnansweredIDCount: unansweredIDs.count)
-                ? AccessibilityWindowSnapshotList(ordered: ordered, byID: byID, unansweredIDs: unansweredIDs)
-                : nil
+                resolvedUnansweredIDCount: unansweredIDs.count) {
+            case .perWindow:
+                return AccessibilityWindowSnapshotList(ordered: ordered, byID: byID, unansweredIDs: unansweredIDs)
+            case .everyWindowUnanswered:
+                return AccessibilityWindowSnapshotList(ordered: ordered, byID: byID,
+                                                       unansweredIDs: unansweredIDs,
+                                                       everyWindowUnanswered: true)
+            case .noAnswer:
+                return nil
+            }
         }
         // If an app reports AX windows but none resolve to WindowServer ids,
         // keep the old behavior instead of hiding a real window for that app.
@@ -1026,9 +1039,12 @@ enum WindowEnumerator {
             guard app.isRegular,
                   pid != ownPID,
                   regularApps[pid]?.isEmpty == false,
-                  accessibilityWindows[pid]?.ordered.isEmpty == true,
-                  // A window that timed out may still be real.
-                  accessibilityWindows[pid]?.unansweredIDs.isEmpty == true
+                  let answer = accessibilityWindows[pid],
+                  SwitcherSupport.accessibilityAnswerShowsNoWindow(
+                      describedWindowCount: answer.ordered.count,
+                      unansweredIDs: answer.unansweredIDs,
+                      everyWindowUnanswered: answer.everyWindowUnanswered,
+                      isExcludedFromWindowCycle: SpaceWindowBridge.isExcludedFromWindowCycle)
             else { return nil }
             return SwitcherAppCandidate(pid: pid, bundleIdentifier: app.bundleIdentifier)
         }

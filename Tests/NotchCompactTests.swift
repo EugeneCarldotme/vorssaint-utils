@@ -12,6 +12,8 @@ enum NotchCompactTests {
         static let shared = CameraPreviewService()
         @Published var isEmbeddedPresented = false
         var stops = 0
+        /// What the preview's stop button calls, as the island handed it over.
+        var previewStop: (() -> Void)?
         func showEmbedded() { isEmbeddedPresented = true }
         func hideEmbedded() {
             guard isEmbeddedPresented else { return }
@@ -22,7 +24,11 @@ enum NotchCompactTests {
     struct CameraPreviewView: View {
         let size: CGSize
         let showsCameraMenu: Bool
-        var body: some View { Color.black.frame(width: size.width, height: size.height) }
+        var onStop: (() -> Void)? = nil
+        var body: some View {
+            Color.black.frame(width: size.width, height: size.height)
+                .onAppear { CameraPreviewService.shared.previewStop = onStop }
+        }
     }
     final class NotchService: ObservableObject {
         var presentationWindow: NSWindow?
@@ -190,13 +196,14 @@ enum NotchCompactTests {
         let day = Date(timeIntervalSince1970: 1_780_000_000)
         for language in AppLanguage.allCases {
             for width: CGFloat in [192, 304, 424] {
-                func height(title: String) -> CGFloat {
+                func height(title: String, chosen: Bool? = nil) -> CGFloat {
                     let event = NotchCalendarEvent(id: "layout", title: title, calendar: "Calendar",
                                                    start: day, end: day.addingTimeInterval(3600),
                                                    allDay: false, location: "Meeting room")
                     let host = NSHostingView(rootView: NotchCalendarEventRow(event: event, day: day, now: day,
                                                                            isNext: true,
-                                                                           text: FeatureStrings.notchCalendar(language), open: {})
+                                                                           text: FeatureStrings.notchCalendar(language),
+                                                                           countdown: chosen, choose: { _ in }, open: {})
                         .environment(\.locale, Locale(identifier: language.rawValue))
                         .frame(width: width))
                     host.layoutSubtreeIfNeeded()
@@ -208,6 +215,8 @@ enum NotchCompactTests {
                 let long = height(title: Array(repeating: "A long appointment title", count: 10).joined(separator: " "))
                 suite.expect(long > short + 40,
                              "long agenda titles grow vertically instead of clipping into a fixed-height card")
+                suite.expect(height(title: "Meeting", chosen: true) == short,
+                             "the mark of an event chosen to count down fits its time line without growing the card")
             }
         }
     }
@@ -215,6 +224,7 @@ enum NotchCompactTests {
         let service = CameraPreviewService.shared
         service.isEmbeddedPresented = false
         service.stops = 0
+        service.previewStop = nil
         let host = NSHostingView(rootView: AnyView(VStack {
             NotchCameraView(size: CGSize(width: 424, height: 180))
         }))
@@ -229,12 +239,12 @@ enum NotchCompactTests {
         settle(host)
         suite.expect(service.isEmbeddedPresented && service.stops == 0,
                      "starting the embedded camera does not dismiss it when the start card disappears")
-        service.hideEmbedded()
+        service.previewStop?()
         settle(host)
         service.showEmbedded()
         settle(host)
         suite.expect(service.isEmbeddedPresented && service.stops == 1,
-                     "the camera can be stopped and started again within the same page")
+                     "the stop button over the preview stops the camera, and it starts again within the same page")
         host.rootView = AnyView(EmptyView())
         settle(host)
         suite.expect(!service.isEmbeddedPresented && service.stops == 2,

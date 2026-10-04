@@ -7,7 +7,7 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Summary
-Dynamic Island gains an optional companion, a Command Bar that opens from it and notices that fit their content. Watch can follow changes in any part of a window, while AI Agents adds OpenCode and resumes log reading where the last launch stopped. The Volume mixer can send one app to an AirPlay speaker on macOS 27, clipboard searches highlight matches, and screenshots gain faster capture and sharing through temporary links. Smaller fixes improve Space switching, capture, trackpad and clipboard controls.
+Dynamic Island gains an optional companion, a Command Bar that opens from it and notices that fit their content. Watch can follow changes in any part of a window, while AI Agents adds OpenCode and resumes log reading where the last launch stopped. The Volume mixer can send one app to an AirPlay speaker on macOS 27, clipboard searches highlight matches, and screenshots gain faster capture and sharing through temporary links. Smaller fixes improve Space switching, capture and trackpad controls, clipboard history, settings backups and monitor readings.
 
 ### Dynamic Island
 - A companion can live in the island. Installed on the Features page, and already installed in betas for people who use the Command Bar, it hops out from behind the camera and rests beside it when nothing else is there, passes through now and then, and comes out over music, the timer and other activities to react to music starting, an event beginning, an AI agent getting to work or finishing, its limit renewing, a finished download, what Watch waited for, the charger, Keep Awake, the microphone, a screenshot or the Mac unlocking. It stays beside the camera while the island opens and closes, steps into the notices it reacts to and hops back after, watches the last five seconds of a timer and cheers a finished focus session, follows the pointer, can be petted, and grows sleepy after a long rest and stretches when you come back. Its own tab shows it live in a slice of the island, acts out every moment it reacts to under See how it reacts, and has Say Hi to see it in the island. Choose its Style, Shape, Color and Side of the camera, how often it appears and whether it reacts. Settings → Dynamic Island → Companion.
@@ -45,6 +45,10 @@ Dynamic Island gains an optional companion, a Command Bar that opens from it and
 - Removed unused private code.
 
 ### Fixed
+- Support thank-you messages use a white heart in dark mode so it stays visible.
+- Settings backups leave recording and screenshot folders and the replacement music app path on their own Mac, preserving the receiving Mac's choices when restored.
+- The system monitor moves byte sizes and rates to the next unit when rounding reaches its boundary. Out-of-range SMART usage values no longer crash the app during a disk refresh.
+- Checking or using a banked Codex reset no longer refreshes plugin marketplaces.
 - App Switcher stops raising a window again after a Space switch has already focused it.
 - Window captures keep attached sheets and dialogs when the window spans two displays, including displays with different scales.
 - Fast magnifier zoom crosses the range in a few mouse-wheel notches, while stepped zoom and trackpads keep their pace.
@@ -72,7 +76,7 @@ Dynamic Island gains an optional companion, a Command Bar that opens from it and
 - The Uninstaller's app pickers and the Command Bar's Uninstall Application list offer only apps it can remove, so Apple's App Store apps, iPhone and iPad apps and linked apps no longer lead back to an empty drop zone. A refused app or a link dragged from a browser springs back from the drop zone instead.
 
 ### Contributors
-Thanks to @69grcv8vfm-sys, @AlirezaBs, @bebricoOOOOOOf, @benjaminbelloeil, @benjaminbrtrd, @dc0dr, @dreammissnot, @emreertunc, @EugeneCarldotme, @Ffinnis, @frieddeli, @Frozen0wl, @gorillasuti, @ilim-cell, @iltonandrew, @itsalexcoman, @LeChaEgg, @mikeknight85, @niukanen1, @PathGao, @Qarru, @Retr0MrWave, @ruvelro, @sagnikonly, @samanyudas, @sarat03, @shlok1806, @thitiwats, @trac3r00 and @yuzu-octopus. Feedback: Barbel Design, Emanuele Frasca, Pinea and the/master.
+Thanks to @69grcv8vfm-sys, @AlirezaBs, @bebricoOOOOOOf, @benjaminbelloeil, @benjaminbrtrd, @bmrtfm, @dc0dr, @dreammissnot, @emreertunc, @EugeneCarldotme, @Ffinnis, @frieddeli, @Frozen0wl, @gorillasuti, @ilim-cell, @iltonandrew, @itsalexcoman, @LeChaEgg, @mikeknight85, @niukanen1, @PathGao, @Qarru, @Retr0MrWave, @ruvelro, @sagnikonly, @samanyudas, @sarat03, @shlok1806, @thitiwats, @trac3r00 and @yuzu-octopus. Feedback: Barbel Design, Emanuele Frasca, Pinea and the/master.
 
 ## [3.4.1-beta.1] - 2026-09-29
 

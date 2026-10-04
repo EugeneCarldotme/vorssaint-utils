@@ -9,9 +9,9 @@ enum OutputDeviceFeedback {
     private static var playingSound: NSSound?
     private static let fallbackAlertPath = "/System/Library/Sounds/Tink.aiff"
 
-    private static var isAvailable: Bool {
-        AppFeature.mixer.isAvailable && AppFeature.soundOutputSwitcher.isAvailable
-    }
+    /// The switcher changes outputs without the mixer installed, and its
+    /// settings offer both confirmations, so they follow only the switcher.
+    private static var isAvailable: Bool { AppFeature.soundOutputSwitcher.isAvailable }
 
     static func show(device: MixerOutputDevice, playConfirmationSound: Bool = false) {
         guard Thread.isMainThread else {

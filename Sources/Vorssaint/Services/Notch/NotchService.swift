@@ -21,7 +21,6 @@ struct NotchNotice: Equatable {
     func isEnabled(in defaults: UserDefaults = .standard) -> Bool {
         if isOutputDeviceChange {
             return event == .volume && NotchSupport.isEnabled(in: defaults)
-                && AppFeature.mixer.isAvailable(in: defaults)
                 && AppFeature.soundOutputSwitcher.isAvailable(in: defaults)
                 && defaults.bool(forKey: DefaultsKey.soundOutputOSDEnabled)
         }

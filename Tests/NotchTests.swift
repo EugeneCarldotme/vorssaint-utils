@@ -1137,8 +1137,12 @@ enum NotchTests {
         suite.expect(!outputNotice.isEnabled(in: defaults), "disabled island cannot receive output device confirmation")
         defaults.set(true, forKey: DefaultsKey.notchEnabled)
         defaults.set(false, forKey: AppFeature.mixer.availabilityKey)
-        suite.expect(!outputNotice.isEnabled(in: defaults), "unavailable mixer cannot emit output device confirmation")
+        suite.expect(outputNotice.isEnabled(in: defaults),
+               "output device confirmation follows the switcher without the mixer installed")
         defaults.set(true, forKey: AppFeature.mixer.availabilityKey)
+        defaults.set(false, forKey: AppFeature.soundOutputSwitcher.availabilityKey)
+        suite.expect(!outputNotice.isEnabled(in: defaults), "unavailable output switcher cannot emit output device confirmation")
+        defaults.set(true, forKey: AppFeature.soundOutputSwitcher.availabilityKey)
         defaults.removeObject(forKey: DefaultsKey.soundOutputOSDEnabled)
         defaults.removeObject(forKey: DefaultsKey.notchVolume)
 

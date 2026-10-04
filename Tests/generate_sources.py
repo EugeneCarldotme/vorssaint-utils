@@ -506,6 +506,14 @@ def main():
           + declaration("Sources/Vorssaint/UI/OutputDeviceFeedback.swift", "    private static func playSound(").replace("private ", "", 1)
           + declaration("Sources/Vorssaint/UI/OutputDeviceFeedback.swift", "    static func stopSound(")
           + "}\n}\n")
+    write("OutputDeviceConfirmation.swift", "import Foundation\nextension OutputDeviceConfirmationTests {\nfinal class Mixer {\n"
+          + "".join(source.replace("private ", "", 1) for source in [
+              declaration(mixer, "    private struct PendingOutputConfirmation {"),
+              member(mixer, "    private var pendingOutputConfirmation:"),
+              member(mixer, "    private static let outputConfirmationWindow:"),
+              declaration(mixer, "    private func confirmOutputSwitch("),
+              declaration(mixer, "    private func confirmPendingOutputSwitch(")])
+          + "}\n}\n")
     notch = "Sources/Vorssaint/Services/Notch/NotchService.swift"
     write("NotchFullscreen.swift", "import CoreGraphics\nimport Foundation\nextension NotchFullscreenTests {\n"
           + declaration("Sources/Vorssaint/Services/Switcher/SpaceWindowBridge.swift", "    struct Topology {")

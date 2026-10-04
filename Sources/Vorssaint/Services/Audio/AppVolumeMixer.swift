@@ -179,6 +179,16 @@ final class AppVolumeMixer: ObservableObject {
     private var outputStepReadGeneration = 0
     private let outputControlLock = NSLock()
     private var outputControlLifetime = UUID()
+    /// A switch the hardware accepted but had not applied when the mixer read
+    /// it back. The confirmation waits for the refresh that reports the new
+    /// default, and gives up once the window passes.
+    private struct PendingOutputConfirmation {
+        let device: MixerOutputDevice
+        let playsSound: Bool
+        let deadline: CFAbsoluteTime
+    }
+    private var pendingOutputConfirmation: PendingOutputConfirmation?
+    private static let outputConfirmationWindow: CFAbsoluteTime = 3
     private let halQueue = DispatchQueue(label: "com.vorssaint.utils.mixer.hal", qos: .userInitiated)
 
     private init() {}
@@ -294,6 +304,7 @@ final class AppVolumeMixer: ObservableObject {
         if systemOutputMuted != nil { systemOutputMuted = nil }
         if outputSwitchError != nil { outputSwitchError = nil }
         if needsPermission { needsPermission = false }
+        pendingOutputConfirmation = nil
         processMonitoringEnabled = false
     }
 
@@ -813,6 +824,7 @@ final class AppVolumeMixer: ObservableObject {
         }
 
         outputSwitchError = nil
+        pendingOutputConfirmation = nil
         // The default app output just changed by this app's own hand, so a refresh
         // still reading the previous devices is thrown away; the one at the end
         // of this method replaces it.
@@ -869,10 +881,39 @@ final class AppVolumeMixer: ObservableObject {
         reconcileEngines(with: apps)
         clearPermissionIfNoActiveAdjustments()
         refreshApps()
-        if previousUID != device.uid, Self.defaultOutputDeviceUID() == device.uid {
-            OutputDeviceFeedback.show(device: device, playConfirmationSound: playConfirmationSound)
+        if previousUID != device.uid {
+            confirmOutputSwitch(to: device, playConfirmationSound: playConfirmationSound,
+                                defaultUID: Self.defaultOutputDeviceUID())
         }
         return true
+    }
+
+    /// Some outputs apply a successful switch only after the write returns,
+    /// so the read right after it can still name the previous output. The
+    /// confirmation then waits for the refresh that reports the new default.
+    private func confirmOutputSwitch(to device: MixerOutputDevice, playConfirmationSound: Bool,
+                                     defaultUID: String?, now: CFAbsoluteTime = CFAbsoluteTimeGetCurrent()) {
+        guard defaultUID == device.uid else {
+            pendingOutputConfirmation = PendingOutputConfirmation(
+                device: device, playsSound: playConfirmationSound,
+                deadline: now + Self.outputConfirmationWindow)
+            return
+        }
+        pendingOutputConfirmation = nil
+        OutputDeviceFeedback.show(device: device, playConfirmationSound: playConfirmationSound)
+    }
+
+    private func confirmPendingOutputSwitch(defaultUID: String?, now: CFAbsoluteTime = CFAbsoluteTimeGetCurrent()) {
+        guard let pending = pendingOutputConfirmation else { return }
+        // Past the window, that output more likely came back through Sound
+        // settings or another app, so the expired switch confirms nothing.
+        guard now <= pending.deadline else {
+            pendingOutputConfirmation = nil
+            return
+        }
+        guard defaultUID == pending.device.uid else { return }
+        pendingOutputConfirmation = nil
+        OutputDeviceFeedback.show(device: pending.device, playConfirmationSound: pending.playsSound)
     }
 
     @discardableResult
@@ -1256,6 +1297,7 @@ final class AppVolumeMixer: ObservableObject {
         }
         subscribeToOutputControls(of: snapshot.defaultDeviceID)
         applyOutputControls(volume: snapshot.systemOutputVolume, muted: snapshot.systemOutputMuted)
+        confirmPendingOutputSwitch(defaultUID: snapshot.defaultUID)
 
         guard let next = snapshot.apps else {
             if !apps.isEmpty {

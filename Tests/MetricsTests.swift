@@ -52,6 +52,7 @@ struct MetricsTests {
                 MixerPercentKeyTests.run(suite)
                 MixerFeatureTests.run(suite)
                 OutputDeviceCycleTests.run { suite.expect($0, $1) }
+                OutputDeviceConfirmationTests.run { suite.expect($0, $1) }
                 OutputDeviceSoundTests.run { suite.expect($0, $1) }
             }),
             ("audio-priority", { AudioPriorityTests.run(suite) }),

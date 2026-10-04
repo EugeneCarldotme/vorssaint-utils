@@ -391,9 +391,9 @@ enum NotchTests {
         for physical in [false, true] {
             let geometry = NotchGeometry(screen: screen, safeAreaTop: physical ? 32 : 0,
                                          cameraWidth: physical ? 180 : 0)
-            let short = NotchNotice(event: .volume, title: "AirPods", detail: "", symbol: "headphones",
+            let short = NotchNotice(event: .volume, title: "Headphones", detail: "", symbol: "headphones",
                                     isOutputDeviceChange: true)
-            let longer = NotchNotice(event: .volume, title: "Steam Streaming Speakers", detail: "",
+            let longer = NotchNotice(event: .volume, title: "USB Audio Interface Speakers", detail: "",
                                      symbol: "speaker.wave.2.fill", isOutputDeviceChange: true)
             let oversized = NotchNotice(event: .volume, title: String(repeating: "Output ", count: 100), detail: "",
                                         symbol: "speaker.wave.2.fill", isOutputDeviceChange: true)
@@ -1122,7 +1122,7 @@ enum NotchTests {
                "disabled notch cannot consume any existing presentation")
         defaults.set(true, forKey: DefaultsKey.notchEnabled)
         suite.expect(NotchSupport.isEnabled(in: defaults), "master switch enables notch")
-        let outputNotice = NotchNotice(event: .volume, title: "Steam Streaming Speakers", detail: "",
+        let outputNotice = NotchNotice(event: .volume, title: "USB Audio Interface Speakers", detail: "",
                                        symbol: "speaker.wave.2.fill", isOutputDeviceChange: true)
         let volumeNotice = NotchNotice(event: .volume, title: "Volume", detail: "50%",
                                        symbol: "speaker.wave.2.fill", level: 0.5)

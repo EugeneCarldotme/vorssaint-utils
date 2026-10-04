@@ -12,7 +12,7 @@ enum OutputDeviceCycleTests {
     class State {
         static var hardwareUID: String? = "speakers"
         var currentOutputDeviceUID: String? = "speakers"
-        var outputDevices = [Device(uid: "speakers"), Device(uid: "stream-mic"), Device(uid: "stream-speakers")]
+        var outputDevices = [Device(uid: "speakers"), Device(uid: "usb-headset"), Device(uid: "display-speakers")]
         var requests: [String] = []
         var soundRequests: [Bool] = []
         static func defaultOutputDeviceUID() -> String? { hardwareUID }
@@ -29,11 +29,11 @@ enum OutputDeviceCycleTests {
         let selected = mixer.outputDevices.map(\.uid)
         State.hardwareUID = "speakers"
         for _ in 0..<6 { _ = mixer.switchToNextSoundOutput(in: selected) }
-        expect(mixer.requests == ["stream-mic", "stream-speakers", "speakers",
-                                  "stream-mic", "stream-speakers", "speakers"],
+        expect(mixer.requests == ["usb-headset", "display-speakers", "speakers",
+                                  "usb-headset", "display-speakers", "speakers"],
                "successive output shortcuts follow hardware even when the UI snapshot lags")
         expect(mixer.soundRequests.allSatisfy { $0 }, "shortcut cycling requests optional confirmation sound")
-        State.hardwareUID = "stream-speakers"
+        State.hardwareUID = "display-speakers"
         _ = mixer.switchToNextSoundOutput(in: selected)
         expect(mixer.requests.last == "speakers", "an external output change immediately advances from the actual device")
         State.hardwareUID = nil

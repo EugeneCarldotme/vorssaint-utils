@@ -644,11 +644,11 @@ enum NotchHoverTests {
         func output(_ name: String) -> NotchNotice {
             NotchNotice(event: .volume, title: name, detail: "", symbol: "headphones", isOutputDeviceChange: true)
         }
-        _ = cycling.show(output("AirPods"))
+        _ = cycling.show(output("Headphones"))
         let firstDevice = cycling.windowHost?.rect ?? .zero
         expect(cycling.transitions == [.reveal] && firstDevice.height == cycling.geometry.safeContentTop + NotchNotice.outputDeviceRowHeight,
                "the first output device name reveals one text row below the camera")
-        _ = cycling.show(output("Steam Streaming Speakers"))
+        _ = cycling.show(output("USB Audio Interface Speakers"))
         let longerDevice = cycling.windowHost?.rect ?? .zero
         expect(cycling.transitions.last == .replace && longerDevice.width > firstDevice.width
                && longerDevice.height == firstDevice.height,

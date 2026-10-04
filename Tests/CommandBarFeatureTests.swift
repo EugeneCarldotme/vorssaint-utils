@@ -1165,6 +1165,39 @@ enum CommandBarFeatureTests {
                "usage boost reorders equally good matches")
         suite.expect(CommandBarSearch.rankedIndexes(candidates: boosted, matching: "capturar") == [0],
                "a boost never resurrects a non-match")
+        let awakeRows = [
+            ("settings.feature.keepAwake", "Keep Awake"),
+            ("action.keepAwake.15", "Keep awake for 15 minutes"),
+            ("action.keepAwake.30", "Keep awake for 30 minutes"),
+            ("action.keepAwake", "Enable keep awake"),
+        ]
+        let awakeCandidates = awakeRows.enumerated().map { CommandBarCandidate(index: $0.offset, title: $0.element.1) }
+        let awakeIDs = awakeRows.map(\.0)
+        suite.expect(CommandBarSearch.rankedIndexes(candidates: awakeCandidates, matching: "keep awake") == [0, 1, 2, 3],
+               "by title alone the Settings page named like the feature leads and the switch comes last")
+        suite.expect(CommandBarSearch.featureOrdered(
+                CommandBarSearch.rankedIndexes(candidates: awakeCandidates, matching: "keep awake"),
+                id: { awakeIDs[$0] }, priority: { _ in 0 }) == [3, 1, 2, 0],
+               "a feature's switch leads its presets, and its Settings page follows them")
+        let mixedIDs = ["settings.feature.micMute", "app.safari", "action.micMute", "action.keepAwake"]
+        suite.expect(CommandBarSearch.featureOrdered([0, 1, 2, 3], id: { mixedIDs[$0] }, priority: { _ in 0 })
+                == [2, 1, 0, 3],
+               "a feature's rows trade places among their own slots and nothing else moves")
+        suite.expect(CommandBarSearch.featureOrdered([0, 1, 2, 3], id: { mixedIDs[$0] }, priority: { $0 == 0 ? 400 : 0 })
+                == [0, 1, 2, 3],
+               "a row chosen by name or habit keeps the place it ranked")
+        let habitIDs = ["action.keepAwake", "settings.feature.keepAwake", "action.keepAwake.15", "action.keepAwake.30"]
+        suite.expect(CommandBarSearch.featureOrdered([0, 1, 2, 3], id: { habitIDs[$0] }, priority: { $0 == 0 ? 300 : 0 })
+                == [0, 2, 3, 1],
+               "a switch run often keeps its place, and its presets still come before its Settings page")
+        let switchIDs = ["settings.notchMascot", "app.companion", "toggle.notchMascot", "settings.setting.panelConfiguration"]
+        suite.expect(CommandBarSearch.featureOrdered([0, 1, 2, 3], id: { switchIDs[$0] }, priority: { _ in 0 })
+                == [2, 1, 0, 3],
+               "a feature's switch leads the page of its own named like it, and nothing else moves")
+        let pairIDs = ["toggle.scrollInverter.horizontal", "settings.mouse", "toggle.scrollInverter.vertical"]
+        suite.expect(CommandBarSearch.featureOrdered([0, 1, 2], id: { pairIDs[$0] }, priority: { _ in 0 })
+                == [0, 1, 2],
+               "two switches of one feature keep the order they ranked in, beside a page that is not theirs")
         suite.expect(CommandBarSearch.rankedIndexes(candidates: barCandidates, matching: " ").isEmpty,
                "a blank query ranks nothing; suggestions handle it")
         let typoCandidates = [

@@ -117,6 +117,9 @@ extension AppFeature {
         case .notchNotifications, .notchGestures, .notchTimer, .notchQueue, .notchDownloads: return .idle
         // It reads only while something is being watched, and stops on its own.
         case .notchWatch: return .idle
+        // A blink every few seconds and a visit every few minutes, both
+        // drawn by Core Animation, with one timer waiting for the next visit.
+        case .notchMascot: return .periodic
         case .notchAccessories: return .periodic
         // Log changes arrive as file events; a timer keeps countdowns and
         // limits current while the section is on.

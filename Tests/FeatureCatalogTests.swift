@@ -386,7 +386,7 @@ enum FeatureCatalogTests {
 
         // MARK: Features hub catalog
 
-        suite.expect(AppFeature.allCases.count == 74, "feature catalog has 74 features")
+        suite.expect(AppFeature.allCases.count == 75, "feature catalog has 75 features")
         suite.expect(Set(AppFeature.allCases.map(\.rawValue)).count == AppFeature.allCases.count,
                "feature ids are unique")
         suite.expect(AppFeature.allCases.map(\.rawValue) == [
@@ -399,7 +399,7 @@ enum FeatureCatalogTests {
             "keepAwake", "brightness", "extraBrightness", "bluetoothSleep",
             "quickLauncher", "quickToggles", "colorPicker", "screenOCR", "cleaningMode", "mediaTools",
             "cleaner", "uninstaller", "homebrew", "appUpdates", "screenshot", "cameraPreview",
-            "radialMenu", "scratchpad", "commandBar", "screenRecorder", "wallpaper", "killProcess", "portManager", "notch", "notchCalendar", "notchNotifications", "notchGestures", "notchTimer", "notchAccessories", "notchLyrics", "notchQueue", "notchLiveEqualizer", "notchDownloads", "notchAgents",
+            "radialMenu", "scratchpad", "commandBar", "screenRecorder", "wallpaper", "killProcess", "portManager", "notch", "notchCalendar", "notchNotifications", "notchGestures", "notchTimer", "notchAccessories", "notchLyrics", "notchQueue", "notchLiveEqualizer", "notchDownloads", "notchAgents", "notchWatch",
             "monitorCPU", "monitorGPU", "monitorMemory", "monitorNetwork", "monitorDisk", "monitorPower",
             "connectedDevices", "fanControl",
         ], "feature ids are stable (they persist inside availability keys)")
@@ -573,7 +573,7 @@ enum FeatureCatalogTests {
             "cleaner", "uninstaller", "homebrew", "appUpdates", "screenshot", "cameraPreview", "radialMenu",
             "scratchpad", "commandBar", "screenRecorder",
             "notch", "notchCalendar", "notchNotifications", "notchGestures", "notchTimer", "notchAccessories",
-            "notchLyrics", "notchQueue", "notchLiveEqualizer", "notchDownloads", "notchAgents",
+            "notchLyrics", "notchQueue", "notchLiveEqualizer", "notchDownloads", "notchAgents", "notchWatch",
             "monitorCPU", "monitorGPU", "monitorMemory", "monitorNetwork", "monitorDisk", "monitorPower",
             "connectedDevices",
         ]
@@ -657,7 +657,7 @@ enum FeatureCatalogTests {
                "no hub group is empty")
         suite.expect(AppFeature.features(in: .dynamicIsland) == [
             .notch, .notchCalendar, .notchNotifications, .notchGestures, .notchTimer,
-            .notchAccessories, .notchLyrics, .notchQueue, .notchLiveEqualizer, .notchDownloads, .notchAgents,
+            .notchAccessories, .notchLyrics, .notchQueue, .notchLiveEqualizer, .notchDownloads, .notchAgents, .notchWatch,
         ], "the Dynamic Island heads its own hub section, followed by its extensions")
         suite.expect(AppFeature.dynamicIslandExtensions
                 == Array(AppFeature.features(in: .dynamicIsland).dropFirst()),
@@ -695,7 +695,8 @@ enum FeatureCatalogTests {
                 == [.screenRecording, .accessibility],
                "the recorder choice explains both permissions it needs")
         suite.expect(AppFeature.cleaner.onboardingPermissions.isEmpty
-                && AppFeature.cameraPreview.onboardingPermissions.isEmpty,
+                && AppFeature.cameraPreview.onboardingPermissions.isEmpty
+                && AppFeature.notchWatch.onboardingPermissions.isEmpty,
                "contextual grants are not requested during first setup")
         suite.expect(AppFeature.fanControl.group == .monitor
                 && AppFeature.fanControl.enabledKeys.isEmpty
@@ -1253,6 +1254,7 @@ enum FeatureCatalogTests {
                }
                && !AppFeature.screenshot.monitorsPermissionChanges
                && !AppFeature.screenRecorder.monitorsPermissionChanges
+               && !AppFeature.notchWatch.monitorsPermissionChanges
                && AppFeature.switcher.monitorsPermissionChanges
                && AppFeature.focusFollowsMouse.monitorsPermissionChanges
                && AppFeature.mouseNavigation.monitorsPermissionChanges,
@@ -2532,6 +2534,58 @@ enum FeatureCatalogTests {
                "other media keys never decode as brightness")
         suite.expect(BrightnessSupport.brightnessKeyEvent(subtype: 1, data1: 0) == nil,
                "other system-defined subtypes never decode as brightness")
+        let keyDown = BrightnessSupport.BrightnessKeyEvent(delta: -BrightnessSupport.brightnessKeyStep,
+                                                           isKeyDown: true, isRepeat: false)
+        let keyRepeat = BrightnessSupport.BrightnessKeyEvent(delta: -BrightnessSupport.brightnessKeyStep,
+                                                             isKeyDown: true, isRepeat: true)
+        let keyUp = BrightnessSupport.BrightnessKeyEvent(delta: -BrightnessSupport.brightnessKeyStep,
+                                                         isKeyDown: false, isRepeat: false)
+        let step = BrightnessSupport.BrightnessKeyOwner.app(delta: -BrightnessSupport.brightnessKeyStep)
+        let fineStep = BrightnessSupport.BrightnessKeyOwner.app(delta: -BrightnessSupport.brightnessKeyStep / 4)
+        func owner(_ ownership: inout BrightnessSupport.BrightnessKeyOwnership,
+                   _ press: BrightnessSupport.BrightnessKeyEvent,
+                   option: Bool = false, shift: Bool = false,
+                   commandOrControl: Bool = false) -> BrightnessSupport.BrightnessKeyOwner {
+            ownership.owner(of: press, option: option, shift: shift, commandOrControl: commandOrControl)
+        }
+        var optionPress = BrightnessSupport.BrightnessKeyOwnership()
+        suite.expect(owner(&optionPress, keyDown, option: true) == .system
+                && owner(&optionPress, keyRepeat) == .system
+                && owner(&optionPress, keyUp) == .system,
+               "an Option brightness press stays with the system after Option is released")
+        var commandPress = BrightnessSupport.BrightnessKeyOwnership()
+        suite.expect(owner(&commandPress, keyDown, commandOrControl: true) == .system,
+               "a Command or Control brightness press goes to the system")
+        var finePress = BrightnessSupport.BrightnessKeyOwnership()
+        suite.expect(owner(&finePress, keyDown, option: true, shift: true) == fineStep
+                && owner(&finePress, keyRepeat) == fineStep
+                && owner(&finePress, keyUp) != .system,
+               "an Option-Shift brightness press takes quarter steps until its release")
+        var plainPress = BrightnessSupport.BrightnessKeyOwnership()
+        suite.expect(owner(&plainPress, keyDown) == step
+                && owner(&plainPress, keyRepeat, option: true) == step
+                && owner(&plainPress, keyUp, option: true) != .system,
+               "a plain brightness press stays with the app when a modifier joins mid-press")
+        var shiftPress = BrightnessSupport.BrightnessKeyOwnership()
+        suite.expect(owner(&shiftPress, keyDown, shift: true) == step,
+               "Shift alone keeps the ordinary brightness step")
+        var unseenPress = BrightnessSupport.BrightnessKeyOwnership()
+        suite.expect(owner(&unseenPress, keyRepeat, option: true, shift: true) == .system
+                && owner(&unseenPress, keyUp, option: true, shift: true) == .system,
+               "a brightness press whose key-down the tap never saw stays with the system")
+        var unseenPlainPress = BrightnessSupport.BrightnessKeyOwnership()
+        suite.expect(owner(&unseenPlainPress, keyRepeat) == .system
+                && owner(&unseenPlainPress, keyUp) == .system,
+               "unseen plain brightness repeats and releases stay with the system")
+        var nextPress = BrightnessSupport.BrightnessKeyOwnership()
+        _ = owner(&nextPress, keyDown, option: true)
+        _ = owner(&nextPress, keyUp, option: true)
+        suite.expect(owner(&nextPress, keyDown) == step,
+               "the next plain brightness press is the app's again")
+        var lostRelease = BrightnessSupport.BrightnessKeyOwnership()
+        _ = owner(&lostRelease, keyDown, option: true)
+        suite.expect(owner(&lostRelease, keyDown) == step,
+               "a fresh brightness press is the app's even when the last release was lost")
         suite.expect(BrightnessSupport.keyboardLightOnLevel(lastNonzero: nil) == 0.5
                 && BrightnessSupport.keyboardLightOnLevel(lastNonzero: 0) == 0.5
                 && BrightnessSupport.keyboardLightOnLevel(lastNonzero: 0.7) == 0.7
@@ -2540,6 +2594,20 @@ enum FeatureCatalogTests {
         suite.expect(BrightnessSupport.steppedBrightness(0.97, delta: BrightnessSupport.brightnessKeyStep) == 1.0
                 && BrightnessSupport.steppedBrightness(0.03, delta: -BrightnessSupport.brightnessKeyStep) == 0.0,
                "key steps clamp at both ends of the range")
+        // The system's own brightness keys ease the panel with a call that
+        // takes a change, not a level (issue #2149).
+        suite.expect(BrightnessSupport.easedBrightnessChange(to: 0.3125, from: 0.25) == 0.0625
+                && BrightnessSupport.easedBrightnessChange(to: 0.25, from: 0.3125) == -0.0625
+                && BrightnessSupport.easedBrightnessChange(to: 1.2, from: 0.75) == 0.25,
+               "an eased key step sends the change from the reported level to the clamped target")
+        suite.expect(BrightnessSupport.easedBrightnessChange(to: 1, from: 1) == nil
+                && BrightnessSupport.easedBrightnessChange(to: 0.5, from: -1) == nil
+                && BrightnessSupport.easedBrightnessChange(to: .nan, from: 0.5) == nil,
+               "a step already at its level or measured from no real level is written directly")
+        suite.expect(BrightnessSupport.easedBrightnessLanded(on: 0.3125, reported: 0.3125)
+                && !BrightnessSupport.easedBrightnessLanded(on: 0.3125, reported: 0.25)
+                && !BrightnessSupport.easedBrightnessLanded(on: 0.265625, reported: 0.25),
+               "a display still reporting its old level after an eased step gets the level directly")
 
         // Keyboards other than the built-in one send brightness as a plain
         // key press, which is why the pointer never got a say on them

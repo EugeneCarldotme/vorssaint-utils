@@ -350,7 +350,7 @@ private struct NotchCapsuleCompanionMark: View {
                     NotchCapsuleCalendarStrip.clockMark(countdown, now: context.date)
                 }
             }
-        case .timer, .keepAwake:
+        case .timer, .keepAwake, .watch:
             EmptyView()
         }
     }
@@ -366,6 +366,7 @@ struct NotchCapsuleAgentStrip: View {
     @ObservedObject private var l10n = L10n.shared
     @AppStorage(DefaultsKey.notchAgentsReadout) private var readout = NotchAgentReadout.elapsed.rawValue
     @AppStorage(DefaultsKey.notchAgentsLimitDisplay) private var display = NotchAgentLimitDisplay.remaining.rawValue
+    @AppStorage(DefaultsKey.notchAgentsLimitFocus) private var focus = NotchAgentLimitFocus.mostUsed.rawValue
 
     private var working: [AgentProvider] {
         AgentProvider.allCases.filter { provider in usage.snapshot.live.contains { $0.provider == provider } }
@@ -398,7 +399,8 @@ struct NotchCapsuleAgentStrip: View {
 
     private func reading(at now: Date) -> String {
         NotchAgentSupport.stripReading(usage.snapshot, readout: NotchAgentReadout(rawValue: readout) ?? .elapsed,
-                                       display: NotchAgentLimitDisplay(rawValue: display) ?? .remaining, now: now)
+                                       display: NotchAgentLimitDisplay(rawValue: display) ?? .remaining,
+                                       focus: NotchAgentLimitFocus(rawValue: focus) ?? .mostUsed, now: now)
     }
 }
 
@@ -434,6 +436,44 @@ struct NotchCapsuleDownloadStrip: View {
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(name)
         .accessibilityValue(item?.fraction.map { $0.formatted(.percent.precision(.fractionLength(0))) } ?? "")
+        .accessibilityHint(FeatureStrings.notch(l10n.language).open)
+    }
+}
+
+/// A watched area: the eye, then what the area reads now, or the area
+/// itself when it holds no text.
+struct NotchCapsuleWatchStrip: View {
+    @ObservedObject var service: NotchService
+    let size: CGSize
+    /// Another display's capsule, when the island shows on every display.
+    var displayGeometry: NotchGeometry? = nil
+    @ObservedObject private var watch = NotchWatchService.shared
+    @ObservedObject private var l10n = L10n.shared
+
+    var body: some View {
+        let geometry = displayGeometry ?? service.geometry
+        NotchCapsuleRow(size: size, geometry: geometry) {
+            HStack(spacing: CapsuleLayout.spacing) {
+                NotchWatchEye(size: CapsuleLayout.symbolSize, hidden: watch.state == .hidden)
+                    .frame(width: CapsuleLayout.symbolWidth)
+                if watch.showsThumbnail, let preview = watch.preview {
+                    NotchWatchThumbnail(image: preview, height: max(8, geometry.stripBodyHeight - 6))
+                } else if watch.headline.isEmpty {
+                    // A hidden window's slashed eye says enough until it is read.
+                    if watch.state == .hidden {
+                        Color.clear.frame(width: CapsuleLayout.spinnerWidth, height: 1)
+                    } else {
+                        ProgressView().controlSize(.mini).frame(width: CapsuleLayout.spinnerWidth)
+                    }
+                } else {
+                    Text(watch.headline).font(Font(CapsuleLayout.levelFont as CTFont))
+                        .lineLimit(1).truncationMode(.tail)
+                }
+            }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(FeatureStrings.notchWatch(l10n.language).title)
+        .accessibilityValue(watch.headline)
         .accessibilityHint(FeatureStrings.notch(l10n.language).open)
     }
 }

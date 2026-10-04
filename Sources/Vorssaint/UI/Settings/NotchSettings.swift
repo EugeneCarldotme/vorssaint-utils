@@ -22,6 +22,7 @@ struct NotchSettings: View {
     @AppStorage(DefaultsKey.notchCalendarCountdown) private var calendarCountdown = false
     @AppStorage(DefaultsKey.notchCalendarTimeLeft) private var calendarTimeLeft = false
     @AppStorage(DefaultsKey.notchAgentsEnabled) private var agentsEnabled = true
+    @AppStorage(DefaultsKey.notchWatchEnabled) private var watchEnabled = true
     @AppStorage(DefaultsKey.notchLyricsEnabled) private var lyricsEnabled = true
     @AppStorage(DefaultsKey.notchLyricsOnline) private var lyricsOnline = false
     @AppStorage(DefaultsKey.notchQueueEnabled) private var queueEnabled = true
@@ -85,13 +86,14 @@ struct NotchSettings: View {
     @State private var draggingModule: NotchModule?
     @State private var draggingControl: NotchControlItem?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     private var text: NotchStrings { FeatureStrings.notch(l10n.language) }
     private var editor: NotchEditorStrings { FeatureStrings.notchEditor(l10n.language) }
 
     private var configuration: [String] {
         [String(enabled), String(calendarEnabled), String(calendarCountdown), String(calendarTimeLeft), String(notificationsEnabled), String(dismissNativeNotifications), String(gesturesEnabled), String(lyricsEnabled), String(lyricsOnline), String(queueEnabled), String(liveEqualizer), String(showPlayingMusic), String(includeOtherPlayers), idle, hiddenControls, controlOrder, size,
          String(timerEnabled), String(timerSoundEnabled), String(cameraEnabled), String(accessoriesEnabled), String(outlineEnabled), String(customWidth), String(customHeight), String(cameraFitWidth), String(cameraFitHeight), String(capsuleFitWidth), String(capsuleFitHeight), String(capsuleFitDrop), String(hapticFeedback), String(shelfWindow), String(dragReveal), String(captureControls), String(quickPanel), String(appPanel), String(hoverExpand), String(hideUntilHover), String(hideInFullscreen), String(coversMenus), display, silhouette, String(hover), hidden, order, String(volume),
-         String(brightness), String(keyboardLight), String(microphone), String(battery), String(clipboard), String(clipboardWindow), String(capture), String(trackChange), captureAction, String(showInCaptures), String(returnHome), homeModule, String(opensActivity), String(scratchpad), String(agentsEnabled), String(keepAwakeActivity)]
+         String(brightness), String(keyboardLight), String(microphone), String(battery), String(clipboard), String(clipboardWindow), String(capture), String(trackChange), captureAction, String(showInCaptures), String(returnHome), homeModule, String(opensActivity), String(scratchpad), String(agentsEnabled), String(watchEnabled), String(keepAwakeActivity)]
     }
 
     private var access: Binding<NotchQuickAccessConfiguration> {
@@ -186,10 +188,11 @@ struct NotchSettings: View {
                     Text(text.sizeHint).font(.caption).foregroundStyle(.secondary)
                 }
                 // Liquid Glass takes the open island's background when it is
-                // on, so the switch would change nothing then.
+                // on and is already see-through, so the switch reads on and
+                // changes nothing then.
                 switchRow("drop.halffull", text.translucentBackground,
                           caption: liquidGlassIsOn ? text.translucentBackgroundGlassHint : text.translucentBackgroundHint,
-                          isOn: $translucentBackground)
+                          isOn: liquidGlassIsOn ? .constant(true) : $translucentBackground)
                     .disabled(liquidGlassIsOn)
             }
             // Only a display without a camera can float the island.
@@ -234,9 +237,12 @@ struct NotchSettings: View {
         }
     }
 
+    /// Whether the open island draws Liquid Glass, by the island's own rule.
+    /// Reduce Transparency keeps it black, so the switch then shows the saved
+    /// choice as it does with the glass off.
     private var liquidGlassIsOn: Bool {
 #if compiler(>=6.2)
-        if #available(macOS 26, *) { return liquidGlass }
+        if #available(macOS 26, *) { return liquidGlass && !reduceTransparency }
 #endif
         return false
     }
@@ -424,6 +430,9 @@ struct NotchSettings: View {
             destination(FeatureStrings.scratchpad(l10n.language).pageTitle, symbol: "note.text", value: $scratchpad)
         case .agents:
             NotchAgentsSettingsControls()
+        case .watch:
+            NotchWatchSettingsControls()
+                .toggleStyle(TrailingSwitchToggleStyle())
         case .mixer, .system, .tools:
             EmptyView()
         }
@@ -687,6 +696,7 @@ struct NotchSettings: View {
         case .downloads: return .notchDownloads
         case .scratchpad: return .scratchpad
         case .agents: return .notchAgents
+        case .watch: return .notchWatch
         }
     }
 
@@ -808,7 +818,7 @@ struct NotchSettings: View {
         Binding {
             (module != .timer || timerEnabled) && (module != .camera || cameraEnabled)
                 && (module != .calendar || calendarEnabled) && (module != .notifications || notificationsEnabled)
-                && (module != .agents || agentsEnabled)
+                && (module != .agents || agentsEnabled) && (module != .watch || watchEnabled)
                 && !hidden.split(separator: ",").contains(Substring(module.rawValue))
         } set: { shown in
             if module == .timer { timerEnabled = shown }
@@ -816,6 +826,7 @@ struct NotchSettings: View {
             if module == .calendar { calendarEnabled = shown }
             if module == .notifications { notificationsEnabled = shown }
             if module == .agents { agentsEnabled = shown }
+            if module == .watch { watchEnabled = shown }
             var values = Set(hidden.split(separator: ",").map(String.init))
             if shown { values.remove(module.rawValue) } else { values.insert(module.rawValue) }
             hidden = values.sorted().joined(separator: ",")

@@ -673,6 +673,11 @@ enum DefaultsKey {
     static let screenshotCopyToClipboard = "screenshotCopyToClipboard"
     static let screenshotPreviewPosition = "screenshotPreviewPosition"
     static let screenshotPreviewTakesFocus = "screenshotPreviewTakesFocus"
+    static let screenshotUploadShortcutEnabled = "screenshotUploadShortcutEnabled"
+    static let screenshotUploadShortcut = "screenshotUploadShortcut"
+    static let screenshotUploadDuration = "screenshotUploadDuration"
+    static let screenshotPreviewEnabled = "screenshotPreviewEnabled"
+    static let screenshotPreviewDuration = "screenshotPreviewDuration"
     static let screenshotSharingEnabled = "screenshotSharingEnabled"
     // Developer-only endpoint for an isolated test tunnel. The official app
     // ignores it, and settings backups must never carry it to another Mac.
@@ -810,20 +815,26 @@ enum DefaultsKey {
     static let notchQueueEnabled = "notchQueueEnabled"
     static let notchDownloadsEnabled = "notchDownloadsEnabled"
     static let notchDownloadsFolderBookmark = "notchDownloadsFolderBookmark"
+    // Watch: any part of any window read live in the island.
+    static let notchWatchEnabled = "notchWatchEnabled"
+    static let notchWatchSound = "notchWatchSound"
+    static let notchWatchCondition = "notchWatchCondition"
     static let notchCalendarEnabled = "notchCalendarEnabled"
     static let notchCalendarCountdown = "notchCalendarCountdown"
     static let notchCalendarTimeLeft = "notchCalendarTimeLeft" // the event under way counts down to its end
     static let notchCalendarExcluded = "notchCalendarExcluded" // [EKCalendar.calendarIdentifier] left out of the island
     // [countdown key: event end] chosen from an event's menu; unregistered, so it stays out of backups
     static let notchCalendarChosenCountdowns = "notchCalendarChosenCountdowns"
-    // AI agents: what the island reads from Claude Code and Codex, and shows.
+    // AI agents: what the island reads from Claude Code, Codex and OpenCode, and shows.
     static let notchAgentsEnabled = "notchAgentsEnabled"
     static let notchAgentsClaude = "notchAgentsClaude"
     static let notchAgentsCodex = "notchAgentsCodex"
+    static let notchAgentsOpenCode = "notchAgentsOpenCode"
     static let notchAgentsCardOrder = "notchAgentsCardOrder"
     static let notchAgentsHiddenCards = "notchAgentsHiddenCards"
     static let notchAgentsPeriod = "notchAgentsPeriod"
     static let notchAgentsLimitDisplay = "notchAgentsLimitDisplay"
+    static let notchAgentsLimitFocus = "notchAgentsLimitFocus"
     static let notchAgentsLiveActivity = "notchAgentsLiveActivity"
     static let notchAgentsReadout = "notchAgentsReadout"
     static let notchAgentsFinishAlert = "notchAgentsFinishAlert"
@@ -1370,10 +1381,12 @@ enum Defaults {
         DefaultsKey.notchAgentsEnabled: true,
         DefaultsKey.notchAgentsClaude: true,
         DefaultsKey.notchAgentsCodex: true,
+        DefaultsKey.notchAgentsOpenCode: true,
         DefaultsKey.notchAgentsCardOrder: "",
         DefaultsKey.notchAgentsHiddenCards: "",
         DefaultsKey.notchAgentsPeriod: AgentPeriod.today.rawValue,
         DefaultsKey.notchAgentsLimitDisplay: NotchAgentLimitDisplay.remaining.rawValue,
+        DefaultsKey.notchAgentsLimitFocus: NotchAgentLimitFocus.mostUsed.rawValue,
         DefaultsKey.notchAgentsLiveActivity: true,
         DefaultsKey.notchAgentsReadout: NotchAgentReadout.elapsed.rawValue,
         DefaultsKey.notchAgentsFinishAlert: true,
@@ -1387,6 +1400,9 @@ enum Defaults {
         DefaultsKey.notchLiveEqualizer: false,
         DefaultsKey.notchQueueEnabled: true,
         DefaultsKey.notchDownloadsEnabled: true,
+        DefaultsKey.notchWatchEnabled: true,
+        DefaultsKey.notchWatchSound: true,
+        DefaultsKey.notchWatchCondition: NotchWatchCondition.changes.rawValue,
         DefaultsKey.notchEnabled: false,
         DefaultsKey.notchDisplay: NotchDisplay.automatic.rawValue,
         DefaultsKey.notchSilhouette: NotchSilhouette.capsule.rawValue,
@@ -1771,6 +1787,11 @@ enum Defaults {
         DefaultsKey.screenshotCopyToClipboard: false,
         DefaultsKey.screenshotPreviewPosition: ScreenshotSupport.QuickPreviewPosition.automatic.rawValue,
         DefaultsKey.screenshotPreviewTakesFocus: true,
+        DefaultsKey.screenshotUploadShortcutEnabled: false,
+        DefaultsKey.screenshotUploadShortcut: GlobalShortcut.screenshotUploadDefault.storageValue,
+        DefaultsKey.screenshotUploadDuration: ScreenshotShareDuration.oneHour.rawValue,
+        DefaultsKey.screenshotPreviewEnabled: true,
+        DefaultsKey.screenshotPreviewDuration: ScreenshotSupport.defaultConfirmationPreviewDuration,
         DefaultsKey.screenshotSharingEnabled: true,
         DefaultsKey.panelUtilityScreenshot: true,
         DefaultsKey.windowLayoutShortcutsEnabled: false,

@@ -256,6 +256,10 @@ enum AgentUsageSummary {
             // Only a proxy hands Claude Code a response from another API.
             if let issuer, issuer != .claude { return .proxy(hub: nil, account: issuer) }
             return hubs.kinds.contains(.claude) ? .proxy(hub: nil, account: nil) : .own(.claude)
+        case .opencode:
+            // Vorssaint reads neither the address an OpenCode turn went to nor
+            // who answered it, so OpenCode keeps its use as it does without a hub.
+            return .own(.opencode)
         }
     }
 
@@ -381,9 +385,9 @@ enum AgentUsageSummary {
         return low
     }
 
-    /// Windows start on the hour of the first request after the previous
-    /// one ended, the way the service counts them: the hour in UTC, as the
-    /// Claude app's readings are placed.
+    /// Windows start at the first request after the previous one ended and
+    /// last five hours from that moment, the renewal time the provider's own
+    /// usage page shows.
     static func currentBlock(_ records: [AgentUsageRecord], now: Date) -> AgentBlock? {
         var block: AgentBlock?
         // Sorting positions moves no strings: a day of records is thousands.
@@ -393,8 +397,7 @@ enum AgentUsageSummary {
                 block?.totals.add(record)
                 continue
             }
-            let hour = AgentClaudeAppUsage.hour(of: record.date)
-            var next = AgentBlock(start: hour, end: hour.addingTimeInterval(blockLength), totals: AgentTotals())
+            var next = AgentBlock(start: record.date, end: record.date.addingTimeInterval(blockLength), totals: AgentTotals())
             next.totals.add(record)
             block = next
         }
@@ -677,6 +680,22 @@ struct AgentLimitAlerts {
         }
         previous = current.mapValues(\.limits)
         return crossed
+    }
+
+    /// Warned windows a banked reset renewed before their time, each
+    /// reported once with the window as it now reads.
+    mutating func renewedEarly(_ current: [String: AgentTrackedLimits], threshold: Double) -> [Warned] {
+        var renewed: [Warned] = []
+        for (key, entry) in current {
+            for window in entry.limits.windows {
+                let id = key + "|" + window.id
+                guard let was = warned[id]?.window.resetsAt, let resets = window.resetsAt,
+                      resets.timeIntervalSince(was) > 60, window.usedPercent < threshold else { continue }
+                warned[id] = nil
+                renewed.append(Warned(provider: entry.limits.provider, window: window, account: entry.account))
+            }
+        }
+        return renewed
     }
 
     /// Warned windows whose renewal time has come, each reported once.

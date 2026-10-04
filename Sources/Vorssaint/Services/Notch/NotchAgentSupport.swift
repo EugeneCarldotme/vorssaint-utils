@@ -7,7 +7,7 @@ import Foundation
 /// The cards the AI page can show, in the order a person arranges them. Raw
 /// values are stored in the saved order, so cases are never renamed.
 enum NotchAgentCard: String, CaseIterable, Identifiable {
-    case limits, spend, live, trend, models, projects, activity
+    case limits, spend, live, trend, models, projects, activity, resets
 
     var id: String { rawValue }
 
@@ -20,6 +20,7 @@ enum NotchAgentCard: String, CaseIterable, Identifiable {
         case .models: return "cpu"
         case .projects: return "folder"
         case .activity: return "square.grid.3x3.fill"
+        case .resets: return "arrow.counterclockwise.circle"
         }
     }
 
@@ -39,6 +40,12 @@ enum NotchAgentReadout: String, CaseIterable, Identifiable {
 
 enum NotchAgentLimitDisplay: String, CaseIterable, Identifiable {
     case remaining, used
+    var id: String { rawValue }
+}
+
+/// Which allowance the closed island shows.
+enum NotchAgentLimitFocus: String, CaseIterable, Identifiable {
+    case mostUsed, session, weekly
     var id: String { rawValue }
 }
 
@@ -81,7 +88,11 @@ enum NotchAgentSupport {
     }
 
     static func key(for provider: AgentProvider) -> String {
-        provider == .claude ? DefaultsKey.notchAgentsClaude : DefaultsKey.notchAgentsCodex
+        switch provider {
+        case .claude: return DefaultsKey.notchAgentsClaude
+        case .codex: return DefaultsKey.notchAgentsCodex
+        case .opencode: return DefaultsKey.notchAgentsOpenCode
+        }
     }
 
     /// Every card in the saved order; cards added later join at the end.
@@ -108,6 +119,44 @@ enum NotchAgentSupport {
 
     static func limitDisplay(in defaults: UserDefaults = .standard) -> NotchAgentLimitDisplay {
         NotchAgentLimitDisplay(rawValue: defaults.string(forKey: DefaultsKey.notchAgentsLimitDisplay) ?? "") ?? .remaining
+    }
+
+    static func limitFocus(in defaults: UserDefaults = .standard) -> NotchAgentLimitFocus {
+        NotchAgentLimitFocus(rawValue: defaults.string(forKey: DefaultsKey.notchAgentsLimitFocus) ?? "") ?? .mostUsed
+    }
+
+    /// The allowance the closed island shows: the window the person chose,
+    /// or the one closest to running out while the account reports no such
+    /// window. A model's own allowance is never the chosen one.
+    static func focusedLimit(_ limits: AgentLimits?, focus: NotchAgentLimitFocus, now: Date) -> AgentLimitWindow? {
+        chosenLimit(limits, focus: focus, now: now) ?? AgentLimitSupport.binding(limits, now: now)
+    }
+
+    /// The plan-wide window of the chosen kind; nil for the most used one or
+    /// while the account reports no such window.
+    private static func chosenLimit(_ limits: AgentLimits?, focus: NotchAgentLimitFocus, now: Date) -> AgentLimitWindow? {
+        let kind: AgentLimitWindow.Kind
+        switch focus {
+        case .mostUsed: return nil
+        case .session: kind = .session
+        case .weekly: kind = .weekly
+        }
+        return limits?.windows.first { $0.kind == kind && $0.scope == nil }.map { AgentLimitSupport.current($0, at: now) }
+    }
+
+    /// The resting island's allowance across every account: the most spent
+    /// of the chosen windows, or of each account's most used window while no
+    /// account reports the chosen one.
+    static func restingLimit(_ snapshot: AgentUsageSnapshot, focus: NotchAgentLimitFocus,
+                             now: Date) -> (provider: AgentProvider, window: AgentLimitWindow)? {
+        func mostSpent(_ pick: (AgentLimits) -> AgentLimitWindow?) -> (provider: AgentProvider, window: AgentLimitWindow)? {
+            snapshot.limits.compactMap { provider, limits in pick(limits).map { (provider: provider, window: $0) } }.max {
+                $0.window.usedPercent != $1.window.usedPercent ? $0.window.usedPercent < $1.window.usedPercent
+                    : $0.provider.rawValue > $1.provider.rawValue
+            }
+        }
+        return mostSpent { chosenLimit($0, focus: focus, now: now) }
+            ?? mostSpent { AgentLimitSupport.binding($0, now: now) }
     }
 
     static func showsLiveActivity(in defaults: UserDefaults = .standard) -> Bool {
@@ -175,7 +224,8 @@ enum NotchAgentSupport {
     /// What the strip shows beside the camera while agents work: the reading
     /// the person chose, or the time elapsed while that one is unknown.
     static func stripReading(_ snapshot: AgentUsageSnapshot, readout: NotchAgentReadout,
-                             display: NotchAgentLimitDisplay, now: Date) -> String {
+                             display: NotchAgentLimitDisplay, focus: NotchAgentLimitFocus = .mostUsed,
+                             now: Date) -> String {
         let live = snapshot.live
         func elapsed() -> String { AgentFormat.clock(now.timeIntervalSince(live.map(\.started).min() ?? now)) }
         switch readout {
@@ -188,7 +238,7 @@ enum NotchAgentSupport {
         case .cost:
             return AgentFormat.cost(live.reduce(0) { $0 + $1.cost })
         case .limit:
-            guard let limit = liveLimit(snapshot, now: now) else { return elapsed() }
+            guard let limit = liveLimit(snapshot, focus: focus, now: now) else { return elapsed() }
             return AgentFormat.percent(display == .used ? limit.used : 1 - limit.used)
         }
     }
@@ -201,24 +251,26 @@ enum NotchAgentSupport {
     }
 
     /// The share used of the tightest allowance any working turn draws on,
-    /// with the agent running that turn. A turn on the agent's own sign-in
-    /// draws on that plan. A turn through a hub draws on that hub's accounts
-    /// of the kind serving it, and only those serving its model, and the one
-    /// with the least left binds first. A turn whose hub or account the
-    /// evidence cannot name counts toward none. Nil while no candidate has a
-    /// reading.
-    static func liveLimit(_ snapshot: AgentUsageSnapshot, now: Date) -> (provider: AgentProvider, used: Double)? {
+    /// with the agent running that turn. Each account offers the window the
+    /// person chose, or its most used one when it reports no such window. A
+    /// turn on the agent's own sign-in draws on that plan. A turn through a
+    /// hub draws on that hub's accounts of the kind serving it, and only
+    /// those serving its model, and the one with the least left binds first.
+    /// A turn whose hub or account the evidence cannot name counts toward
+    /// none. Nil while no candidate has a reading.
+    static func liveLimit(_ snapshot: AgentUsageSnapshot, focus: NotchAgentLimitFocus = .mostUsed,
+                          now: Date) -> (provider: AgentProvider, used: Double)? {
         var tightest: (provider: AgentProvider, used: Double)?
         for session in snapshot.live {
             let windows: [AgentLimitWindow]
             switch account(of: session, hubs: snapshot.hubs) {
             case .own(let provider):
-                windows = AgentLimitSupport.binding(snapshot.limits[provider], now: now).map { [$0] } ?? []
+                windows = focusedLimit(snapshot.limits[provider], focus: focus, now: now).map { [$0] } ?? []
             case .proxy(let hub?, let kind?):
                 let model = session.model.lowercased()
                 windows = snapshot.pool
                     .filter { $0.hub == hub && $0.provider == kind && ($0.models.isEmpty || $0.models.contains(model)) }
-                    .compactMap { AgentLimitSupport.binding($0.limits, now: now) }
+                    .compactMap { focusedLimit($0.limits, focus: focus, now: now) }
             case .proxy:
                 windows = []
             }
@@ -248,9 +300,14 @@ enum NotchAgentSupport {
     static func tiles(cards: [NotchAgentCard], providers: [AgentProvider],
                       accounts: [AgentHubAccount] = []) -> [NotchAgentTile] {
         cards.flatMap { card -> [NotchAgentTile] in
-            card == .limits ? providers.map { NotchAgentTile(card: .limits, provider: $0) }
-                + accounts.map { NotchAgentTile(card: .limits, provider: $0.provider, account: $0.id) }
-                : [NotchAgentTile(card: card, provider: nil)]
+            switch card {
+            case .limits:
+                return providers.map { NotchAgentTile(card: .limits, provider: $0) }
+                    + accounts.map { NotchAgentTile(card: .limits, provider: $0.provider, account: $0.id) }
+            // Banked resets belong to a Codex account.
+            case .resets: return providers.contains(.codex) ? [NotchAgentTile(card: .resets, provider: .codex)] : []
+            default: return [NotchAgentTile(card: card, provider: nil)]
+            }
         }
     }
 

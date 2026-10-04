@@ -247,6 +247,7 @@ extension Strings {
         dockPreviewCurrentSpaceOnlyCaption: "關閉時顯示所有桌面的視窗。選擇其他桌面上的視窗時，會切換至該桌面。",
         dockPreviewBackgroundOpacity: "面板背景",
         dockPreviewBackgroundOpacityCaption: "調低後可以看到更多面板後面的內容。",
+        dockPreviewBackgroundOpacityGlassCaption: "Liquid Glass 已開啟，面板的透明度由「系統設定」>「外觀」決定。",
         dockPreviewOpenDelay: "開啟延遲",
         dockPreviewOpenDelayCaption: "指標停在圖示上多久之後才打開面板。",
         dockPreviewQuitAppOnClose: "使用 × 按鈕結束 App",
@@ -594,6 +595,7 @@ extension Strings {
         mixerOutputFallback: "此裝置恢復前，使用預設輸出。",
         mixerBypassedCaption: "此 App 自行管理音訊。",
         mixerOutputTooltip: "選取輸出",
+        mixerAirPlayChooseSpeaker: "選擇 AirPlay 揚聲器…",
         mixerSystemOutputTitle: "輸出",
         mixerSystemOutputNoDevices: "找不到輸出裝置",
         mixerSystemOutputTooltip: "選取系統輸出",
@@ -1082,6 +1084,8 @@ extension Strings {
         linearScrollCaption: "無論轉動多快，滑鼠滾輪每一格都捲動相同的距離。觸控板不受影響。",
         linearScrollLinesLabel: "每格行數",
         shelfClearOnClose: "關閉時清空",
-        shelfClearOnCloseCaption: "只有點按關閉按鈕時才會清空暫存架。自動隱藏或收合時會保留項目。"
+        shelfClearOnCloseCaption: "只有點按關閉按鈕時才會清空暫存架。自動隱藏或收合時會保留項目。",
+        shelfShortcutFinderSelection: "使用快捷鍵加入 Finder 所選項目",
+        shelfShortcutFinderSelectionCaption: "Finder 位於前景時，快捷鍵會打開暫存架並放入所選檔案。未選取任何項目時照常打開。"
     )
 }

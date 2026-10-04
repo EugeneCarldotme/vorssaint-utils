@@ -10,9 +10,11 @@ struct NotchAgentsSettingsControls: View {
     @ObservedObject private var usage = AgentUsageService.shared
     @AppStorage(DefaultsKey.notchAgentsClaude) private var claude = true
     @AppStorage(DefaultsKey.notchAgentsCodex) private var codex = true
+    @AppStorage(DefaultsKey.notchAgentsOpenCode) private var opencode = true
     @AppStorage(DefaultsKey.notchAgentsCardOrder) private var cardOrder = ""
     @AppStorage(DefaultsKey.notchAgentsHiddenCards) private var hiddenCards = ""
     @AppStorage(DefaultsKey.notchAgentsLimitDisplay) private var limitDisplay = NotchAgentLimitDisplay.remaining.rawValue
+    @AppStorage(DefaultsKey.notchAgentsLimitFocus) private var limitFocus = NotchAgentLimitFocus.mostUsed.rawValue
     @AppStorage(DefaultsKey.notchAgentsLiveActivity) private var liveActivity = true
     @AppStorage(DefaultsKey.notchAgentsReadout) private var readout = NotchAgentReadout.elapsed.rawValue
     @AppStorage(DefaultsKey.notchAgentsFinishAlert) private var finishAlert = true
@@ -46,6 +48,7 @@ struct NotchAgentsSettingsControls: View {
                 .fixedSize(horizontal: false, vertical: true)
             providerRow(.claude, isOn: $claude)
             providerRow(.codex, isOn: $codex)
+            providerRow(.opencode, isOn: $opencode)
             if !usage.hubs.isEmpty {
                 Text(text.hubSwitchesNote).font(.caption).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -71,9 +74,21 @@ struct NotchAgentsSettingsControls: View {
                 }
             }
             Text(text.cardsHint).font(.caption).foregroundStyle(.secondary)
+            // The one card that makes Codex ask the account, said where it is chosen.
+            if codex, cardBinding(.resets).wrappedValue {
+                Text(text.resetsHelp).font(.caption).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
             SettingsChoiceRow(symbol: NotchAgentCard.limits.symbol, title: text.limitsAs, selection: $limitDisplay) {
                 Text(text.remaining).tag(NotchAgentLimitDisplay.remaining.rawValue)
                 Text(text.used).tag(NotchAgentLimitDisplay.used.rawValue)
+            }
+            // The resting island shows this allowance whatever the live
+            // reading, and the live reading uses it when it shows a limit.
+            SettingsMenuRow(symbol: "rectangle.topthird.inset.filled", title: text.limitFocus, selection: $limitFocus) {
+                ForEach(NotchAgentLimitFocus.allCases) { focus in
+                    Text(text.limitFocus(focus)).tag(focus.rawValue)
+                }
             }
 
             Divider()
@@ -88,7 +103,8 @@ struct NotchAgentsSettingsControls: View {
                 .padding(.leading, settingsRowTextInset)
                 NotchAgentStripSample(readout: NotchAgentReadout(rawValue: readout) ?? .elapsed,
                                       display: NotchAgentLimitDisplay(rawValue: limitDisplay) ?? .remaining,
-                                      provider: claude || !codex ? .claude : .codex,
+                                      focus: NotchAgentLimitFocus(rawValue: limitFocus) ?? .mostUsed,
+                                      provider: claude ? .claude : (codex ? .codex : .opencode),
                                       warnAt: limitAlert ? limitThreshold : NotchAgentSupport.defaultLimitThreshold)
                     .padding(.leading, settingsRowTextInset)
             }
@@ -146,7 +162,7 @@ struct NotchAgentsSettingsControls: View {
         // Cards and agents set the page's height, and the live reading the
         // closed island's width, which the island follows.
         .onChange(of: [cardOrder, hiddenCards, String(claude), String(codex),
-                       String(liveActivity), readout, limitDisplay]) { _, _ in
+                       String(liveActivity), readout, limitDisplay, limitFocus]) { _, _ in
             NotchService.shared.syncWithPreferences()
         }
     }
@@ -293,9 +309,9 @@ struct NotchAgentsSettingsControls: View {
             }
             Spacer(minLength: 12)
             // One agent stays on unless a hub fills the page. Turning the
-            // section off stops both.
+            // section off stops all.
             Toggle(provider.displayName, isOn: isOn).labelsHidden().toggleStyle(.switch)
-                .disabled(isOn.wrappedValue && !(claude && codex) && usage.hubs.isEmpty)
+                .disabled(isOn.wrappedValue && [claude, codex, opencode].filter { $0 }.count <= 1 && usage.hubs.isEmpty)
         }
     }
 
@@ -340,6 +356,7 @@ extension NotchAgentCard: PanelOrderItem {}
 private struct NotchAgentStripSample: View {
     let readout: NotchAgentReadout
     let display: NotchAgentLimitDisplay
+    let focus: NotchAgentLimitFocus
     let provider: AgentProvider
     /// Percent used that raises the limit warning.
     let warnAt: Double
@@ -385,8 +402,8 @@ private struct NotchAgentStripSample: View {
                                               tokens: AgentTokens(input: 1_180_000, cacheWrite: 0, cacheRead: 0, output: 20_000),
                                               cost: 4.56)]
         }
-        return (NotchAgentSupport.stripReading(snapshot, readout: readout, display: display, now: now),
-                agentStripTint(snapshot, readout: readout, now: now))
+        return (NotchAgentSupport.stripReading(snapshot, readout: readout, display: display, focus: focus, now: now),
+                agentStripTint(snapshot, readout: readout, focus: focus, now: now))
     }
 }
 

@@ -20,14 +20,14 @@ enum AgentHubClient {
     private static let concurrency = 4
     private static let maximumSize = 8 << 20
 
-    /// Reads the hub's accounts, a few at a time. A refusal of the hub itself,
-    /// like a key revoked after the listing, ends the reading there. Every
-    /// later call would carry the same key, and wrong keys count toward the
-    /// hub's ban. A cancelled reading starts no further request.
     /// Sends one management request with the hub's key. Tests pass their
     /// own to script a hub's answers.
     typealias Sender = @Sendable (URLRequest, String) async -> Outcome
 
+    /// Reads the hub's accounts, a few at a time. A refusal of the hub itself,
+    /// like a key revoked after the listing, ends the reading there. Every
+    /// later call would carry the same key, and wrong keys count toward the
+    /// hub's ban. A cancelled reading starts no further request.
     static func read(_ hub: AgentHub, send: @escaping Sender = { await AgentHubClient.send($0, key: $1) }) async -> Reading {
         guard let url = hub.management("auth-files") else { return Reading(state: .failed(status: 0), accounts: nil) }
         let listing: Response
@@ -112,6 +112,9 @@ enum AgentHubClient {
             header["OpenAI-Beta"] = "codex-1"
             header["Originator"] = "Codex Desktop"
             if let workspace = account.chatGPTAccount { header["Chatgpt-Account-Id"] = workspace }
+        case .opencode:
+            // A hub pools no OpenCode account, so the listing never holds one.
+            return .account(result)
         }
         let call: [String: Any] = ["auth_index": account.index, "method": "GET",
                                    "url": account.provider == .claude ? claudeUsage : codexUsage, "header": header]
@@ -139,6 +142,8 @@ enum AgentHubClient {
             guard let usage = AgentHubParser.codexUsage(proxied.body, observed: now) else { return .account(result) }
             result.limits = AgentLimits(provider: .codex, windows: usage.windows, observedAt: now, source: .hub)
             if let plan = usage.plan { result.plan = plan }
+        case .opencode:
+            return .account(result)
         }
         result.failed = false
         return .account(result)

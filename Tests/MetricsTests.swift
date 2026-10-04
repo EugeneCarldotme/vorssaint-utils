@@ -38,7 +38,18 @@ struct MetricsTests {
                 MixerNativeDragTests.run(suite)
                 MixerOutputAdjustmentContract.run(suite)
                 SoundOutputSwitchContract.run(suite)
+                AirPlayRingBufferContract.run(suite)
+                AirPlayRouteContract.run(suite)
+                AirPlayMixLimiterContract.run(suite)
+                AirPlayStreamRegistryContract.run(suite)
+                AirPlayFeedDriverContract.run(suite)
+                AirPlayRateChangeContract.run(suite)
+                AirPlayPrivateAPIContract.run(suite)
+                AirPlayAvailabilityContract.run(suite)
+                AirPlayConcurrentLanesContract.run(suite)
+                AirPlayBacklogContract.run(suite)
                 MixerInputVolumeContract.run(suite)
+                MixerPercentKeyTests.run(suite)
                 MixerFeatureTests.run(suite)
             }),
             ("audio-priority", { AudioPriorityTests.run(suite) }),
@@ -56,6 +67,7 @@ struct MetricsTests {
                 ScreenshotPreviewHoverTests.run(suite)
                 ScreenshotWatermarkTests.run(suite)
                 ScreenshotFeatureTests.run(suite)
+                ScreenshotShareCompletionTests.run(suite)
                 ScreenshotScrollingCaptureTests.run(suite)
                 ScreenCaptureToolPickerTests.run(suite)
             }),
@@ -69,12 +81,16 @@ struct MetricsTests {
             ("notch", {
                 NotchTests.run(suite)
                 NotchCompactTests.run(suite)
+                NotchCapsuleTests.run(suite)
                 NotchVolumeKeyTests.run(suite)
                 NotchSettingsTabRowTests.run(suite)
             }),
             ("switcher-model", { SwitcherModelFeatureTests.run(suite) }),
             ("agents", { NotchAgentTests.run(suite) }),
-            ("features", { FeatureCatalogTests.run(suite) }),
+            ("features", {
+                FeatureCatalogTests.run(suite)
+                MenuPanelSectionGateContract.run(suite)
+            }),
             ("utilities", {
                 UtilitiesFeatureTests.run(suite)
                 PortManagerRefreshTests.run(suite)

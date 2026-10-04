@@ -246,6 +246,7 @@ extension Strings {
         dockPreviewCurrentSpaceOnlyCaption: "Kapalıyken tüm masaüstlerindeki pencereleri gösterir. Başka bir masaüstündeki pencereyi seçtiğinizde o masaüstüne geçersiniz.",
         dockPreviewBackgroundOpacity: "Panel arka planı",
         dockPreviewBackgroundOpacityCaption: "Panelin arkasındakileri daha çok görmek için azalt.",
+        dockPreviewBackgroundOpacityGlassCaption: "Liquid Glass açık olduğundan panelin saydamlığı Sistem Ayarları > Görünüş bölümünden ayarlanır.",
         dockPreviewOpenDelay: "Açılma gecikmesi",
         dockPreviewOpenDelayCaption: "Panelin açılması için imlecin bir simgenin üzerinde ne kadar bekleyeceği.",
         dockPreviewQuitAppOnClose: "× düğmesiyle uygulamadan çık",
@@ -593,6 +594,7 @@ extension Strings {
         mixerOutputFallback: "Bu aygıt geri dönene kadar varsayılan kullanılıyor.",
         mixerBypassedCaption: "Bu uygulama sesini kendisi yönetir.",
         mixerOutputTooltip: "Çıkış seç",
+        mixerAirPlayChooseSpeaker: "AirPlay hoparlörü seç…",
         mixerSystemOutputTitle: "Çıkış",
         mixerSystemOutputNoDevices: "Çıkış bulunamadı",
         mixerSystemOutputTooltip: "Sistem çıkışını seç",
@@ -1081,6 +1083,8 @@ extension Strings {
         linearScrollCaption: "Fare tekerleğinin her adımı, ne kadar hızlı çevrilirse çevrilsin aynı mesafeyi kaydırır. İzleme dörtgeni değişmez.",
         linearScrollLinesLabel: "Adım başına satır",
         shelfClearOnClose: "Kapatınca temizle",
-        shelfClearOnCloseCaption: "Rafı yalnızca kapatma düğmesine tıkladığında boşaltır. Otomatik gizleme ve daraltma öğeleri korur."
+        shelfClearOnCloseCaption: "Rafı yalnızca kapatma düğmesine tıkladığında boşaltır. Otomatik gizleme ve daraltma öğeleri korur.",
+        shelfShortcutFinderSelection: "Kısayolla Finder seçimini ekle",
+        shelfShortcutFinderSelectionCaption: "Finder öndeyken kısayol, rafı seçili dosyalar içinde olacak şekilde açar. Hiçbir şey seçili değilse her zamanki gibi açılır."
     )
 }

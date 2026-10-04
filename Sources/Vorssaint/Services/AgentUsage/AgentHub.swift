@@ -185,7 +185,7 @@ enum AgentHubParser {
               let files = json["files"] as? [[String: Any]] else { return nil }
         return files.compactMap { file -> AgentHubAccount? in
             let kind = (file["provider"] as? String ?? file["type"] as? String ?? "").lowercased()
-            guard let provider = AgentProvider(rawValue: kind), (file["disabled"] as? Bool) != true,
+            guard let provider = AgentProvider(rawValue: kind), provider != .opencode, (file["disabled"] as? Bool) != true,
                   let index = text(file["auth_index"]) else { return nil }
             let email = text(file["email"])
             let fileName = text(file["name"]).map { $0.hasSuffix(".json") ? String($0.dropLast(5)) : $0 }

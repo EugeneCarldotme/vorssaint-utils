@@ -72,11 +72,14 @@ enum NotchMusicVisibilityTests {
         var captureControlsWork: DispatchWorkItem?
         var captureControlsSubscription: Bool?
         var captureControlsCancel: (() -> Void)?
+        var captureClose: (() -> Void)?
+        var captureClosesOnCollapse = false
         var notice: NotchNotice?
         var noticeExpanded = false
         var noticeWork: DispatchWorkItem?
         var dragPlaceholder = false
         var hasTimerActivity = false
+        var hasWatchActivity = false
         var hasDownloadActivity = false
         var downloadName: String?
         var hasAgentActivity = false
@@ -86,6 +89,8 @@ enum NotchMusicVisibilityTests {
         func timerStripWing(for companion: NotchCompactActivity?, in geometry: NotchGeometry) -> CGFloat { timerStripWing }
         var agentStripWing: CGFloat = 58
         func agentStripWing(in geometry: NotchGeometry) -> CGFloat { agentStripWing }
+        var watchStripWing: CGFloat = 60
+        func watchStripWing(in geometry: NotchGeometry) -> CGFloat { watchStripWing }
         var calendarStripWing: CGFloat = 120
         func calendarStripWing(for companion: NotchCompactActivity?, in geometry: NotchGeometry) -> CGFloat { calendarStripWing }
         var keepAwakeStripWing: CGFloat = 44
@@ -114,6 +119,10 @@ enum NotchMusicVisibilityTests {
         func removeCaptureControlsClickThrough() {}
         func refreshPresentation() {}
         func removeEventMonitors() {}
+        func clearCapture() {
+            captureClose = nil
+            captureClosesOnCollapse = false
+        }
         func mutatePresentation(transitionContent: NotchContentTransition, _ change: () -> Void) { change() }
     }
 
@@ -134,6 +143,25 @@ enum NotchMusicVisibilityTests {
         let service = Service()
         let reader = NotchMusicService.shared
         service.modules = NotchSupport.modules(in: defaults)
+
+        let persistentCapture = Service()
+        var persistentCloseCount = 0
+        persistentCapture.expanded = true
+        persistentCapture.captureClose = { persistentCloseCount += 1 }
+        persistentCapture.captureClosesOnCollapse = true
+        persistentCapture.collapse()
+        persistentCapture.collapse()
+        suite.expect(persistentCloseCount == 1 && persistentCapture.captureClose == nil
+                     && !persistentCapture.captureClosesOnCollapse,
+                     "collapsing a persistent capture closes and detaches it exactly once")
+
+        let timedCapture = Service()
+        var timedCloseCount = 0
+        timedCapture.expanded = true
+        timedCapture.captureClose = { timedCloseCount += 1 }
+        timedCapture.collapse()
+        suite.expect(timedCloseCount == 0 && timedCapture.captureClose != nil,
+                     "collapsing a timed capture leaves its timer-owned close path intact")
 
         for physical in [true, false] {
             service.geometry = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1470, height: 956),

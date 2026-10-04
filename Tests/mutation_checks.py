@@ -283,6 +283,11 @@ MUTATIONS = [
      "let kept = cursors.values.filter { !$0.restarted && $0.provider != .opencode }",
      "let kept = cursors.values.filter { $0.provider != .opencode }",
      "a log replaced or written again while the app ran is left out of saved progress"),
+    ("Codex conversation starts its plugins", "agents",
+     "Sources/Vorssaint/Services/AgentUsage/AgentCodexServer.swift",
+     "process.arguments = [\"-c\", \"features.plugins=false\", \"app-server\"]",
+     "process.arguments = [\"app-server\"]",
+     "a conversation starts Codex's server with its plugins off"),
 ]
 
 

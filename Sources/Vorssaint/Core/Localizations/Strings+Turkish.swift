@@ -179,7 +179,7 @@ extension Strings {
         middleClickSection: "İzleme dörtgeniyle orta tıklama",
         middleClickEnable: "Üç parmakla tıklama orta tıklama olur",
         middleClickEnableCaption: "İzleme dörtgenine üç parmakla basmak fare tekerleği tıklaması gibi çalışır: bağlantıları yeni sekmede açma, sekmeleri kapatma ve orta düğmenin yaptığı her şey.",
-        middleClickDragConflict: "macOS’un üç parmakla sürükleme özelliği açık ve aynı hareketi kullanıyor. Orta tıklamanın çalışması için Sistem Ayarları’nda Erişilebilirlik, İmleç Denetimi, İzleme Dörtgeni Seçenekleri bölümünden kapatın.",
+        middleClickDragConflict: "macOS’un üç parmakla sürükleme özelliği açık ve üç parmağı kullanıyor; orta tıklama için dört parmakla tıklayın. Üç parmak kullanmak için Sistem Ayarları’nda Erişilebilirlik, İmleç Denetimi, Trackpad Seçenekleri bölümünden kapatın.",
         middleClickNoTrackpad: "İzleme dörtgenindeki dokunuşlar okunamıyor. Desteklenen bir izleme dörtgeni bağlayın.",
         middleClickTapPicker: "Hafif dokunuş da tıklar",
         middleClickTapOff: "Kapalı",

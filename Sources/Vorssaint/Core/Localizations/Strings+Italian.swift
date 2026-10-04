@@ -179,7 +179,7 @@ extension Strings {
         middleClickSection: "Clic centrale da trackpad",
         middleClickEnable: "Il clic con tre dita agisce da clic centrale",
         middleClickEnableCaption: "Premere il trackpad con tre dita funziona come il clic della rotellina del mouse: aprire i link in una nuova scheda, chiudere le schede e tutto ciò che fa il tasto centrale.",
-        middleClickDragConflict: "Il trascinamento a tre dita di macOS è attivo e usa lo stesso gesto. Disattivalo in Impostazioni di Sistema, in Accessibilità, Controllo puntatore, Opzioni trackpad, e il clic centrale funzionerà.",
+        middleClickDragConflict: "Il trascinamento a tre dita di macOS è attivo e usa tre dita, quindi fai clic con quattro dita per il clic centrale. Per usarne tre, disattivalo in Impostazioni di Sistema, in Accessibilità, Controllo puntatore, Opzioni trackpad.",
         middleClickNoTrackpad: "Impossibile leggere i tocchi del trackpad. Collega un trackpad supportato.",
         middleClickTapPicker: "Anche un tocco leggero fa clic",
         middleClickTapOff: "Disattivato",

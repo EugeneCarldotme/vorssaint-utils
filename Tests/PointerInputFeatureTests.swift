@@ -3669,7 +3669,7 @@ enum MiddleClickTrackpadContract {
         var suppressedButtonSequence = false
         var fingerCount = 0
         var lastFrameUptime: TimeInterval = 0
-        var threeFingersSince: TimeInterval?
+        var fingerCountSince: TimeInterval = 0
         func releaseHeldMiddleButton() {}
         func resetTapCandidateLocked() {}
     }

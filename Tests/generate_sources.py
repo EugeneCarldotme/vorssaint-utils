@@ -166,6 +166,26 @@ def main():
                         "    func syncWithPreferences(", "    private func start(", "    func stop(",
                         "    private func handleLaunch(", "    private func handleMediaKeyEvent("])
           + "}\n}\n")
+    middle_click_lifecycle = "".join(
+        declaration("Sources/Vorssaint/Services/MiddleClick/MiddleClickService.swift", prefix)
+        .replace("private ", "", 1) for prefix in [
+            "    private func startMultitouch(", "    private func stopMultitouch(",
+            "    private func restartMultitouch(", "    private func installHotplugObserver(",
+            "    private func removeObservers(", "    private func stop("])
+    for function in ["IONotificationPortCreate", "IONotificationPortSetDispatchQueue",
+                     "IOServiceAddMatchingNotification", "IOServiceMatching", "IOIteratorNext",
+                     "IOObjectRelease", "IONotificationPortDestroy"]:
+        middle_click_lifecycle = middle_click_lifecycle.replace(function + "(", "IO." + function + "(")
+    write("MiddleClickTrackpad.swift", "import CoreGraphics\nimport Foundation\nimport IOKit\n"
+          + "extension MiddleClickTrackpadContract {\nfinal class Service: Fixture {\n"
+          + middle_click_lifecycle
+          + "}\n}\n")
+    menu_panel = "Sources/Vorssaint/UI/MenuPanel/MenuPanelView.swift"
+    write("MiddleClickPanelCaption.swift", "import Foundation\n"
+          + "extension MiddleClickTrackpadContract {\nfinal class Panel: PanelFixture {\n"
+          + "".join(declaration(menu_panel, prefix).replace("private ", "", 1) for prefix in [
+                "    private var middleClickCaption:", "    private func missingPermission("])
+          + "}\n}\n")
     write("RadialMenuProfileDeletion.swift", "import Foundation\n"
           + "extension RadialMenuProfileDeletionContract {\nfinal class Settings: Fixture {\n"
           + declaration("Sources/Vorssaint/UI/Settings/RadialMenuSettings.swift",

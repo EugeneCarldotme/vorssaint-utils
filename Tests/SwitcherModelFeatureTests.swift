@@ -575,6 +575,70 @@ enum SwitcherModelFeatureTests {
                "an app with a window on the visible Space cannot travel by being activated, so the move is asked for right away")
         suite.expect(SpaceHopSupport.firstStage(appHasWindowOnVisibleSpace: false) == .waitForActivationTravel,
                "an app with no window on the visible Space travels on activation, so that travel is waited on")
+        // Issue #1733: every arrival pulse raised the target again, so a window
+        // that the first pulse already left focused and in front flickered.
+        suite.expect(SpaceHopSupport.arrivalPulseShouldFocus(isFirstPulse: true,
+                                                       targetSpaceIsVisible: true,
+                                                       targetWindowID: 101,
+                                                       windowOwnerPID: 10,
+                                                       frontmostPID: 10,
+                                                       focusedWindowID: 101),
+               "the first arrival pulse always runs the focus pass")
+        suite.expect(!SpaceHopSupport.arrivalPulseShouldFocus(isFirstPulse: false,
+                                                        targetSpaceIsVisible: true,
+                                                        targetWindowID: 101,
+                                                        windowOwnerPID: 10,
+                                                        frontmostPID: 10,
+                                                        focusedWindowID: 101),
+               "a later arrival pulse does not raise a target already focused with its app in front")
+        suite.expect(!SpaceHopSupport.arrivalPulseShouldFocus(isFirstPulse: false,
+                                                        targetSpaceIsVisible: true,
+                                                        targetWindowID: 101,
+                                                        windowOwnerPID: 11,
+                                                        frontmostPID: 11,
+                                                        focusedWindowID: 101),
+               "a focused window owned by an embedded helper in front counts as landed")
+        suite.expect(SpaceHopSupport.arrivalPulseShouldFocus(isFirstPulse: false,
+                                                       targetSpaceIsVisible: true,
+                                                       targetWindowID: 101,
+                                                       windowOwnerPID: 11,
+                                                       frontmostPID: 10,
+                                                       focusedWindowID: 101),
+               "a later arrival pulse retries while the host app is in front of a window its embedded helper owns and reports as focused")
+        suite.expect(SpaceHopSupport.arrivalPulseShouldFocus(isFirstPulse: false,
+                                                       targetSpaceIsVisible: true,
+                                                       targetWindowID: 101,
+                                                       windowOwnerPID: 10,
+                                                       frontmostPID: 10,
+                                                       focusedWindowID: 102),
+               "a later arrival pulse retries when the app in front focused another of its windows")
+        suite.expect(SpaceHopSupport.arrivalPulseShouldFocus(isFirstPulse: false,
+                                                       targetSpaceIsVisible: true,
+                                                       targetWindowID: 101,
+                                                       windowOwnerPID: 10,
+                                                       frontmostPID: 10,
+                                                       focusedWindowID: nil),
+               "a later arrival pulse retries while Accessibility cannot report the focused window yet")
+        suite.expect(SpaceHopSupport.arrivalPulseShouldFocus(isFirstPulse: false,
+                                                       targetSpaceIsVisible: true,
+                                                       targetWindowID: 101,
+                                                       windowOwnerPID: 10,
+                                                       frontmostPID: 30,
+                                                       focusedWindowID: 101)
+               && SpaceHopSupport.arrivalPulseShouldFocus(isFirstPulse: false,
+                                                    targetSpaceIsVisible: true,
+                                                    targetWindowID: 101,
+                                                    windowOwnerPID: 10,
+                                                    frontmostPID: nil,
+                                                    focusedWindowID: 101),
+               "a later arrival pulse retries while another app, or no app, is reported in front")
+        suite.expect(SpaceHopSupport.arrivalPulseShouldFocus(isFirstPulse: false,
+                                                       targetSpaceIsVisible: false,
+                                                       targetWindowID: 101,
+                                                       windowOwnerPID: 10,
+                                                       frontmostPID: 10,
+                                                       focusedWindowID: 101),
+               "a later arrival pulse still retries while the window's Space is hidden, even with the window focused and its app in front")
         suite.expect(SpaceHopSupport.eventFlags(fromCarbonModifiers: 0x840000) == [.maskControl, .maskSecondaryFn],
                "the registered control+function mask replays with both flags")
         suite.expect(SpaceHopSupport.eventFlags(fromCarbonModifiers: 0x20000 | 0x100000) == [.maskShift, .maskCommand],
@@ -1943,6 +2007,20 @@ enum SwitcherModelFeatureTests {
                 && !WindowMaximizerSupport.excludes(bundleIdentifier: nil,
                                                     excludedBundleIdentifiers: ["com.example.game"]),
                "only apps on the exception list keep the native green button")
+        let dockRightTarget = CGSize(width: 1871, height: 1049)
+        suite.expect(WindowMaximizerSupport.overshoots(CGSize(width: 1920, height: 1049), target: dockRightTarget)
+                && WindowMaximizerSupport.overshoots(CGSize(width: 1873, height: 1049), target: dockRightTarget)
+                && WindowMaximizerSupport.overshoots(CGSize(width: 1871, height: 1080), target: dockRightTarget),
+               "a window left partly under the Dock is larger than the target, even within the frame tolerance")
+        suite.expect(!WindowMaximizerSupport.overshoots(CGSize(width: 1871, height: 1049), target: dockRightTarget)
+                && !WindowMaximizerSupport.overshoots(CGSize(width: 1870, height: 1049), target: dockRightTarget)
+                && !WindowMaximizerSupport.overshoots(CGSize(width: 936, height: 1049), target: dockRightTarget),
+               "an exact frame, or one the app kept smaller, is not treated as left under the Dock")
+        let approach = WindowMaximizerSupport.approachOrigin(for: CGPoint(x: 0, y: 31), tolerance: 4)
+        suite.expect(approach.x + dockRightTarget.width < 1870
+                && approach.y + dockRightTarget.height < 1080
+                && abs(approach.x) <= 4 && abs(approach.y - 31) <= 4,
+               "the approach keeps the full target size clear of the Dock edge, a tolerance from the target")
         suite.expect(registeredDefaults[DefaultsKey.keyboardDebounceEnabled] as? Bool == false,
                "keyboard debounce is opt-in")
         suite.expect(registeredDefaults[DefaultsKey.keyboardDebounceWindowMs] as? Int == 5,
@@ -4209,7 +4287,19 @@ enum SwitcherModelFeatureTests {
         suite.expect(MiddleClickSupport.actionForClick(fingerCount: 3, frameAge: 0.05, settledFor: 0.2,
                                                  sinceLastTransformEnd: nil,
                                                  systemDragGestureEnabled: true) == .passThrough,
-               "middle click stands down while the system three-finger drag owns the gesture")
+               "middle click leaves three-finger clicks to the system three-finger drag")
+        suite.expect(MiddleClickSupport.actionForClick(fingerCount: 4, frameAge: 0.05, settledFor: 0.2,
+                                                 sinceLastTransformEnd: nil,
+                                                 systemDragGestureEnabled: true) == .transform,
+               "middle click moves to a settled four-finger press while three-finger drag is on")
+        suite.expect(MiddleClickSupport.actionForClick(fingerCount: 4, frameAge: 0.05, settledFor: 0.01,
+                                                 sinceLastTransformEnd: nil,
+                                                 systemDragGestureEnabled: true) == .passThrough,
+               "middle click rejects a four-finger click arriving with the fourth finger's touchdown")
+        suite.expect(MiddleClickSupport.actionForClick(fingerCount: 4, frameAge: 0.05, settledFor: 0.2,
+                                                 sinceLastTransformEnd: 0.1,
+                                                 systemDragGestureEnabled: true) == .swallow,
+               "middle click drops the bounce after a four-finger transform")
 
         expectEqual(ColorValue.string(red: 1, green: 0, blue: 0, format: .hex), "#FF0000",
                     "color picker formats pure red as hex")
@@ -5374,6 +5464,13 @@ enum SwitcherModelFeatureTests {
         suite.expect(spaceHopCode.contains("state: self.focusState")
                && spaceHopCode.contains("knownWindowIDs: WindowActivator.focusSnapshot(ownerPID:"),
                "a hop snapshots the app's windows when it begins and hands that state to every pulse")
+        let pulseCheck = spaceHopCode.range(of: "SpaceHopSupport.arrivalPulseShouldFocus(")
+        let pulseFocus = spaceHopCode.range(of: "WindowActivator.focusAfterSpaceHop(")
+        suite.expect(pulseCheck != nil && pulseFocus != nil
+               && pulseCheck!.lowerBound < pulseFocus!.lowerBound,
+               "each arrival pulse asks whether the target already landed before it raises again")
+        suite.expect(spaceHopCode.contains("targetSpaceIsVisible: self.windowSpaceIsVisible()"),
+               "each arrival pulse checks that the window's Space is visible before it counts the target as landed")
         // Review of #1578: a hop across two or more desktops arrives with
         // whatever tops each desktop it passed in front. Reading that as "the
         // user moved on" would leave the window they picked behind that app,

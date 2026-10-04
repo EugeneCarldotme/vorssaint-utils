@@ -72,19 +72,25 @@ enum NotchMusicVisibilityTests {
         var captureControlsWork: DispatchWorkItem?
         var captureControlsSubscription: Bool?
         var captureControlsCancel: (() -> Void)?
+        var captureClose: (() -> Void)?
+        var captureClosesOnCollapse = false
         var notice: NotchNotice?
         var noticeExpanded = false
         var noticeWork: DispatchWorkItem?
         var dragPlaceholder = false
         var hasTimerActivity = false
+        var hasWatchActivity = false
         var hasDownloadActivity = false
         var downloadName: String?
         var hasAgentActivity = false
         var hasKeepAwakeActivity = false
+        var awaitsTrackNotice = false
         var timerStripWing: CGFloat = 44
         func timerStripWing(for companion: NotchCompactActivity?, in geometry: NotchGeometry) -> CGFloat { timerStripWing }
         var agentStripWing: CGFloat = 58
         func agentStripWing(in geometry: NotchGeometry) -> CGFloat { agentStripWing }
+        var watchStripWing: CGFloat = 60
+        func watchStripWing(in geometry: NotchGeometry) -> CGFloat { watchStripWing }
         var calendarStripWing: CGFloat = 120
         func calendarStripWing(for companion: NotchCompactActivity?, in geometry: NotchGeometry) -> CGFloat { calendarStripWing }
         var keepAwakeStripWing: CGFloat = 44
@@ -113,6 +119,10 @@ enum NotchMusicVisibilityTests {
         func removeCaptureControlsClickThrough() {}
         func refreshPresentation() {}
         func removeEventMonitors() {}
+        func clearCapture() {
+            captureClose = nil
+            captureClosesOnCollapse = false
+        }
         func mutatePresentation(transitionContent: NotchContentTransition, _ change: () -> Void) { change() }
     }
 
@@ -134,6 +144,25 @@ enum NotchMusicVisibilityTests {
         let reader = NotchMusicService.shared
         service.modules = NotchSupport.modules(in: defaults)
 
+        let persistentCapture = Service()
+        var persistentCloseCount = 0
+        persistentCapture.expanded = true
+        persistentCapture.captureClose = { persistentCloseCount += 1 }
+        persistentCapture.captureClosesOnCollapse = true
+        persistentCapture.collapse()
+        persistentCapture.collapse()
+        suite.expect(persistentCloseCount == 1 && persistentCapture.captureClose == nil
+                     && !persistentCapture.captureClosesOnCollapse,
+                     "collapsing a persistent capture closes and detaches it exactly once")
+
+        let timedCapture = Service()
+        var timedCloseCount = 0
+        timedCapture.expanded = true
+        timedCapture.captureClose = { timedCloseCount += 1 }
+        timedCapture.collapse()
+        suite.expect(timedCloseCount == 0 && timedCapture.captureClose != nil,
+                     "collapsing a timed capture leaves its timer-owned close path intact")
+
         for physical in [true, false] {
             service.geometry = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1470, height: 956),
                                             safeAreaTop: physical ? 32 : 0, cameraWidth: physical ? 180 : 0,
@@ -150,6 +179,13 @@ enum NotchMusicVisibilityTests {
             service.syncVisibleConsumers()
             suite.expect(!reader.running && service.surfaceSize == closed,
                          "fullscreen keeps a black cutout and stops the automatic playback reader")
+            let plain = service.geometry
+            service.geometry = NotchGeometry(screen: plain.screen, safeAreaTop: physical ? 32 : 0,
+                                             cameraWidth: physical ? 180 : 0, menuBarHeight: 32,
+                                             compactSideRoom: 100, outline: true)
+            suite.expect(service.surfaceSize == closed,
+                         "fullscreen draws no outline, so its cutout keeps to the camera without the outline's room")
+            service.geometry = plain
             service.showsCopies = true
             service.syncVisibleConsumers()
             suite.expect(reader.running, "copies on other displays keep the song while the island rests in fullscreen")
@@ -220,6 +256,11 @@ enum NotchMusicVisibilityTests {
                        && (service.surfaceSize == closed) == !playing,
                        "re-enabling music detects resume while paused playback occupies no wings")
             }
+            service.awaitsTrackNotice = true
+            suite.expect(service.compactActivity == nil && service.idleContent == .none && service.surfaceSize == closed,
+                   "a new song waiting for its notice leaves the closed island at rest, cover included")
+            service.awaitsTrackNotice = false
+            suite.expect(service.compactActivity == .music, "once released, the playing song takes the strip")
             defaults.set(true, forKey: DefaultsKey.notchOpenOnHover)
             defaults.set(true, forKey: DefaultsKey.notchHideUntilHover)
             service.syncVisibleConsumers()
@@ -316,5 +357,11 @@ enum NotchMusicVisibilityTests {
                         showsDownloads: false, wing: service.keepAwakeStripWing)
                      && service.surfaceSize == service.compactActivityGeometry.compactActivitySize,
                      "a running Keep Awake session takes the timer's wings in the closed island")
+        service.geometry = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1470, height: 956), safeAreaTop: 32,
+                                         cameraWidth: 180, menuBarHeight: 32, compactSideRoom: 100)
+        service.calendarStripWing = 66
+        suite.expect(service.compactGeometry(for: .calendar, companion: .music).compactActivityWingWidth == 66
+                     && service.compactGeometry(for: .calendar).compactActivityWingWidth == 72,
+                     "an event beside music takes the wings its pair needs, and alone keeps room for its title")
     }
 }

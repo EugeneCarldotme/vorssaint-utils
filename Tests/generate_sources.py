@@ -504,6 +504,7 @@ def main():
     write("OutputDeviceSound.swift", "import Foundation\nextension OutputDeviceSoundTests {\nfinal class Player: State {\n"
           + member("Sources/Vorssaint/UI/OutputDeviceFeedback.swift", "    private static let fallbackAlertPath").replace("private ", "", 1)
           + declaration("Sources/Vorssaint/UI/OutputDeviceFeedback.swift", "    private static func playSound(").replace("private ", "", 1)
+          + declaration("Sources/Vorssaint/UI/OutputDeviceFeedback.swift", "    private static func globalPreference(")
           + declaration("Sources/Vorssaint/UI/OutputDeviceFeedback.swift", "    static func stopSound(")
           + "}\n}\n")
     write("OutputDeviceConfirmation.swift", "import Foundation\nextension OutputDeviceConfirmationTests {\nfinal class Mixer {\n"

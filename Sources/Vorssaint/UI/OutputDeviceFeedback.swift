@@ -39,12 +39,9 @@ enum OutputDeviceFeedback {
     private static func playSound(deviceUID: String) {
         stopSound()
         guard UserDefaults.standard.bool(forKey: DefaultsKey.soundOutputConfirmationSoundEnabled) else { return }
-        // Read the global preference each time so Sound settings changes apply
+        // Read the global preferences each time so Sound settings changes apply
         // without restarting the app.
-        let alertPath = CFPreferencesCopyValue("com.apple.sound.beep.sound" as CFString,
-                                              kCFPreferencesAnyApplication,
-                                              kCFPreferencesCurrentUser,
-                                              kCFPreferencesAnyHost) as? String
+        let alertPath = globalPreference("com.apple.sound.beep.sound") as? String
         // NSSound.beep() plays through the sound-effects output, which can be
         // the speakers after the user picked headphones. A missing or broken
         // preference falls back to a bundled system sound instead, so the
@@ -60,8 +57,18 @@ enum OutputDeviceFeedback {
         // Alert sounds normally follow the separate macOS sound-effects output.
         // This confirmation belongs on the output the user just selected.
         sound.playbackDeviceIdentifier = deviceUID
+        // NSSound plays at full volume, while macOS plays alerts at the alert
+        // volume from Sound settings. An unset preference means that slider
+        // still sits at its full default.
+        let alertVolume = (globalPreference("com.apple.sound.beep.volume") as? NSNumber)?.floatValue ?? 1
+        sound.volume = alertVolume.isFinite ? min(1, max(0, alertVolume)) : 1
         playingSound = sound
         sound.play()
+    }
+
+    private static func globalPreference(_ key: String) -> CFPropertyList? {
+        CFPreferencesCopyValue(key as CFString, kCFPreferencesAnyApplication,
+                               kCFPreferencesCurrentUser, kCFPreferencesAnyHost)
     }
 
     static func syncWithPreferences() {

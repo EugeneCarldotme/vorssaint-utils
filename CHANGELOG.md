@@ -77,6 +77,7 @@ Dynamic Island gains an optional companion, a Command Bar that opens from it and
 - Cancelling a GIF export from the recording editor no longer leaves a hidden empty file in the folder it was saving to.
 - Uninstalling with `Tools/uninstall.sh` now removes the password-free closed-lid rule, which the script used to leave behind.
 - The Uninstaller's app pickers and the Command Bar's Uninstall Application list offer only apps it can remove, so Apple's App Store apps, iPhone and iPad apps and linked apps no longer lead back to an empty drop zone. A refused app or a link dragged from a browser springs back from the drop zone instead.
+- App Switcher keeps showing apps that are too busy to describe their windows to Accessibility in time.
 - A turn that goes through a CLIProxyAPI hub no longer shows the agent's own plan limit beside the camera. The reading now shows the account with the least left among the accounts the working turns can use: those on the hub each turn reaches, serving its model.
 - Removing a hub, replacing its key or turning the AI section off cancels a hub reading still under way, and a key revoked while accounts are being read stops every further request instead of counting toward the hub's ban.
 - The Claude card shared with a hub account raises limit warnings from the same latest reading it shows, including the first hub reply after launch.

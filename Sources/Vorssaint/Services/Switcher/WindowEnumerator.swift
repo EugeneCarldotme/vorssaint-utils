@@ -806,7 +806,10 @@ enum WindowEnumerator {
         // If an app reports AX windows but none resolve to WindowServer ids,
         // keep the old behavior instead of hiding a real window for that app.
         if !ordered.isEmpty {
-            return AccessibilityWindowSnapshotList(ordered: ordered, byID: byID, unansweredIDs: unansweredIDs)
+            // A described sibling cannot identify a different window whose
+            // timed-out read also failed to resolve its WindowServer id.
+            return AccessibilityWindowSnapshotList(ordered: ordered, byID: byID, unansweredIDs: unansweredIDs,
+                everyWindowUnanswered: unansweredIDs.count != unansweredWindows.count)
         }
         return nil
     }

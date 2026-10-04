@@ -47,6 +47,16 @@ def availability_declaration(path, prefix):
 
 def main():
     OUTPUT.mkdir(parents=True, exist_ok=True)
+    write("SwitcherAccessibilitySnapshot.swift", "import ApplicationServices\nimport CoreGraphics\nimport Foundation\n"
+          + "extension SwitcherAccessibilitySnapshotTests.Reader {\n"
+          + "".join(declaration("Sources/Vorssaint/Services/Switcher/WindowEnumerator.swift", prefix)
+                    .replace("private ", "", 1) for prefix in [
+                        "    private struct AccessibilityWindowSnapshot {",
+                        "    private struct AccessibilityWindowSnapshotList {",
+                        "    private enum WindowReading {",
+                        "    private static func accessibilityWindows(for pid: pid_t,",
+                        "    private static func appendUnique(", "    private static func contains("])
+          + "}\n")
     write("NotchActivityPicker.swift", "import SwiftUI\n"
           + declaration("Sources/Vorssaint/UI/Notch/NotchView.swift", "struct NotchShape: Shape {")
           + declaration("Sources/Vorssaint/UI/Notch/NotchView.swift", "struct NotchActivityPicker: View {"))

@@ -74,6 +74,7 @@ Dynamic Island gains an optional companion, a Command Bar that opens from it and
 - Cancelling a GIF export from the recording editor no longer leaves a hidden empty file in the folder it was saving to.
 - Uninstalling with `Tools/uninstall.sh` now removes the password-free closed-lid rule, which the script used to leave behind.
 - The Uninstaller's app pickers and the Command Bar's Uninstall Application list offer only apps it can remove, so Apple's App Store apps, iPhone and iPad apps and linked apps no longer lead back to an empty drop zone. A refused app or a link dragged from a browser springs back from the drop zone instead.
+- App Switcher keeps showing apps that are too busy to describe their windows to Accessibility in time.
 
 ### Contributors
 Thanks to @69grcv8vfm-sys, @AlirezaBs, @bebricoOOOOOOf, @benjaminbelloeil, @benjaminbrtrd, @bmrtfm, @dc0dr, @dreammissnot, @emreertunc, @EugeneCarldotme, @Ffinnis, @frieddeli, @Frozen0wl, @gorillasuti, @ilim-cell, @iltonandrew, @itsalexcoman, @LeChaEgg, @mikeknight85, @niukanen1, @PathGao, @Qarru, @Retr0MrWave, @ruvelro, @sagnikonly, @samanyudas, @sarat03, @shlok1806, @thitiwats, @trac3r00 and @yuzu-octopus. Feedback: Barbel Design, Emanuele Frasca, Pinea and the/master.

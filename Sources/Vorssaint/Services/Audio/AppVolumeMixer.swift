@@ -828,7 +828,11 @@ final class AppVolumeMixer: ObservableObject {
         // island treats the first reading after a switch as its baseline. If
         // the old output's level stayed here until the next refresh, the new
         // device's reading would look like a volume change and replace the
-        // device name notice.
+        // device name notice. Moving the control listeners first ends the old
+        // output's control lifetime. Its pending write can then no longer hold
+        // back this reading, and its queued refresh can no longer publish the
+        // old level after it.
+        subscribeToOutputControls(of: device.audioObjectID)
         let volume = Self.hasSettableOutputVolume(for: device.audioObjectID)
             ? Self.outputVolume(for: device.audioObjectID).map(Double.init) : nil
         applyOutputControls(volume: volume, muted: Self.outputMuted(for: device.audioObjectID))

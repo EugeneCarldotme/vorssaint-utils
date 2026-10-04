@@ -147,6 +147,11 @@ def main():
           + declaration("Sources/Vorssaint/Services/Switcher/WindowPreviewProvider.swift",
                         "    static func captureViaWindowServer(")
           + "}\n")
+    write("ScreenshotAttachedCapture.swift", "import AppKit\nimport ScreenCaptureKit\n"
+          + "extension ScreenshotAttachedCaptureTests {\nenum Engine {\n"
+          + declaration("Sources/Vorssaint/Services/QuickTools/ScreenshotCaptureEngine.swift",
+                        "    private static func composeAttached(").replace("private static", "static", 1)
+          + "}\n}\n")
     write("ScratchpadExport.swift", "import AppKit\nimport Foundation\n"
           + "extension ScratchpadExportContract {\nfinal class Service: Fixture {\n"
           + declaration("Sources/Vorssaint/Services/QuickTools/ScratchpadService.swift",

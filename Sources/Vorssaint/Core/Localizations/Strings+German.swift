@@ -1023,7 +1023,7 @@ extension Strings {
         highlightsTry: "Ausprobieren",
         highlightsSeeAll: "Alle Änderungen ansehen",
         switcherCurrentSpaceOnly: "Nur den aktuellen Schreibtisch anzeigen",
-        switcherCurrentSpaceOnlyCaption: "Zeigt im Umschalter nur Fenster des Schreibtischs, auf dem du gerade bist. Die Auswahl eines Fensters wechselt nie zu einem anderen Schreibtisch.",
+        switcherCurrentSpaceOnlyCaption: "Zeigt Fenster des aktuellen Schreibtischs an. Wenn Vollbildfenster angezeigt werden, erscheinen sie auch von anderen Schreibtischen.",
         shelfFileMissing: "Die Datei existiert nicht mehr",
         previewSizeSmall: "Klein",
         mixerSoundEffectsOutputTitle: "Systemtöne",

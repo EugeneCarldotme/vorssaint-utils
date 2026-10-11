@@ -1023,7 +1023,7 @@ extension Strings {
         highlightsTry: "Probar",
         highlightsSeeAll: "Ver todos los cambios",
         switcherCurrentSpaceOnly: "Mostrar solo el escritorio actual",
-        switcherCurrentSpaceOnlyCaption: "Muestra en el selector solo las ventanas del escritorio en el que estás. Elegir una ventana nunca te lleva a otro escritorio.",
+        switcherCurrentSpaceOnlyCaption: "Muestra las ventanas del escritorio actual. Si está activada la opción de mostrar ventanas en pantalla completa, estas también aparecen desde otros escritorios.",
         shelfFileMissing: "El archivo ya no existe",
         previewSizeSmall: "Pequeño",
         mixerSoundEffectsOutputTitle: "Sonidos del sistema",

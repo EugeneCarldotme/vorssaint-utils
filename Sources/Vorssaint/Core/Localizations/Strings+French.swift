@@ -1023,7 +1023,7 @@ extension Strings {
         highlightsTry: "Essayer",
         highlightsSeeAll: "Voir tous les changements",
         switcherCurrentSpaceOnly: "Afficher uniquement le bureau actuel",
-        switcherCurrentSpaceOnlyCaption: "N’affiche dans le sélecteur que les fenêtres du bureau où vous êtes. Choisir une fenêtre ne vous emmène jamais sur un autre bureau.",
+        switcherCurrentSpaceOnlyCaption: "Affiche les fenêtres du bureau actuel. Si les fenêtres plein écran sont affichées, elles apparaissent aussi depuis les autres bureaux.",
         shelfFileMissing: "Le fichier n’existe plus",
         previewSizeSmall: "Petite",
         mixerSoundEffectsOutputTitle: "Sons du système",

@@ -1023,7 +1023,7 @@ extension Strings {
         highlightsTry: "Dene",
         highlightsSeeAll: "Tüm değişiklikleri gör",
         switcherCurrentSpaceOnly: "Yalnızca geçerli masaüstünü göster",
-        switcherCurrentSpaceOnlyCaption: "Değiştiricide yalnızca bulunduğunuz masaüstündeki pencereler listelenir. Bir pencere seçmek sizi asla başka bir masaüstüne taşımaz.",
+        switcherCurrentSpaceOnlyCaption: "Geçerli masaüstündeki pencereleri listeler. Tam ekran pencereleri gösterme seçeneği açıkken, diğer masaüstlerindeki tam ekran pencereleri de gösterilir.",
         shelfFileMissing: "Dosya artık yok",
         previewSizeSmall: "Küçük",
         mixerSoundEffectsOutputTitle: "Sistem sesleri",

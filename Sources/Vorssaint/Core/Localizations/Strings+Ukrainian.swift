@@ -993,7 +993,7 @@ extension Strings {
         highlightsTry: "Спробувати",
         highlightsSeeAll: "Усі зміни",
         switcherCurrentSpaceOnly: "Показувати лише поточний робочий стіл",
-        switcherCurrentSpaceOnlyCaption: "У перемикачі видно лише вікна робочого стола, на якому ви знаходитеся. Вибір вікна ніколи не переносить вас на інший робочий стіл.",
+        switcherCurrentSpaceOnlyCaption: "Показує вікна поточного робочого стола. Якщо ввімкнено показ повноекранних вікон, вони також відображаються з інших робочих столів.",
         shelfFileMissing: "Файл більше не існує",
         previewSizeSmall: "Малий",
         mixerSoundEffectsOutputTitle: "Системні звуки",

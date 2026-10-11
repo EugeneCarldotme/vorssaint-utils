@@ -1023,7 +1023,7 @@ extension Strings {
         highlightsTry: "试一试",
         highlightsSeeAll: "查看全部更改",
         switcherCurrentSpaceOnly: "仅显示当前桌面",
-        switcherCurrentSpaceOnlyCaption: "切换器中只显示你所在桌面的窗口。选择窗口不会把你带到其他桌面。",
+        switcherCurrentSpaceOnlyCaption: "显示当前桌面的窗口。启用显示全屏窗口时，也会显示其他桌面的全屏窗口。",
         shelfFileMissing: "文件已不存在",
         previewSizeSmall: "小",
         mixerSoundEffectsOutputTitle: "系统声音",

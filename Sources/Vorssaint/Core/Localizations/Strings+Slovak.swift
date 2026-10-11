@@ -1023,7 +1023,7 @@ extension Strings {
         highlightsTry: "Vyskúšať",
         highlightsSeeAll: "Zobraziť všetky zmeny",
         switcherCurrentSpaceOnly: "Zobraziť len aktuálnu plochu",
-        switcherCurrentSpaceOnlyCaption: "Vypíše len okná z plochy, na ktorej ste. Výber okna vás nikdy neprenesie na inú plochu.",
+        switcherCurrentSpaceOnlyCaption: "Zobrazuje okná aktuálnej plochy. Ak je zapnuté zobrazovanie okien na celej obrazovke, zobrazujú sa aj z ostatných plôch.",
         shelfFileMissing: "Súbor už neexistuje",
         previewSizeSmall: "Malá",
         mixerSoundEffectsOutputTitle: "Systémové zvuky",

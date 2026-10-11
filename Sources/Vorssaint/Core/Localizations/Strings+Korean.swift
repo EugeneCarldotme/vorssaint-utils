@@ -1024,7 +1024,7 @@ extension Strings {
         highlightsTry: "사용해 보기",
         highlightsSeeAll: "모든 변경 사항 보기",
         switcherCurrentSpaceOnly: "현재 데스크탑만 표시",
-        switcherCurrentSpaceOnlyCaption: "지금 있는 데스크탑의 윈도우만 전환기에 표시합니다. 윈도우를 선택해도 다른 데스크탑으로 이동하지 않습니다.",
+        switcherCurrentSpaceOnlyCaption: "현재 데스크탑의 윈도우를 표시합니다. 전체 화면 윈도우 표시가 켜져 있으면 다른 데스크탑의 전체 화면 윈도우도 표시합니다.",
         shelfFileMissing: "파일이 더 이상 존재하지 않습니다",
         previewSizeSmall: "작게",
         mixerSoundEffectsOutputTitle: "시스템 사운드",

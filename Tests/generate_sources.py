@@ -47,6 +47,22 @@ def availability_declaration(path, prefix):
 
 def main():
     OUTPUT.mkdir(parents=True, exist_ok=True)
+    write("SwitcherFullscreenScope.swift", "import AppKit\nimport ApplicationServices\nimport CoreGraphics\n"
+          + "extension SwitcherFullscreenScopeTests.Enumerator {\n"
+          + "".join(declaration("Sources/Vorssaint/Services/Switcher/WindowEnumerator.swift", prefix)
+                    .replace("private ", "", 1) for prefix in [
+                        "    struct DisplayScope:", "    struct WindowList {", "    struct AppSnapshot:",
+                        "    struct Snapshot:", "    static func enumerateSwitcherWindows(",
+                        "    static func listWindowsForCommandBar(",
+                        "    private static func listWindows(appRules:",
+                        "    private static func listWindows(filterPID:",
+                        "    private struct AccessibilityWindowSnapshot {",
+                        "    private struct AccessibilityWindowSnapshotList {",
+                        "    private static func appendAccessibilityOnlyWindows(",
+                        "    private static func appendWindowlessApps(",
+                        "    private static func switchableFrame(", "    private static func frameIsSwitchable(",
+                        "    private static func frameLooksFullscreen("])
+          + "}\n")
     write("RecorderSystemAudioTapLifecycle.swift", "import CoreAudio\nimport Foundation\n"
           + "extension RecorderSystemAudioTapLifecycleTests {\nfinal class Tap: Fixture, @unchecked Sendable {\n"
           + declaration("Sources/Vorssaint/Services/Recorder/RecorderSystemAudioTap.swift", "    func stop() async")

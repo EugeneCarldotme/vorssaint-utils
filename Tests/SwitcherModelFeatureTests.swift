@@ -146,6 +146,7 @@ enum SwitcherModelFeatureTests {
 
     static func run(_ suite: TestSuite) {
         SwitcherAccessibilitySnapshotTests.run(suite)
+        SwitcherFullscreenScopeTests.run(suite)
         ScrollingTitleMotionTests.run(suite)
         scrollNavigationChecks(suite)
         func expectEqual(_ actual: String, _ expected: String, _ label: String,

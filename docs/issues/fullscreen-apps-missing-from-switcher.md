@@ -52,4 +52,4 @@ The test covers both enumeration passes, a fullscreen window missing from Access
 - Cover the exclusion with a regression test that fails before the fix.
 - State separately which native interactions were verified and which remain untested.
 
-This report is local. No GitHub issue has been created.
+GitHub issue: [#2961](https://github.com/vorssaint/vorssaint-utils/issues/2961).

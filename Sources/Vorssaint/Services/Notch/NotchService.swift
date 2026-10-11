@@ -3970,9 +3970,17 @@ final class NotchService: ObservableObject {
     func showVolume(_ volume: Double, muted: Bool? = nil) -> Bool {
         guard volume.isFinite else { return false }
         let value = muted == true ? 0 : min(1, max(0, volume))
+        let mixer = AppVolumeMixer.shared
+        let output = mixer.outputDevices.first { $0.uid == mixer.currentOutputDeviceUID }
+        let symbol: String
+        if let output, output.isHeadphones {
+            symbol = NotchAccessorySupport.symbol(for: .audio, name: output.name)
+        } else {
+            symbol = value == 0 ? "speaker.slash.fill" : "speaker.wave.2.fill"
+        }
         return show(NotchNotice(event: .volume, title: FeatureStrings.notch(L10n.shared.language).volume,
                                 detail: "\(Int((value * 100).rounded()))%",
-                                symbol: value == 0 ? "speaker.slash.fill" : "speaker.wave.2.fill", level: value))
+                                symbol: symbol, level: value))
     }
 
     private func startPower() {

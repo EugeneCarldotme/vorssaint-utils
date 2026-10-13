@@ -546,18 +546,27 @@ enum WindowEnumerator {
             SwitcherSupport.itemsOnDisplay(filtered, displayBounds: $0.bounds, targetIndex: $0.targetIndex)
         } ?? filtered
         let groupedBackingWindows = groupByApp && preservingGroupedWindows ? scoped : []
+        // Current-desktop mode keeps fullscreen windows from other desktops.
+        // One of them stands in for its app only when the app has no window
+        // here, so picking the app never moves the user to another desktop.
+        func groupedByApp(_ items: [SwitcherItem]) -> [SwitcherItem] {
+            SwitcherSupport.groupWindowsByApp(items, isOnHiddenSpace: { item in
+                guard currentSpaceOnly, let windowID = item.windowID else { return false }
+                return isOnHiddenSpace(windowID)
+            })
+        }
         var ordered: [SwitcherItem]
         if minimizedPlacement == .end {
             let primary = scoped.filter { !affectedByMinimizedPlacement($0) }
             let deferred = scoped.filter { affectedByMinimizedPlacement($0) }
             let orderedPrimary = orderByUse(primary, frontToBack: frontToBack)
             let orderedDeferred = orderByUse(deferred, frontToBack: frontToBack)
-            let groupedPrimary = groupByApp ? SwitcherSupport.groupWindowsByApp(orderedPrimary) : orderedPrimary
-            let groupedDeferred = groupByApp ? SwitcherSupport.groupWindowsByApp(orderedDeferred) : orderedDeferred
+            let groupedPrimary = groupByApp ? groupedByApp(orderedPrimary) : orderedPrimary
+            let groupedDeferred = groupByApp ? groupedByApp(orderedDeferred) : orderedDeferred
             ordered = groupedPrimary + groupedDeferred
         } else {
             let orderedRaw = orderByUse(scoped, frontToBack: frontToBack)
-            ordered = groupByApp ? SwitcherSupport.groupWindowsByApp(orderedRaw) : orderedRaw
+            ordered = groupByApp ? groupedByApp(orderedRaw) : orderedRaw
         }
         let backingOrdered: [SwitcherItem]
         if groupByApp, preservingGroupedWindows {

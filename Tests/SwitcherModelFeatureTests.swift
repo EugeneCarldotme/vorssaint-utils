@@ -1363,7 +1363,7 @@ enum SwitcherModelFeatureTests {
             contentsOfFile: "Sources/Vorssaint/Services/Switcher/WindowEnumerator.swift",
             encoding: .utf8)) ?? ""
         let displayFilter = enumeratorCode.range(of: "SwitcherSupport.itemsOnDisplay(filtered,")
-        let grouping = enumeratorCode.range(of: "SwitcherSupport.groupWindowsByApp(orderedPrimary)")
+        let grouping = enumeratorCode.range(of: "groupedByApp(orderedPrimary)")
         let entryCap = enumeratorCode.range(of: "limit: maximumCount")
         suite.expect(displayFilter != nil && grouping != nil && entryCap != nil
                && displayFilter!.lowerBound < grouping!.lowerBound
@@ -4641,6 +4641,37 @@ enum SwitcherModelFeatureTests {
                && appGroups[0].windowCount == 2
                && appGroups[1].representativeIndex == 2,
                "App Switcher icon-row mode keeps one row entry per app")
+        // Current-desktop mode still lists fullscreen windows from other
+        // desktops. The icon row must keep picking an app's window here.
+        let fullscreenElsewhere = SwitcherItem.window(id: 5, title: "Video", appName: "Alpha", pid: 101,
+                                                      isOnScreen: false, isFullscreen: true, frame: .zero)
+            .withHiddenSpaceState(true)
+        let currentDesktopItems = [groupedSwitcherItems[2], fullscreenElsewhere, groupedSwitcherItems[0]]
+        let currentDesktopGroups = SwitcherSupport.appGroups(items: currentDesktopItems, currentSpaceOnly: true)
+        suite.expect(currentDesktopGroups.map(\.pid) == [202, 101]
+               && currentDesktopGroups.map(\.representativeIndex) == [0, 2]
+               && currentDesktopGroups[1].windowCount == 2,
+               "current-desktop icon row picks the app's window here over its fullscreen window on another desktop")
+        suite.expect(SwitcherSupport.nextAppSelectionIndex(items: currentDesktopItems, selectedIndex: 0, delta: 1,
+                                                           currentSpaceOnly: true) == 2,
+               "current-desktop app stepping lands on the app's window here")
+        suite.expect(SwitcherSupport.appGroups(items: currentDesktopItems).map(\.representativeIndex) == [0, 1],
+               "all-desktop icon row keeps the app's most recent window as its entry")
+        suite.expect(SwitcherSupport.appGroups(items: [groupedSwitcherItems[2], fullscreenElsewhere],
+                                               currentSpaceOnly: true).map(\.representativeIndex) == [0, 1],
+               "a fullscreen window on another desktop still stands in for an app with no window here")
+        let iconRepresentativeReaders = [
+            sourceBody(of: switcherSource, from: "private func initialSelectionIndex(",
+                       to: "private func focusedWindowID("),
+            sourceBody(of: switcherSource, from: "private func advanceAppSelection(",
+                       to: "private func advanceWindowInSelectedApp("),
+            sourceBody(of: switcherSource, from: "private func selectionIndex(forIconRowIndex",
+                       to: "private func revealSelectedIconInVisibleRow("),
+            sourceBody(of: switcherCardSource, from: "private var appGroups: [SwitcherAppGroup] {",
+                       to: "private var iconRowContentWidth"),
+        ]
+        suite.expect(iconRepresentativeReaders.allSatisfy { $0.contains("currentSpaceOnly: currentSpaceOnly") },
+               "the icon row's first selection, app steps, icon clicks and edge hover share the current-desktop entry")
         let windowlessApps = [SwitcherItem.appOnly(appName: "Gamma", pid: 303),
                               SwitcherItem.appOnly(appName: "Delta", pid: 404)]
         let dividerViewSource = switcherCardSource

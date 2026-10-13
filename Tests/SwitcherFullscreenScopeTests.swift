@@ -108,13 +108,13 @@ enum SwitcherFullscreenScopeTests {
         // The browser's hidden fullscreen window can be missing from AX.
         Enumerator.answers[3] = .init(ordered: [], byID: [:])
 
-        func enumerate(currentSpaceOnly: Bool, showFullscreen: Bool = true,
+        func enumerate(currentSpaceOnly: Bool, showFullscreen: Bool = true, groupByApp: Bool = false,
                        appRules: [String: SwitcherAppRule] = [:]) -> Enumerator.WindowList {
             Preferences.standard.values = [DefaultsKey.switcherCurrentSpaceOnly: currentSpaceOnly,
                                             DefaultsKey.switcherShowFullscreenWindows: showFullscreen,
                                             DefaultsKey.switcherWindowlessApps: "off",
                                             DefaultsKey.switcherAppRules: SwitcherAppRule.storedValue(appRules)]
-            return Enumerator.enumerateSwitcherWindows(groupByApp: false,
+            return Enumerator.enumerateSwitcherWindows(groupByApp: groupByApp,
                                                         preservingGroupedWindows: false, snapshot: snapshot)
         }
         let scoped = enumerate(currentSpaceOnly: true)
@@ -133,6 +133,8 @@ enum SwitcherFullscreenScopeTests {
                      "fullscreen scope does not override app exclusions in either enumeration pass")
         suite.expect(Set(enumerate(currentSpaceOnly: false).items.compactMap(\.windowID)) == [1, 2, 3, 4, 5, 6],
                      "all-desktop enumeration retains ordinary and fullscreen windows")
+        suite.expect(Set(enumerate(currentSpaceOnly: true, groupByApp: true).items.compactMap(\.windowID)) == [1, 3, 4, 6],
+                     "one entry per app keeps a fullscreen window for an app with no window on this desktop")
         let dock = Enumerator.listWindows(filterPID: 3, maximumCount: 12, windowlessApps: .off,
                                           appRules: [:], groupByApp: false, minimizedPlacement: .normal,
                                           treatHiddenAppsLikeMinimized: false, showFullscreenWindows: true,
@@ -146,5 +148,42 @@ enum SwitcherFullscreenScopeTests {
         Bridge.excluded = [3]
         suite.expect(!enumerate(currentSpaceOnly: true).items.contains { $0.windowID == 3 },
                      "an unmatched cycle-excluded fullscreen helper stays out")
+
+        // App 1 also plays a fullscreen video on another desktop. With one
+        // entry per app, its window here must stay the entry to pick.
+        Bridge.excluded = []
+        Bridge.memberships = [7: [1], 8: [3]]
+        func browser(_ order: [CGWindowID], minimized: Bool = false) {
+            Enumerator.raw = order.map { id -> [String: Any] in
+                let bounds = ["X": 0, "Y": 0, "Width": id == 7 ? 600 : 900, "Height": id == 7 ? 400 : 600]
+                return [kCGWindowNumber as String: NSNumber(value: id),
+                 kCGWindowOwnerPID as String: NSNumber(value: 1),
+                 kCGWindowLayer as String: NSNumber(value: 0),
+                 kCGWindowBounds as String: bounds,
+                 kCGWindowIsOnscreen as String: NSNumber(value: id == 7 && !minimized),
+                 kCGWindowAlpha as String: NSNumber(value: 1),
+                 kCGWindowName as String: "Window \(id)"]
+            }
+            let local = Enumerator.AccessibilityWindowSnapshot(
+                title: "Window 7", frame: CGRect(x: 0, y: 0, width: 600, height: 400),
+                isMinimized: minimized, isFullscreen: false, isNativeFullscreen: false)
+            let video = Enumerator.AccessibilityWindowSnapshot(
+                title: "Window 8", frame: frame, isMinimized: false, isFullscreen: true, isNativeFullscreen: true)
+            Enumerator.answers = [1: .init(ordered: [(id: 7, snapshot: local), (id: 8, snapshot: video)],
+                                           byID: [7: local, 8: video])]
+        }
+        func representative(currentSpaceOnly: Bool) -> [CGWindowID] {
+            enumerate(currentSpaceOnly: currentSpaceOnly, groupByApp: true).items.compactMap(\.windowID)
+        }
+        browser([7, 8])
+        suite.expect(representative(currentSpaceOnly: true) == [7],
+                     "one entry per app keeps the window here over a later fullscreen window on another desktop")
+        suite.expect(representative(currentSpaceOnly: false) == [8],
+                     "all-desktop grouping still prefers the app's fullscreen window")
+        browser([8, 7], minimized: true)
+        suite.expect(representative(currentSpaceOnly: true) == [7],
+                     "a minimized window here replaces a fullscreen window from another desktop as the app's entry")
+        suite.expect(enumerate(currentSpaceOnly: true).items.compactMap(\.windowID) == [8, 7],
+                     "without grouping both windows of the app stay listed")
     }
 }

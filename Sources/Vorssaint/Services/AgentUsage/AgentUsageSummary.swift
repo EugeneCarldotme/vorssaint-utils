@@ -26,7 +26,7 @@ struct AgentTotals: Equatable {
 
     mutating func add(_ record: AgentUsageRecord) {
         tokens += record.tokens
-        requests += 1
+        requests += max(0, record.requests)
         savings += record.savings
         if let price = record.cost { cost += price } else { unpriced += 1 }
     }
@@ -374,7 +374,7 @@ final class AgentUsageSummaryCache {
                                         reasoning: -previous.tokens.reasoning)
             delta.cost -= previous.cost ?? 0
             delta.savings -= previous.savings
-            delta.requests -= 1
+            delta.requests -= previous.requests
             delta.unpriced -= previous.cost == nil ? 1 : 0
         }
         history!.days[day].byProvider[record.provider, default: AgentTotals()] += delta
@@ -411,8 +411,16 @@ enum AgentLimitSupport {
                                 scope: window.scope, usedPercent: 0, resetsAt: nil)
     }
 
+    /// Once an estimate has passed, the countdown is unknown until another
+    /// reading places it. That does not mean the allowance has renewed.
+    static func displayedReset(_ window: AgentLimitWindow, now: Date) -> Date? {
+        guard let reset = window.estimatedResetsAt ?? window.resetsAt, reset > now else { return nil }
+        return reset
+    }
+
     static func pace(for window: AgentLimitWindow, now: Date) -> AgentPace? {
-        guard let minutes = window.minutes, minutes > 0, let resets = window.resetsAt, resets > now else { return nil }
+        guard let minutes = window.minutes, minutes > 0,
+              let resets = displayedReset(window, now: now) else { return nil }
         let length = TimeInterval(minutes) * 60
         let elapsed = now.timeIntervalSince(resets.addingTimeInterval(-length))
         guard elapsed > 0 else { return nil }

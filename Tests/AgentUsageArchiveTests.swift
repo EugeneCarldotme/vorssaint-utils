@@ -60,10 +60,12 @@ enum AgentUsageArchiveTests {
         suite.expect(decoded == contents, "saved progress reads back as it was written")
         var sourced = contents
         sourced.store.limits = [AgentLimits.Source.sessionLog, .claudeApp, .account].map {
-            AgentLimits(provider: .codex, windows: [], observedAt: now, source: $0)
+            AgentLimits(provider: .codex, windows: [AgentLimitWindow(id: "test", kind: .session, minutes: 300,
+                scope: nil, usedPercent: 90, resetsAt: now.addingTimeInterval(18_000),
+                estimatedResetsAt: now.addingTimeInterval(9_000))], observedAt: now, source: $0)
         }
         suite.expect(AgentUsageArchive.decode(AgentUsageArchive.encode(sourced, build: build), build: build) == sourced,
-                     "limits keep where they came from: a log, the Claude app or the account")
+                     "limits keep their source and preserve the estimate separately from the expiry deadline")
         suite.expect(!first.saved.records.isEmpty && !first.saved.limits.isEmpty && first.saved.codexPlan != nil
                         && !first.saved.turns.isEmpty && cursor.state.fast && !cursor.state.model.isEmpty,
                      "the fixture saves records, limits, a plan, an open turn and parser context")
@@ -285,17 +287,17 @@ enum AgentUsageArchiveTests {
             ("AgentUsageArchive.Contents", labels(contents), ["providers", "store", "cursors"]),
             ("AgentUsageStore", labels(first),
              ["records", "billables", "sources", "index", "summary", "limits", "codexPlan", "codexPlanObserved",
-              "turns", "waiting", "registered", "settled", "reportsTransitions"]),
+              "turns", "waiting", "registered", "settled", "replies", "reportsTransitions"]),
             ("AgentUsageStore.Saved", labels(sample),
              ["records", "limits", "codexPlan", "codexPlanObserved", "turns", "waiting"]),
             ("AgentUsageStore.Saved.Record", labels(sampleRecord), ["key", "record", "billable", "sources"]),
             ("AgentUsageRecord", labels(sampleRecord.record),
-             ["provider", "date", "model", "project", "session", "tokens", "cost", "savings", "reportedCost"]),
+             ["provider", "date", "model", "project", "session", "requests", "tokens", "cost", "savings", "reportedCost"]),
             ("AgentBillable", labels(sampleRecord.billable),
-             ["tokens", "longCacheWrite", "fast", "domestic", "webSearches"]),
+             ["tokens", "isAggregate", "longCacheWrite", "fast", "domestic", "webSearches"]),
             ("AgentTokens", labels(sampleRecord.record.tokens), ["input", "cacheWrite", "cacheRead", "output", "reasoning"]),
             ("AgentLimits", labels(sampleLimits), ["provider", "windows", "observedAt", "source"]),
-            ("AgentLimitWindow", labels(sampleWindow), ["id", "kind", "minutes", "scope", "usedPercent", "resetsAt"]),
+            ("AgentLimitWindow", labels(sampleWindow), ["id", "kind", "minutes", "scope", "usedPercent", "resetsAt", "estimatedResetsAt"]),
             ("AgentLiveSession", labels(sampleTurn),
              ["id", "provider", "started", "lastActivity", "model", "project", "tokens", "cost"]),
             ("AgentLogCursor", labels(cursor),
@@ -304,8 +306,9 @@ enum AgentUsageArchiveTests {
             ("AgentLogCursor.Saved", labels(cursor.saved),
              ["path", "provider", "offset", "identity", "discarding", "modified", "state", "fingerprint"]),
             ("AgentLogState", labels(cursor.state),
-             ["session", "project", "model", "turnOpen", "sawUsageRecords", "lastTotal", "fast", "parentSession",
-              "openCodeSessions"])
+             ["session", "project", "model", "turnOpen", "sawUsageRecords", "lastTotal", "fast",
+              "copilotTotals", "copilotRequests", "copilotRequestModels", "copilotReportedRequests",
+              "copilotTurnID", "copilotFinalResponse", "parentSession", "openCodeSessions", "runningCommands"])
         ]
         for layout in layouts {
             suite.expect(layout.stored == layout.written,

@@ -3,8 +3,9 @@
 
 import Combine
 import Foundation
+import Network
 
-/// Reads Claude Code and Codex usage from their local session logs, and
+/// Reads Claude Code, Codex and GitHub Copilot usage from local session logs, and
 /// OpenCode usage from its database, while the AI section is on, along with
 /// the plan limits the Claude app saves. The files are read where they are,
 /// incrementally, and nothing is copied or sent: only counters are kept, in
@@ -74,6 +75,11 @@ final class AgentUsageService: ObservableObject {
     private var watcher: AgentLogWatcher?
     private var watchedRoots: [AgentLogRoot] = []
     private var poller: DispatchSourceTimer?
+    private var polling = false
+    private var network: NWPathMonitor?
+    /// When the Mac lost its network, and the uptime then, which leaves out
+    /// sleep; nil while it has one.
+    private var offlineSince: (date: Date, uptime: TimeInterval)?
     private var publishScheduled = false
     /// The last snapshot handed over, to tell when time alone changes it.
     private var published = AgentUsageSnapshot()
@@ -170,6 +176,9 @@ final class AgentUsageService: ObservableObject {
             watcher?.stop()
             watcher = nil
             watchedRoots = []
+            network?.cancel()
+            network = nil
+            offlineSince = nil
             store = AgentUsageStore()
             cursors.removeAll()
             published = AgentUsageSnapshot()
@@ -228,6 +237,7 @@ final class AgentUsageService: ObservableObject {
             cursors.removeAll()
             // Prices first, so the first read is already priced.
             loadPrices()
+            // Keep the loading state until all initial history has been read.
             let horizon = Date().addingTimeInterval(-Self.horizon)
             let roots = AgentLogRoot.all(home: home).filter { providers.contains($0.provider) }
             let files = AgentLogReader.discover(roots, since: horizon)
@@ -261,6 +271,7 @@ final class AgentUsageService: ObservableObject {
             }
             watch(roots)
             startPolling()
+            watchNetwork()
             publish()
             saveProgress()
         }
@@ -310,18 +321,45 @@ final class AgentUsageService: ObservableObject {
     private func startPolling() {
         poller?.cancel()
         let timer = DispatchSource.makeTimerSource(queue: queue)
-        timer.schedule(deadline: .now() + Self.poll, repeating: Self.poll, leeway: .milliseconds(500))
+        timer.schedule(deadline: .distantFuture)
         timer.setEventHandler { [weak self] in
             guard let self else { return }
+            defer { self.syncPolling() }
             let read = self.pollOpenLogs(within: Self.pollWindow)
-            let stopped = self.store.closeSettledTurns(now: Date())
+            var stopped = self.store.closeSettledTurns(now: Date())
+            // After the logs too, which can hold a reply or a command's
+            // result written meanwhile.
+            if let offline = self.offlineSince,
+               self.store.closeOfflineTurns(since: offline.date,
+                                            lasting: ProcessInfo.processInfo.systemUptime - offline.uptime,
+                                            keeping: self.runningCommands) {
+                stopped = true
+            }
             // After the logs, so a turn its last lines ended ends as usual.
             guard self.closeEndedTurns(self.watchedRoots) || read || stopped else { return }
             self.checkLimits()
             self.schedulePublish()
         }
-        timer.resume()
         poller = timer
+        polling = false
+        syncPolling()
+        timer.resume()
+    }
+
+    /// The fast timer has no work once recent logs and active turns are gone.
+    /// File events and the existing thirty-second sweep can arm it again.
+    /// Never create a timer here: late work after pause or stop must stay idle.
+    private func syncPolling(now: Date = Date()) {
+        guard let poller else { return }
+        let wanted = !store.turns.isEmpty || !store.waiting.isEmpty
+            || cursors.values.contains { now.timeIntervalSince($0.modified) < Self.pollWindow }
+        guard wanted != polling else { return }
+        polling = wanted
+        if wanted {
+            poller.schedule(deadline: .now() + Self.poll, repeating: Self.poll, leeway: .milliseconds(500))
+        } else {
+            poller.schedule(deadline: .distantFuture)
+        }
     }
 
     /// Reads the logs that grew, were replaced or disappeared since the last
@@ -355,6 +393,32 @@ final class AgentUsageService: ObservableObject {
         return changed
     }
 
+    /// Claude Code retries for minutes without a word while the Mac is
+    /// offline, then gives up; until it does, its turn would count on.
+    /// Only notes when the network went: the poller, which reads the logs
+    /// first and waits while the island is away, ends the turns once the
+    /// Mac stays offline. Runs on `queue`.
+    private func watchNetwork() {
+        guard network == nil else { return }
+        let monitor = NWPathMonitor()
+        monitor.pathUpdateHandler = { [weak self] path in
+            guard let self, self.readerSession >= 0 else { return }
+            if path.status == .satisfied {
+                self.offlineSince = nil
+            } else if self.offlineSince == nil {
+                self.offlineSince = (Date(), ProcessInfo.processInfo.systemUptime)
+            }
+        }
+        monitor.start(queue: queue)
+        network = monitor
+    }
+
+    /// The logs whose turn waits on a shell command of its own; a subagent's
+    /// commands are not counted. Runs on `queue`.
+    private var runningCommands: Set<String> {
+        Set(cursors.filter { !$0.value.state.runningCommands.isEmpty }.keys)
+    }
+
     /// Ends the Claude turns whose process is gone. True when one was showing.
     @discardableResult
     private func closeEndedTurns(_ roots: [AgentLogRoot], atLaunch: Bool = false) -> Bool {
@@ -377,8 +441,7 @@ final class AgentUsageService: ObservableObject {
         cursors[path] = cursor
         var changed = false
         let now = Date()
-        AgentLogReader.readAppended(cursor, since: now.addingTimeInterval(-Self.horizon),
-                                    shouldContinue: { !cancellation.isCancelled }) { line in
+        let consume: (Data) -> Void = { [self] line in
             // Apply in log order while the chunk is alive instead of retaining
             // every parsed entry until a potentially multi-gigabyte file ends.
             let entries: [AgentLogEntry]
@@ -386,6 +449,7 @@ final class AgentUsageService: ObservableObject {
             case .claude: entries = AgentLogParser.parseClaude(line, state: &cursor.state, now: now)
             case .codex: entries = AgentLogParser.parseCodex(line, state: &cursor.state, now: now)
             case .opencode: entries = AgentLogParser.parseOpenCode(line, state: &cursor.state, now: now)
+            case .copilot: entries = AgentLogParser.parseCopilot(line, state: &cursor.state, now: now)
             }
             guard !entries.isEmpty else { return }
             changed = true
@@ -396,6 +460,12 @@ final class AgentUsageService: ObservableObject {
             let finished = store.apply(entries, file: turnFile, provider: provider, tracksTurns: tracksTurns,
                                        parent: parent, modified: cursor.modified, now: now)
             finished.forEach(report)
+        }
+        if provider == .copilot && cursor.offset == 0 {
+            AgentLogReader.readCopilotHistory(cursor, shouldContinue: { !cancellation.isCancelled }, line: consume)
+        } else {
+            AgentLogReader.readAppended(cursor, since: now.addingTimeInterval(-Self.horizon),
+                                        shouldContinue: { !cancellation.isCancelled }, line: consume)
         }
         return changed
     }
@@ -414,6 +484,7 @@ final class AgentUsageService: ObservableObject {
 
     private func filesChanged(_ paths: [String], rescan: Bool) {
         guard readerSession >= 0, !watchedRoots.isEmpty else { return }
+        defer { syncPolling() }
         var changed = false
         if rescan {
             for file in AgentLogReader.discover(watchedRoots, since: Date().addingTimeInterval(-Self.horizon)) {
@@ -422,9 +493,7 @@ final class AgentUsageService: ObservableObject {
         } else {
             for path in Set(paths) where AgentLogReader.isLog(path) {
                 let actualPath = path.hasSuffix("-wal") ? String(path.dropLast(4)) : path
-                guard let root = watchedRoots.first(where: { actualPath.hasPrefix($0.url.path + "/") }),
-                      root.provider != .opencode
-                        || actualPath == root.url.appending(path: AgentOpenCodeReader.database).path else { continue }
+                guard let root = watchedRoots.first(where: { $0.accepts(actualPath) }) else { continue }
                 if read(actualPath, provider: root.provider) { changed = true }
             }
         }
@@ -451,6 +520,7 @@ final class AgentUsageService: ObservableObject {
         queue.async { [self] in
             guard readerSession >= 0 else { return }
             let now = Date()
+            defer { syncPolling(now: now) }
             let before = inputs
             store.closeIdleTurns(now: now, after: NotchAgentSupport.idleTurn)
             store.dropRecords(before: now.addingTimeInterval(-Self.horizon))

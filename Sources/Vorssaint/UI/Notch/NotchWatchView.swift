@@ -41,12 +41,19 @@ struct NotchWatchView: View {
                 NotchWatchSetupView()
             } else {
                 VStack(alignment: .leading, spacing: NotchLayout.rowSpacing) {
-                    header
                     NotchWatchAreaCard()
                         .frame(maxHeight: .infinity)
                     NotchWatchRuleRow()
                     footer
                 }
+                // What is watched and its two actions sit in the island's top
+                // row, beside the camera where they fit; setup leaves it empty.
+                .notchBand(leading: { watched }, trailing: {
+                    NotchIconButton(symbol: "viewfinder", title: text.chooseAgain) {
+                        NotchService.shared.perform { NotchWatchService.shared.chooseArea() }
+                    }
+                    NotchIconButton(symbol: "xmark", title: text.stop) { watch.stop() }
+                })
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -54,25 +61,30 @@ struct NotchWatchView: View {
         .onDisappear { if !preview { watch.pageVisible = false } }
     }
 
-    private var header: some View {
-        HStack(spacing: 8) {
+    /// The app's icon and name, then its window's title, which gives way in
+    /// the middle when the row is short.
+    private var watched: some View {
+        HStack(spacing: 6) {
             if let icon = watch.target?.appIcon {
                 Image(nsImage: icon).resizable().frame(width: 16, height: 16).accessibilityHidden(true)
             } else {
                 Image(systemName: NotchModule.watch.symbol).foregroundStyle(NotchWatchStrip.tint)
             }
-            Text(headerTitle).lineLimit(1).truncationMode(.middle)
-                .frame(maxWidth: .infinity, alignment: .leading)
-            NotchIconButton(symbol: "viewfinder", title: text.chooseAgain) {
-                NotchService.shared.perform { NotchWatchService.shared.chooseArea() }
+            Group {
+                if let target = watch.target, let window = target.windowTitle, window != target.appName {
+                    Text("\(Text(target.appName).fontWeight(.semibold)) \(Text("· " + window).foregroundStyle(.secondary))")
+                } else {
+                    Text(watchedTitle).fontWeight(.semibold)
+                }
             }
-            NotchIconButton(symbol: "xmark", title: text.stop) { watch.stop() }
+            .lineLimit(1).truncationMode(.middle)
         }
-        .font(.caption).foregroundStyle(.secondary)
-        .frame(height: 24)
+        .font(.system(size: 12))
+        .foregroundStyle(.white.opacity(0.85))
+        .help(watchedTitle)
     }
 
-    private var headerTitle: String {
+    private var watchedTitle: String {
         guard let target = watch.target else { return text.title }
         guard let title = target.windowTitle, title != target.appName else { return target.appName }
         return "\(target.appName) · \(title)"
@@ -82,9 +94,9 @@ struct NotchWatchView: View {
         if case .finished = watch.state {
             HStack(spacing: 8) {
                 if watch.canWatchAgain {
-                    NotchWatchPillButton(title: text.watchAgain, prominent: true) { watch.watchAgain() }
+                    NotchPillButton(title: text.watchAgain, prominent: true) { watch.watchAgain() }
                 }
-                NotchWatchPillButton(title: text.chooseAgain, prominent: !watch.canWatchAgain) {
+                NotchPillButton(title: text.chooseAgain, prominent: !watch.canWatchAgain) {
                     NotchService.shared.perform { NotchWatchService.shared.chooseArea() }
                 }
                 Spacer(minLength: 0)
@@ -311,34 +323,14 @@ private struct NotchWatchSetupView: View {
                     .onChange(of: enabled) { NotchService.shared.syncWithPreferences() }
             }
         } else if !permissions.screenRecording {
-            NotchWatchPillButton(title: text.allowAccess, prominent: true) {
+            NotchPillButton(title: text.allowAccess, prominent: true) {
                 Permissions.shared.requestScreenRecording()
             }
         } else {
-            NotchWatchPillButton(title: text.choose, prominent: true) {
+            NotchPillButton(title: text.choose, prominent: true) {
                 NotchService.shared.perform { NotchWatchService.shared.chooseArea() }
             }
         }
-    }
-}
-
-private struct NotchWatchPillButton: View {
-    let title: String
-    var prominent = false
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            Text(title)
-                .font(.system(size: 12, weight: prominent ? .semibold : .medium))
-                .foregroundStyle(.white.opacity(prominent ? 1 : 0.7))
-                .lineLimit(1)
-                .padding(.horizontal, 14)
-                .frame(height: 28)
-                .background(.white.opacity(prominent ? 0.14 : 0), in: Capsule())
-                .contentShape(Capsule())
-        }
-        .buttonStyle(NotchButtonStyle(cornerRadius: 14))
     }
 }
 
@@ -359,7 +351,7 @@ struct NotchWatchThumbnail: View {
 
 /// The watching eye, breathing like a working agent's mark while the area
 /// is read, and still, crossed out, while its window is hidden. The motion
-/// runs in the compositor and stops whenever the island is not on screen.
+/// is stepped at a limited rate and stops whenever the island is not on screen.
 struct NotchWatchEye: View {
     let size: CGFloat
     var hidden = false
@@ -395,7 +387,8 @@ struct NotchWatchStrip: View {
     static let eyeTint = NSColor.systemPurple.withAlphaComponent(0.75)
 
     @ObservedObject var service: NotchService
-    /// Another display's strip, when the island shows on every display.
+    /// Where the island draws it: its own strip as of the last update, or
+    /// another display's when the island shows on every display.
     var displayGeometry: NotchGeometry? = nil
     @ObservedObject private var watch = NotchWatchService.shared
     @ObservedObject private var l10n = L10n.shared

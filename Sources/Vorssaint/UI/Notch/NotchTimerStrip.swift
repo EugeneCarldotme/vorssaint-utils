@@ -10,7 +10,8 @@ import SwiftUI
 /// island shows.
 struct NotchTimerStrip: View {
     @ObservedObject var service: NotchService
-    /// Another display's strip, when the island shows on every display.
+    /// Where the island draws it: its own strip as of the last update, or
+    /// another display's when the island shows on every display.
     var displayGeometry: NotchGeometry? = nil
     @ObservedObject private var timer = NotchTimerService.shared
     // The companion's label reads these.
@@ -37,7 +38,10 @@ struct NotchTimerStrip: View {
 
     var body: some View {
         HStack(spacing: 0) {
-            Button { service.openActivity(companion?.module ?? .timer) } label: {
+            Button {
+                if companion == .calendar { service.openCountdownEvent() }
+                else { service.openActivity(companion?.module ?? .timer) }
+            } label: {
                 Group {
                     if geometry.compactActivityWingWidth >= 28 {
                         if let companion {

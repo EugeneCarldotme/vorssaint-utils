@@ -403,6 +403,17 @@ def main():
           + "final class Monitor: Fixture {\n"
           + declaration(monitor, "    private struct SamplingPlan").replace("private struct", "struct", 1)
           + declaration(monitor, "    private func currentPlan(").replace("private func", "func", 1)
+          + "}\n"
+          # What the panel and its details ask the monitor for, as shipped.
+          + "enum MetricDetailKind {\n"
+          + "\n".join(line for line in declaration("Sources/Vorssaint/UI/MenuPanel/MetricDetailView.swift",
+                                                   "enum MetricDetailKind:").splitlines()
+                      if line.startswith("    case "))
+          + "\n" + declaration("Sources/Vorssaint/UI/MenuPanel/MetricDetailView.swift", "    var monitorNeeds:",
+                               scope="enum MetricDetailKind:")
+          + "}\nfinal class Panel: PanelFixture {\n"
+          + declaration("Sources/Vorssaint/UI/MenuPanel/MenuPanelView.swift",
+                        "    private var monitorNeeds:").replace("private var", "var", 1)
           + "}\n}\n")
     write("SystemSectionBreakdown.swift", "import Foundation\n"
           + "extension SystemSectionBreakdownTests {\nfinal class Section: Fixture {\n"
@@ -2035,6 +2046,12 @@ def main():
                     .replace("private func", "func", 1)
                     .replace("func read(", "@discardableResult func read(", 1)
                     for prefix in ["    private func start(", "    private func read(", "    private func filesChanged("])
+          + "}\n}\n")
+
+    write("AgentClaudeServerService.swift", "import Foundation\n"
+          + "extension AgentClaudeServerTests {\nfinal class Host: Fixture {\n"
+          + declaration("Sources/Vorssaint/Services/AgentUsage/AgentUsageService.swift",
+                        "    private func readClaudeApp(").replace("private func", "func", 1)
           + "}\n}\n")
 
     write("AgentUsagePolling.swift", "import Foundation\n"

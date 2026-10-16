@@ -471,6 +471,7 @@ enum DefaultsKey {
     static let monitorPwrBattery = "monitorPwrBattery"
     static let monitorPwrTimeRemaining = "monitorPwrTimeRemaining"
     static let monitorPwrHealth = "monitorPwrHealth"
+    static let monitorPwrPeripherals = "monitorPwrPeripherals"
     // System monitor — optional notifications for sustained or actionable conditions.
     static let monitorAlertCPU = "monitorAlertCPU"
     static let monitorAlertCPUTemperature = "monitorAlertCPUTemperature"
@@ -1694,6 +1695,7 @@ enum Defaults {
         DefaultsKey.monitorPwrBattery: true,
         DefaultsKey.monitorPwrTimeRemaining: true,
         DefaultsKey.monitorPwrHealth: true,
+        DefaultsKey.monitorPwrPeripherals: false,
         DefaultsKey.monitorAlertCPU: false,
         DefaultsKey.monitorAlertCPUTemperature: false,
         DefaultsKey.monitorAlertBatteryTemperature: false,
@@ -1967,6 +1969,7 @@ enum Defaults {
         migrateLinearScrollAvailability(in: defaults)
         migrateWhatsAppDownloadsEnabled(in: defaults)
         migrateBatteryTemperatureVisibility(in: defaults)
+        migratePowerPeripheralsVisibility(in: defaults)
         migrateSwitcherPreviewSize(in: defaults)
         migrateSwitcherPreviewExcludedApps(in: defaults)
         migrateNotchWatchAvailability(in: defaults)
@@ -2144,6 +2147,17 @@ enum Defaults {
         guard defaults.object(forKey: DefaultsKey.monitorPwrTemperature) == nil else { return }
         defaults.set(defaults.object(forKey: DefaultsKey.monitorSysTemps) as? Bool ?? true,
                      forKey: DefaultsKey.monitorPwrTemperature)
+    }
+
+    /// The Power card listed peripheral batteries only while the menu bar
+    /// showed them. Copy that choice once, before defaults are registered,
+    /// so an update keeps the same card and starts no Bluetooth reads that
+    /// were not running. The value is saved even when off: turning on the
+    /// menu bar item later must not change the card at the next launch.
+    static func migratePowerPeripheralsVisibility(in defaults: UserDefaults) {
+        guard defaults.object(forKey: DefaultsKey.monitorPwrPeripherals) == nil else { return }
+        defaults.set(defaults.bool(forKey: DefaultsKey.menuBarPeripheralBattery),
+                     forKey: DefaultsKey.monitorPwrPeripherals)
     }
 
     /// When the user installs or runs a beta pre-release, activate the beta

@@ -3110,6 +3110,36 @@ enum SwitcherModelFeatureTests {
                "memory menu bar style defaults to percent")
         suite.expect(registeredDefaults[DefaultsKey.monitorPwrTimeRemaining] as? Bool == true,
                "battery time is shown in the Power panel by default")
+        suite.expect(registeredDefaults[DefaultsKey.monitorPwrPeripherals] as? Bool == false,
+               "peripheral batteries stay out of the Power card until turned on")
+        let peripheralsSuite = "com.vorssaint.tests.powerPeripherals.\(UUID().uuidString)"
+        if let peripheralsDefaults = UserDefaults(suiteName: peripheralsSuite) {
+            peripheralsDefaults.removePersistentDomain(forName: peripheralsSuite)
+            peripheralsDefaults.set(false, forKey: DefaultsKey.menuBarPeripheralBattery)
+            Defaults.migratePowerPeripheralsVisibility(in: peripheralsDefaults)
+            suite.expect(peripheralsDefaults.object(forKey: DefaultsKey.monitorPwrPeripherals) as? Bool == false,
+                   "an update with the menu bar item off starts no peripheral reads in Power")
+            peripheralsDefaults.set(true, forKey: DefaultsKey.menuBarPeripheralBattery)
+            Defaults.migratePowerPeripheralsVisibility(in: peripheralsDefaults)
+            suite.expect(!peripheralsDefaults.bool(forKey: DefaultsKey.monitorPwrPeripherals),
+                   "turning on the menu bar item later leaves the Power choice alone")
+            peripheralsDefaults.removePersistentDomain(forName: peripheralsSuite)
+            peripheralsDefaults.set(true, forKey: DefaultsKey.menuBarPeripheralBattery)
+            Defaults.migratePowerPeripheralsVisibility(in: peripheralsDefaults)
+            suite.expect(peripheralsDefaults.bool(forKey: DefaultsKey.monitorPwrPeripherals),
+                   "an update keeps peripheral batteries in Power for menu bar users")
+            peripheralsDefaults.set(false, forKey: DefaultsKey.menuBarPeripheralBattery)
+            Defaults.migratePowerPeripheralsVisibility(in: peripheralsDefaults)
+            suite.expect(peripheralsDefaults.bool(forKey: DefaultsKey.monitorPwrPeripherals),
+                   "hiding the menu bar item later leaves the Power choice alone")
+            peripheralsDefaults.removePersistentDomain(forName: peripheralsSuite)
+            Defaults.migratePowerPeripheralsVisibility(in: peripheralsDefaults)
+            suite.expect(peripheralsDefaults.object(forKey: DefaultsKey.monitorPwrPeripherals) as? Bool == false,
+                   "a fresh install keeps peripheral batteries out of Power")
+            peripheralsDefaults.removePersistentDomain(forName: peripheralsSuite)
+        } else {
+            suite.expect(false, "peripheral visibility migration has isolated preferences")
+        }
         suite.expect(registeredDefaults[DefaultsKey.windowLayoutShortcutsEnabled] as? Bool == false,
                "window layout shortcuts stay off until enabled")
         suite.expect(registeredDefaults[DefaultsKey.windowEdgeSnapEnabled] as? Bool == false,

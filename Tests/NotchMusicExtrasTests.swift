@@ -375,7 +375,9 @@ enum NotchMusicExtrasTests {
               {"index":2,"entries":[{"url":"https://www.youtube.com/watch?v=aaaaaaaaaaa","title":"Old video - YouTube"},
                                     {"url":"https://www.youtube.com/watch?v=1PxhTfmEyQ8&t=42","title":"(3) My favorite browser is (kind of) dead - YouTube"}]},
               {"index":1,"entries":[{"url":"https://www.google.com/search?q=browser","title":"My favorite browser is (kind of) dead - Google Search"}]},
-              {"index":1,"entries":[{"url":"https://music.youtube.com/watch?v=8_fkyx42kL0&list=RDAMVM","title":"she likes spring, I prefer winter | YouTube Music"}]}
+              {"index":1,"entries":[{"url":"https://music.youtube.com/watch?v=8_fkyx42kL0&list=RDAMVM","title":"she likes spring, I prefer winter | YouTube Music"}]},
+              {"index":1,"entries":[{"url":"https://www.youtube.com/watch?v=bbbbbbbbbbb","title":"Went back - YouTube"},
+                                    {"url":"https://www.youtube.com/watch?v=ccccccccccc","title":"Forward page - YouTube"}]}
             ]}]}
             """.utf8)
         // One LZ4 sequence of literals only. Its token says 15, the extra
@@ -394,10 +396,55 @@ enum NotchMusicExtrasTests {
                 && NotchBrowserArtworkSupport.decodeMozLZ4(Data("not a session".utf8)) == nil
                 && NotchBrowserArtworkSupport.decodeMozLZ4(container.dropLast(4)) == nil,
                "an empty, foreign or truncated session reads as nothing")
+        // "abcd", then a match four bytes back for eight bytes, then twelve
+        // closing literals, as every LZ4 block ends.
+        let repeating: [UInt8] = [0x44] + Array("abcd".utf8) + [4, 0, 0xC0] + Array("0123456789AB".utf8)
+        let header = Array("mozLz40\0".utf8) + [24, 0, 0, 0]
+        suite.expect(NotchBrowserArtworkSupport.decodeMozLZ4(Data(header + repeating))
+                    == Data("abcdabcdabcd0123456789AB".utf8),
+               "a session block that repeats earlier bytes decodes them")
+        var reachesBack = repeating
+        reachesBack[5] = 16
+        suite.expect(NotchBrowserArtworkSupport.decodeMozLZ4(Data(header + reachesBack)) == nil,
+               "a block that reaches before its start reads as nothing")
+        // Half a megabyte that would fill one byte past the cap: "a", a match
+        // one byte back that repeats it, then the twelve closing literals.
+        let oversized = NotchBrowserArtworkSupport.maximumSessionBytes + 1
+        let extra = oversized - 1 - 12 - 4 - 15
+        let flood: [UInt8] = [0x1F, 0x61, 1, 0] + [UInt8](repeating: 255, count: extra / 255) + [UInt8(extra % 255)]
+            + [0xC0] + Array("0123456789AB".utf8)
+        let floodHeader = Array("mozLz40\0".utf8) + (0..<4).map { UInt8(truncatingIfNeeded: oversized >> (8 * $0)) }
+        suite.expect(NotchBrowserArtworkSupport.decodeMozLZ4(Data(floodHeader + flood)) == nil,
+               "a session that would decode past its size cap reads as nothing")
 
         let tabs = NotchBrowserArtworkSupport.openTabs(inSession: session)
-        suite.expect(tabs.count == 3 && tabs[0].title.hasPrefix("(3) My favorite"),
-               "each tab reads as the page it shows now, not its back history")
+        suite.expect(tabs.count == 4 && tabs[0].title.hasPrefix("(3) My favorite") && tabs[3].title == "Went back - YouTube",
+               "each tab reads as the page it shows now, not its back history or the page it went back from")
+        let watching = { (title: String) in
+            NotchBrowserArtworkSupport.SessionTab(title: title, url: URL(string: "https://www.youtube.com/watch?v=1PxhTfmEyQ8")!)
+        }
+        suite.expect(NotchBrowserArtworkSupport.artworkURLs(forTrack: "Home", in: [watching("Homeland trailer - YouTube"),
+                                                                                    watching("Coming Home live - YouTube")]).isEmpty
+                && !NotchBrowserArtworkSupport.artworkURLs(forTrack: "Home", in: [watching("(2) Home - YouTube")]).isEmpty
+                && !NotchBrowserArtworkSupport.artworkURLs(forTrack: "Home", artist: "Artist",
+                                                            in: [watching("Home • Artist - YouTube Music")]).isEmpty
+                && NotchBrowserArtworkSupport.artworkURLs(forTrack: "Home", artist: "Artist",
+                                                           in: [watching("Home • Someone Else - YouTube Music")]).isEmpty
+                && NotchBrowserArtworkSupport.artworkURLs(forTrack: "Stay", artist: "The Kid LAROI",
+                                                           in: [watching("Stay - Rihanna ft. Mikky Ekko - YouTube")]).isEmpty,
+               "a short song title takes only the tab that names it whole, never one that starts with or mentions it")
+        suite.expect(!NotchBrowserArtworkSupport.artworkURLs(forTrack: "Home  Again ", in: [watching("Home Again - YouTube")]).isEmpty,
+               "a song title with doubled spaces still finds the tab the browser saved with them collapsed")
+        let searchTab = NotchBrowserArtworkSupport.SessionTab(title: "Search", url: URL(string: "https://www.google.com/search?q=x")!)
+        let musicHome = NotchBrowserArtworkSupport.SessionTab(title: "keshi - YouTube Music",
+                                                              url: URL(string: "https://music.youtube.com/channel/UC123")!)
+        let began = Date(timeIntervalSinceReferenceDate: 1_000)
+        suite.expect(NotchBrowserArtworkSupport.youTubeTabs([searchTab, musicHome, watching("Video - YouTube")]).count == 2
+                && NotchBrowserArtworkSupport.asksAppleMusic(tabs: [musicHome], savedAt: began + 3, lookupStarted: began)
+                && !NotchBrowserArtworkSupport.asksAppleMusic(tabs: [musicHome], savedAt: began - 3, lookupStarted: began)
+                && !NotchBrowserArtworkSupport.asksAppleMusic(tabs: [watching("Video - YouTube")],
+                                                              savedAt: began + 3, lookupStarted: began),
+               "only YouTube tabs stay after reading, and only a session saved since the lookup began that shows YouTube Music lets Apple be asked")
         suite.expect(NotchBrowserArtworkSupport.artworkURLs(forTrack: "My favorite browser is (kind of) dead", in: tabs)
                 .map(\.absoluteString) == ["https://i.ytimg.com/vi/1PxhTfmEyQ8/maxresdefault.jpg",
                                            "https://i.ytimg.com/vi/1PxhTfmEyQ8/mqdefault.jpg"],
@@ -454,6 +501,9 @@ enum NotchMusicExtrasTests {
                     inSearch: appleReply, title: "My favorite browser is (kind of) dead", artist: "Theo - t3.gg") == nil
                 && NotchBrowserArtworkSupport.appleMusicArtworkURL(inSearch: Data("{}".utf8), title: "a", artist: "b") == nil,
                "a piano version, a cover by someone else or a YouTube video never borrows an album's art")
+        let elsewhere = Data(#"{"results":[{"trackName":"Less Of You","artistName":"keshi","artworkUrl100":"https://images.example/thumb/a.jpg/100x100bb.jpg"}]}"#.utf8)
+        suite.expect(NotchBrowserArtworkSupport.appleMusicArtworkURL(inSearch: elsewhere, title: "less of you", artist: "keshi") == nil,
+               "album art loads only from Apple's image servers, whatever the reply names")
         func jpeg(side: Int) -> Data {
             let context = CGContext(data: nil, width: side, height: side, bitsPerComponent: 8, bytesPerRow: 0,
                                     space: CGColorSpaceCreateDeviceRGB(),
@@ -744,6 +794,29 @@ enum NotchMusicExtrasTests {
         defaults.set(true, forKey: DefaultsKey.notchEnabled)
         suite.expect(NotchLyricsSupport.isEnabled(in: defaults) && !NotchLyricsSupport.onlineEnabled(in: defaults)
                && NotchQueueSupport.isEnabled(in: defaults), "installed music surfaces start enabled while online lyrics stay off")
+        let zenSong = { (artist: String, bundle: String) in
+            NotchPlayback(track: RadialNowPlayingSnapshot(title: "Stay", artist: artist, album: nil, artworkData: nil,
+                                                          appBundleIdentifier: bundle, appPID: 7),
+                          isPlaying: true, elapsed: 0, duration: 180, rate: 1, sampledAt: Date(), canSeek: true)
+        }
+        let rihanna = zenSong("Rihanna", "app.zen-browser.zen")
+        suite.expect(Defaults.registeredDefaults[DefaultsKey.notchBrowserCovers] as? Bool == false
+               && !NotchBrowserArtworkSupport.isEnabled(in: defaults)
+               && NotchBrowserArtworkSupport.lookupKey(for: rihanna, defaults: defaults) == nil,
+               "browser covers stay off until their option is turned on")
+        defaults.set(true, forKey: DefaultsKey.notchBrowserCovers)
+        let browserCoversOn = NotchBrowserArtworkSupport.isEnabled(in: defaults)
+        let rihannaKey = NotchBrowserArtworkSupport.lookupKey(for: rihanna, defaults: defaults)
+        suite.expect(rihannaKey != nil
+               && rihannaKey != NotchBrowserArtworkSupport.lookupKey(for: zenSong("The Kid LAROI", "app.zen-browser.zen"),
+                                                                    defaults: defaults)
+               && NotchBrowserArtworkSupport.lookupKey(for: zenSong("Rihanna", "com.apple.Safari"), defaults: defaults) == nil,
+               "only a Firefox-family song is looked up, and two songs that share a title keep their own covers")
+        defaults.set(false, forKey: DefaultsKey.notchEnabled)
+        suite.expect(browserCoversOn && !NotchBrowserArtworkSupport.isEnabled(in: defaults)
+               && NotchBrowserArtworkSupport.lookupKey(for: rihanna, defaults: defaults) == nil,
+               "browser covers follow their own option and stop with the island")
+        defaults.set(true, forKey: DefaultsKey.notchEnabled)
         defaults.set(false, forKey: DefaultsKey.notchLyricsEnabled)
         defaults.set(false, forKey: DefaultsKey.notchQueueEnabled)
         suite.expect(!NotchLyricsSupport.isEnabled(in: defaults) && !NotchQueueSupport.isEnabled(in: defaults),
@@ -764,12 +837,13 @@ enum NotchMusicExtrasTests {
         suite.expect(!NotchLyricsSupport.onlineEnabled(in: defaults) && !NotchQueueSupport.isEnabled(in: defaults),
                "hidden music does not retain an optional lyrics or queue subscription")
         suite.expect(SettingsBackupSupport.exportKeys().isSuperset(of: [DefaultsKey.notchLyricsEnabled, DefaultsKey.notchLyricsOnline,
+                                                                 DefaultsKey.notchBrowserCovers,
                                                                  DefaultsKey.notchQueueEnabled, DefaultsKey.notchLiveEqualizer, AppFeature.notchLyrics.availabilityKey,
                                                                  AppFeature.notchQueue.availabilityKey]),
                "music feature choices and online consent are accounted for by settings backup")
         for language in AppLanguage.allCases {
             let strings = Mirror(reflecting: FeatureStrings.notchMusicExtras(language)).children.compactMap { $0.value as? String }
-            suite.expect(strings.count == 42 && strings.allSatisfy { !$0.isEmpty && !$0.contains("—") },
+            suite.expect(strings.count == 44 && strings.allSatisfy { !$0.isEmpty && !$0.contains("—") },
                    "music extras have complete user-facing strings in \(language.rawValue)")
         }
     }

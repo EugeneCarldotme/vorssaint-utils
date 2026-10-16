@@ -15,6 +15,12 @@ enum NotchBrowserArtworkSupport {
     /// its short side blurs once stretched, so the lookup replaces it.
     static let minimumCoverPixels = 300
 
+    /// The lookup reads the browser's saved session and goes online, so it
+    /// waits for its own option in the music settings, which starts off.
+    static func isEnabled(in defaults: UserDefaults = .standard) -> Bool {
+        NotchSupport.isEnabled(in: defaults) && defaults.bool(forKey: DefaultsKey.notchBrowserCovers)
+    }
+
     /// Whether the browser's own cover is missing or too small to show sharp.
     static func needsCover(_ artwork: Data?) -> Bool {
         guard let artwork,
@@ -25,8 +31,21 @@ enum NotchBrowserArtworkSupport {
         return min(width, height) < minimumCoverPixels
     }
 
+    /// What the lookup of one track goes by, or nil when it has none to run:
+    /// the option is off, the player is no Firefox-family browser, or its own
+    /// cover is sharp. Two songs can share a title, so the artist keeps their
+    /// covers and their cooldowns apart.
+    static func lookupKey(for playback: NotchPlayback, defaults: UserDefaults = .standard) -> String? {
+        guard isEnabled(in: defaults),
+              let bundle = playback.track.appBundleIdentifier, profileFolders[bundle] != nil,
+              let title = playback.track.title, needsCover(playback.track.artworkData) else { return nil }
+        return [bundle, playback.track.artist ?? "", title].joined(separator: "\n")
+    }
+
     /// A session with thousands of tabs stays well under this once decoded.
-    static let maximumSessionBytes = 256 * 1_024 * 1_024
+    static let maximumSessionBytes = 128 * 1_024 * 1_024
+    /// The saved file is LZ4, a few times smaller than what it decodes to.
+    static let maximumSessionFileBytes = 32 * 1_024 * 1_024
     /// YouTube's largest thumbnail is a 1280×720 JPEG of a few hundred KB.
     static let maximumArtworkBytes = 4 * 1_024 * 1_024
 
@@ -53,18 +72,19 @@ enum NotchBrowserArtworkSupport {
     /// Mozilla's `mozLz40` container holds an 8-byte magic, the decoded size
     /// as a little-endian UInt32, then one raw LZ4 block.
     static func decodeMozLZ4(_ data: Data) -> Data? {
-        let bytes = [UInt8](data)
-        guard bytes.count > 12, bytes.prefix(8).elementsEqual(Array("mozLz40\0".utf8)) else { return nil }
-        let size = bytes[8..<12].reversed().reduce(0) { $0 << 8 | Int($1) }
+        guard data.count > 12, data.prefix(8).elementsEqual("mozLz40\0".utf8) else { return nil }
+        let size = data.dropFirst(8).prefix(4).reversed().reduce(0) { $0 << 8 | Int($1) }
         guard size > 0, size <= maximumSessionBytes else { return nil }
-        var output = [UInt8](repeating: 0, count: size)
-        let written = bytes.withUnsafeBufferPointer { input in
-            output.withUnsafeMutableBufferPointer { out in
-                compression_decode_buffer(out.baseAddress!, size, input.baseAddress! + 12,
+        // Decoded straight into the result, so a large session is held once.
+        var output = Data(count: size)
+        let written = data.withUnsafeBytes { input in
+            output.withUnsafeMutableBytes { out in
+                compression_decode_buffer(out.bindMemory(to: UInt8.self).baseAddress!, size,
+                                          input.bindMemory(to: UInt8.self).baseAddress! + 12,
                                           input.count - 12, nil, COMPRESSION_LZ4_RAW)
             }
         }
-        return written == size ? Data(output) : nil
+        return written == size ? output : nil
     }
 
     /// The page each open tab shows now. A tab keeps its back history in
@@ -84,25 +104,62 @@ enum NotchBrowserArtworkSupport {
         }
     }
 
+    /// The hosts whose pages can lead to a YouTube thumbnail.
+    private static let youTubeHosts: Set<String> = ["youtube.com", "www.youtube.com", "m.youtube.com",
+                                                    "music.youtube.com", "youtu.be"]
+
+    /// The tabs a cover can come from. Every other tab is dropped as soon as
+    /// the session is read, so nothing else stays in memory.
+    static func youTubeTabs(_ tabs: [SessionTab]) -> [SessionTab] {
+        tabs.filter { youTubeHosts.contains($0.url.host?.lowercased() ?? "") }
+    }
+
+    /// Whether Apple's catalog may be asked for a song no tab names. YouTube
+    /// Music keeps playing while its tab shows another page, where the
+    /// session holds no video, so an open YouTube Music tab is required. A
+    /// session saved before the lookup began may not list a new video's tab
+    /// yet, so only a later one counts, and a plain YouTube video is found by
+    /// its own tab instead of going to Apple. Waiting gives no such proof:
+    /// once the user is idle for three minutes, Firefox saves only hourly.
+    static func asksAppleMusic(tabs: [SessionTab], savedAt: Date, lookupStarted: Date) -> Bool {
+        savedAt >= lookupStarted && tabs.contains { $0.url.host?.lowercased() == "music.youtube.com" }
+    }
+
     /// Cover addresses for the tab that plays the track, best first. Only tabs
     /// with a known cover take part, so a search for the same song never wins.
-    static func artworkURLs(forTrack title: String?, in tabs: [SessionTab]) -> [URL] {
+    static func artworkURLs(forTrack title: String?, artist: String? = nil, in tabs: [SessionTab]) -> [URL] {
         guard let title else { return [] }
         let track = normalizedTabTitle(title)
         guard track.count >= 2 else { return [] }
-        let covered = tabs.filter { !thumbnailURLs(forPage: $0.url).isEmpty }
-        let titles = covered.map { normalizedTabTitle($0.title) }
+        let credit = artist.map(normalizedTabTitle)
         // Sites wrap the track in their own name ("Title - YouTube") or an
-        // unread count ("(3) Title"). A tab that starts with the track beats
-        // one that only mentions it.
-        guard let index = titles.firstIndex(where: { $0.hasPrefix(track) })
-                ?? titles.firstIndex(where: { $0.contains(track) }) else { return [] }
-        return thumbnailURLs(forPage: covered[index].url)
+        // unread count ("(3) Title"). Without those the tab must name the
+        // track alone, or the track and its artist the way YouTube Music can,
+        // so "Stay" never takes the cover of "Stay - Someone Else" and "Home"
+        // never takes the cover of "Homeland".
+        guard let tab = tabs.first(where: {
+            !thumbnailURLs(forPage: $0.url).isEmpty && names(normalizedTabTitle($0.title), track, artist: credit)
+        }) else { return [] }
+        return thumbnailURLs(forPage: tab.url)
     }
 
+    /// What YouTube and YouTube Music add after a page's own title, folded.
+    private static let siteSuffixes = [" - youtube music", " | youtube music", " - youtube", " | youtube"]
+
+    private static func names(_ tabTitle: String, _ track: String, artist: String?) -> Bool {
+        let suffix = siteSuffixes.first { tabTitle.hasSuffix($0) }
+        let page = String(tabTitle.dropLast(suffix?.count ?? 0))
+        if page == track { return true }
+        guard let artist, !artist.isEmpty else { return false }
+        return page == track + " • " + artist
+    }
+
+    /// The browser saves a page's title with its runs of spaces collapsed,
+    /// while Now Playing keeps the title as the page sent it.
     private static func normalizedTabTitle(_ title: String) -> String {
         title.folding(options: [.caseInsensitive, .diacriticInsensitive, .widthInsensitive], locale: nil)
             .replacingOccurrences(of: #"^\s*\(\d+\+?\)\s*"#, with: "", options: .regularExpression)
+            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
             .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
@@ -124,7 +181,8 @@ enum NotchBrowserArtworkSupport {
 
     /// The 600-pixel album art of the result whose title and artist both match
     /// the track. A near miss such as a piano version or a cover by someone
-    /// else counts as no match, so a wrong cover never shows.
+    /// else counts as no match, so a wrong cover never shows. The art loads
+    /// only from Apple's own image servers, whatever the reply names.
     static func appleMusicArtworkURL(inSearch json: Data, title: String, artist: String?) -> URL? {
         guard let artist,
               let root = try? JSONSerialization.jsonObject(with: json) as? [String: Any],
@@ -136,9 +194,11 @@ enum NotchBrowserArtworkSupport {
                   let credit = result["artistName"] as? String else { return false }
             let artists = folded(credit)
             return folded(name) == wantedTitle && (artists.contains(wantedArtist) || wantedArtist.contains(artists))
-        }), let small = match["artworkUrl100"] as? String,
-              small.hasPrefix("https://"), small.hasSuffix("/100x100bb.jpg") else { return nil }
-        return URL(string: String(small.dropLast("100x100bb.jpg".count)) + "600x600bb.jpg")
+        }), let small = match["artworkUrl100"] as? String, small.hasSuffix("/100x100bb.jpg"),
+              let cover = URL(string: String(small.dropLast("100x100bb.jpg".count)) + "600x600bb.jpg"),
+              cover.scheme?.lowercased() == "https",
+              cover.host?.lowercased().hasSuffix(".mzstatic.com") == true else { return nil }
+        return cover
     }
 
     private static func folded(_ text: String) -> String {
@@ -163,7 +223,7 @@ enum NotchBrowserArtworkSupport {
         let id: String?
         if host == "youtu.be" {
             id = path.first
-        } else if ["youtube.com", "www.youtube.com", "m.youtube.com", "music.youtube.com"].contains(host) {
+        } else if youTubeHosts.contains(host) {
             if path.first == "watch" {
                 id = URLComponents(url: url, resolvingAgainstBaseURL: false)?
                     .queryItems?.first(where: { $0.name == "v" })?.value

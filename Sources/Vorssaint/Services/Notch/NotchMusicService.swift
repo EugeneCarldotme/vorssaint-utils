@@ -308,8 +308,8 @@ final class NotchMusicService: ObservableObject {
     /// A lookup outlives a restart of the adapter when the same track comes
     /// back, so the redraw checks the track playing now, not the generation.
     private func requestBrowserArtwork(for playback: NotchPlayback?) {
-        NotchBrowserArtwork.shared.request(for: playback) {
-            DispatchQueue.main.async { [weak self] in self?.applyBrowserArtwork() }
+        NotchBrowserArtwork.shared.request(for: playback) { [weak self] in
+            DispatchQueue.main.async { self?.applyBrowserArtwork() }
         }
     }
 

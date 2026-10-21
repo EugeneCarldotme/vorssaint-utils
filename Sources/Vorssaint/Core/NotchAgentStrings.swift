@@ -211,7 +211,7 @@ extension NotchAgentStrings {
         cursorIncomplete: "Cursor usage history could not be fully loaded.",
         title: "AI Agents",
         hubDescription: "Follow plan limits, tokens and API value for Claude, Codex, OpenCode, GitHub Copilot and Cursor in the Dynamic Island.",
-        settingsDescription: "Reads local agent usage and Claude's saved plan limits. Cursor usage is fetched from cursor.com with its desktop sign-in while Cursor is open. Prompts, replies and files are never kept.",
+        settingsDescription: "Reads local agent usage and Claude’s saved plan limits. Cursor usage is fetched from cursor.com with its desktop sign-in while Cursor is open. Prompts, replies and files are never kept.",
         restingTitle: "AI limits",
         limitsCard: "Limits",
         spendCard: "Spending",

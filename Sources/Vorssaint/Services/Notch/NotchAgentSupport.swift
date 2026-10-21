@@ -95,6 +95,7 @@ enum NotchAgentSupport {
         case .codex: return DefaultsKey.notchAgentsCodex
         case .opencode: return DefaultsKey.notchAgentsOpenCode
         case .copilot: return DefaultsKey.notchAgentsCopilot
+        case .cursor: return DefaultsKey.notchAgentsCursor
         }
     }
 
@@ -322,6 +323,7 @@ enum NotchAgentSupport {
         guard let limits else { return false }
         let age = now.timeIntervalSince(limits.observedAt)
         if account { return age >= accountStaleness }
+        if provider == .cursor { return age >= AgentCursorUsage.freshness }
         return provider == .claude && age >= AgentClaudeAppUsage.freshness
     }
 

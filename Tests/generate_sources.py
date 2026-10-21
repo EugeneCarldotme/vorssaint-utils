@@ -2129,6 +2129,15 @@ def main():
                                    "    private func noteClaudeCheck(", "    private func networkChanged("])
           + "}\n}\n")
 
+    write("AgentCursorService.swift", "import Foundation\n"
+          + "#if canImport(FoundationNetworking)\nimport FoundationNetworking\n#endif\n"
+          + "extension AgentCursorServiceTests {\nfinal class Host: Fixture {\n"
+          + "".join(declaration("Sources/Vorssaint/Services/AgentUsage/AgentUsageService.swift", prefix)
+                    .replace("private func", "func", 1)
+                    for prefix in ["    private func refreshCursorUsage(", "    private func cancelCursorUsage(",
+                                   "    private func clearCursorUsage("])
+          + "}\n}\n")
+
     write("AgentUsagePolling.swift", "import Foundation\n"
           + "extension AgentUsagePollingTests {\nfinal class Host: Fixture {\n"
           + declaration("Sources/Vorssaint/Services/AgentUsage/AgentUsageService.swift",

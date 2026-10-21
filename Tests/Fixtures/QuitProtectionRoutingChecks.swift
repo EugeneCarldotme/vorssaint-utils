@@ -53,14 +53,25 @@ extension QuitProtectionRoutingContract.QuitProtectionService {
                      "native Command-Tab also receives W without starting foreground-window protection")
         send(55, .flagsChanged, flags: [])
 
-        // Protection still works once Command is released.
+        // Each mode still protects and confirms the intended foreground app
+        // after Command is released.
+        for mode in QuitProtectionMode.allCases {
+            defaults.set(mode.rawValue, forKey: DefaultsKey.quitProtectionQuitMode)
+            Contract.NSRunningApplication.terminated = []
+            suite.expect(!send(12) && service.pending != nil,
+                         "ordinary Command-Q still starts \(mode.rawValue) protection")
+            switch mode {
+            case .hold: service.holdTimer?.fire()
+            case .doublePress:
+                send(12, .keyUp)
+                send(12)
+            case .extraModifier: send(12, flags: [.maskCommand, .maskShift])
+            }
+            suite.expect(Contract.NSRunningApplication.terminated == [100],
+                         "an ordinary \(mode.rawValue) confirmation still quits its protected target")
+            send(12, .keyUp)
+        }
         defaults.set("hold", forKey: DefaultsKey.quitProtectionQuitMode)
-        Contract.NSRunningApplication.terminated = []
-        suite.expect(!send(12) && service.pending != nil, "ordinary Command-Q still starts protection")
-        service.holdTimer?.fire()
-        suite.expect(Contract.NSRunningApplication.terminated == [100],
-                     "an ordinary confirmed hold still quits its protected target")
-        send(12, .keyUp)
 
         // A confirmation started before Command-Tab must not survive it.
         Contract.NSRunningApplication.terminated = []
@@ -74,12 +85,33 @@ extension QuitProtectionRoutingContract.QuitProtectionService {
         send(12, .keyUp)
         send(55, .flagsChanged, flags: [])
 
-        // Escape dismisses the native switcher even while Command stays down.
+        // Both Escape and Command-period dismiss the native switcher even
+        // while Command stays down. Every mode must protect the next quit.
+        for mode in QuitProtectionMode.allCases {
+            defaults.set(mode.rawValue, forKey: DefaultsKey.quitProtectionQuitMode)
+            for dismissKey: CGKeyCode in [53, 47] {
+                send(48)
+                suite.expect(send(dismissKey) && !send(12) && service.pending != nil,
+                             "dismissal key \(dismissKey) restores \(mode.rawValue) protection while Command stays held")
+                send(12, .keyUp)
+                send(55, .flagsChanged, flags: [])
+                suite.expect(!service.hud.visible, "cancelling an unconfirmed press still hides its HUD")
+            }
+        }
+        defaults.set("hold", forKey: DefaultsKey.quitProtectionQuitMode)
+
+        // Command-period follows the active keyboard layout, not the US
+        // period key's physical position.
+        Contract.GlobalShortcut.keyLabels[47] = ";"
+        Contract.GlobalShortcut.keyLabels[44] = "."
         send(48)
-        suite.expect(send(53) && !send(12) && service.pending != nil,
-                     "Escape restores ordinary protection without requiring Command to be released")
+        suite.expect(send(47) && send(12) && service.pending == nil,
+                     "a physical period key with another label keeps native switcher ownership")
+        suite.expect(send(44) && !send(12) && service.pending != nil,
+                     "the layout's Command-period restores ordinary protection")
         send(12, .keyUp)
-        suite.expect(!service.hud.visible, "releasing an unconfirmed hold still hides its HUD")
+        Contract.GlobalShortcut.keyLabels[47] = "."
+        Contract.GlobalShortcut.keyLabels[44] = nil
 
         // Modified Tab shortcuts that do not open the native switcher must
         // leave ordinary protection available.

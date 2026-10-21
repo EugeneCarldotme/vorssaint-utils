@@ -23,8 +23,9 @@ enum QuitProtectionRoutingContract {
         var keyboardInputOwnership: (isOwned: Bool, generation: UInt64) = (false, 0)
     }
     enum GlobalShortcut {
+        static var keyLabels: [Int64: String] = [12: "q", 13: "w", 47: "."]
         static func layoutKeyLabel(for keyCode: Int64, usesCommand: Bool) -> String? {
-            keyCode == 12 ? "q" : keyCode == 13 ? "w" : nil
+            keyLabels[keyCode]
         }
     }
     final class NSRunningApplication {

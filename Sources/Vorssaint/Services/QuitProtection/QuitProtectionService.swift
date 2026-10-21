@@ -191,7 +191,7 @@ final class QuitProtectionService: ObservableObject {
         // The native switcher keeps the original app frontmost while another
         // app is selected. Its Q must reach the Dock, never a confirmation
         // targeting that original app. Track the Command chord without an AX
-        // query on the tap, including reverse navigation and Escape dismissal.
+        // query on the tap, including reverse navigation and dismissal.
         if !event.flags.contains(.maskCommand) {
             nativeSwitcherSessionActive = false
         } else if type == .keyDown {
@@ -199,7 +199,8 @@ final class QuitProtectionService: ObservableObject {
             if keyCode == 48, !event.flags.contains(.maskControl),
                !event.flags.contains(.maskAlternate) {
                 nativeSwitcherSessionActive = true
-            } else if keyCode == 53 {
+            } else if keyCode == 53 || (nativeSwitcherSessionActive
+                && GlobalShortcut.layoutKeyLabel(for: keyCode, usesCommand: true) == ".") {
                 nativeSwitcherSessionActive = false
             }
         }

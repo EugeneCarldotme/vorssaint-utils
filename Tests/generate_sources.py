@@ -2138,6 +2138,21 @@ def main():
                                    "    private func clearCursorUsage("])
           + "}\n}\n")
 
+    agent_components = "Sources/Vorssaint/UI/Notch/NotchAgentComponents.swift"
+    agent_page = "Sources/Vorssaint/UI/Notch/NotchAgentsView.swift"
+    write("NotchAgentLayout.swift", "import AppKit\nimport SwiftUI\n"
+          + declaration(agent_components, "extension AgentProvider {")
+          + "extension NotchAgentLayoutTests {\n"
+          + declaration(agent_components, "struct NotchAgentCardChrome<")
+          + declaration(agent_components, "struct NotchAgentCardHeader<")
+          + declaration(agent_components, "struct NotchAgentGlyph:")
+          + declaration(agent_page, "private struct NotchAgentChip:").replace("private struct", "struct", 1)
+          + declaration(agent_page, "private struct NotchAgentLiveCard:").replace("private struct", "struct", 1)
+          + "}\n"
+          + "extension NotchAgentLayoutTests.Grid {\n"
+          + declaration(agent_page, "    private func grid(").replace("private func", "func", 1)
+          + "}\n")
+
     write("AgentUsagePolling.swift", "import Foundation\n"
           + "extension AgentUsagePollingTests {\nfinal class Host: Fixture {\n"
           + declaration("Sources/Vorssaint/Services/AgentUsage/AgentUsageService.swift",

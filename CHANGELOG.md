@@ -10,9 +10,10 @@ All notable changes to this project are documented here. The format follows
 - Wallpaper's Add image and Add folder open the file picker in front on the first click instead of behind other windows.
 - Scrolling Monitor settings with Bars as the usage display no longer freezes the app, and the menu bar preview now stays at the top of the page.
 - Volume mixer sliders no longer jump back to the previous volume for a moment after you change them.
+- Command Bar opened inside Dynamic Island grows smoothly to its full size instead of stuttering as its list appears.
 
 ### Contributors
-Thanks to @Chubi01 and @Memphizzz.
+Thanks to @Chubi01, @Memphizzz and @npcmail010.
 Feedback: Brain.
 
 ## [3.4.2-beta.2] - 2026-10-20

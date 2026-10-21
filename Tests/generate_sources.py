@@ -2159,8 +2159,15 @@ def main():
                         "    private func syncPolling(").replace("private func", "func", 1)
           + "}\n}\n")
 
-    # Same-file extensions can exercise the private AppKit content view without
-    # widening the production interface or presenting an application window.
+    # Same-file extensions exercise private routing and AppKit content without
+    # widening production interfaces or presenting an application window.
+    service = "Sources/Vorssaint/Services/QuitProtection/QuitProtectionService.swift"
+    checks = "Tests/Fixtures/QuitProtectionRoutingChecks.swift"
+    write("QuitProtectionRouting.swift", "import AppKit\nimport ApplicationServices\nimport Combine\n"
+          + "extension QuitProtectionRoutingContract {\n"
+          + declaration(service, "final class QuitProtectionService:")
+          + "}\n" + f'#sourceLocation(file: {json.dumps(checks)}, line: 1)\n'
+          + (ROOT / checks).read_text() + "\n#sourceLocation()\n")
     hud = "Sources/Vorssaint/UI/QuitProtection/QuitProtectionHUD.swift"
     checks = "Tests/Fixtures/QuitProtectionHUDChecks.swift"
     write("QuitProtectionHUDBodies.swift",

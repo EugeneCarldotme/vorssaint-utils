@@ -11,9 +11,10 @@ All notable changes to this project are documented here. The format follows
 - Scrolling Monitor settings with Bars as the usage display no longer freezes the app, and the menu bar preview now stays at the top of the page.
 - Volume mixer sliders no longer jump back to the previous volume for a moment after you change them.
 - Command Bar opened inside Dynamic Island grows smoothly to its full size instead of stuttering as its list appears.
+- Quit Protection no longer quits the foreground app when you press Q on another app in the macOS Command-Tab switcher.
 
 ### Contributors
-Thanks to @Chubi01, @Memphizzz and @npcmail010.
+Thanks to @Chubi01, @EugeneCarldotme, @Memphizzz, @mr-tco and @npcmail010.
 Feedback: Brain.
 
 ## [3.4.2-beta.2] - 2026-10-20

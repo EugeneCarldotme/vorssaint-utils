@@ -19,7 +19,7 @@ extension FeatureStrings {
                 timerCaption: "Aplica-se à próxima sessão de limpeza. Pressione Escape cinco vezes ou clique em Desbloquear para encerrar antes.")
         case .tr:
             return CleaningModeStrings(autoUnlockAfter: "Otomatik kilit açma süresi",
-                timerCaption: "Bir sonraki temizlik oturumunda uygulanır. Erken bitirmek için Escape tuşuna beş kez basın veya Kilidi Aç'a tıklayın.")
+                timerCaption: "Bir sonraki temizlik oturumunda uygulanır. Erken bitirmek için Escape tuşuna beş kez basın veya Kilidi Aç’a tıklayın.")
         case .ru:
             return CleaningModeStrings(autoUnlockAfter: "Автоматическая разблокировка через",
                 timerCaption: "Применяется к следующему сеансу очистки. Нажмите Escape пять раз или кнопку разблокировки, чтобы завершить его раньше.")
@@ -34,7 +34,7 @@ extension FeatureStrings {
                 timerCaption: "Gilt für die nächste Reinigung. Drücke fünfmal Escape oder klicke auf Entsperren, um sie früher zu beenden.")
         case .fr:
             return CleaningModeStrings(autoUnlockAfter: "Déverrouiller automatiquement après",
-                timerCaption: "S'applique à la prochaine session de nettoyage. Appuyez cinq fois sur Échap ou cliquez sur Déverrouiller pour terminer plus tôt.")
+                timerCaption: "S’applique à la prochaine session de nettoyage. Appuyez cinq fois sur Échap ou cliquez sur Déverrouiller pour terminer plus tôt.")
         case .it:
             return CleaningModeStrings(autoUnlockAfter: "Sblocca automaticamente dopo",
                 timerCaption: "Si applica alla prossima sessione di pulizia. Premi Esc cinque volte o fai clic su Sblocca per terminarla prima.")
@@ -46,7 +46,7 @@ extension FeatureStrings {
                 timerCaption: "다음 청소 세션에 적용됩니다. 일찍 끝내려면 Escape를 다섯 번 누르거나 잠금 해제를 클릭하세요.")
         case .uk:
             return CleaningModeStrings(autoUnlockAfter: "Автоматично розблокувати через",
-                timerCaption: "Застосовується до наступного сеансу очищення. Натисніть Escape п'ять разів або кнопку розблокування, щоб завершити раніше.")
+                timerCaption: "Застосовується до наступного сеансу очищення. Натисніть Escape п’ять разів або кнопку розблокування, щоб завершити раніше.")
         case .zhHans:
             return CleaningModeStrings(autoUnlockAfter: "自动解锁时间",
                 timerCaption: "适用于下次清洁。按五次 Escape 或点击解锁可提前结束。")

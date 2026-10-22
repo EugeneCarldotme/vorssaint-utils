@@ -121,6 +121,8 @@ struct MetricsTests {
             ("agents", { NotchAgentTests.run(suite) }),
             ("features", {
                 FeatureCatalogTests.run(suite)
+                CleaningModeShortcutTests.run(suite)
+                CleaningModeTimerTests.run(suite)
                 MenuPanelSectionGateContract.run(suite)
             }),
             ("utilities", {

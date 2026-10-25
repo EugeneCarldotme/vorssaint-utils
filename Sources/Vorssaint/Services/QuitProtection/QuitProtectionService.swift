@@ -94,15 +94,21 @@ final class QuitProtectionService: ObservableObject {
             object: nil,
             queue: .main
         ) { [weak self] note in
-            guard let self,
-                  let app = note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication
+            guard let app = note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication
             else { return }
-            if let pending = self.pending, pending.targetProcessIdentifier != app.processIdentifier {
-                self.cancelPending()
-            }
-            self.frontmostBundleIdentifier = app.bundleIdentifier
-            self.frontmostProcessIdentifier = app.processIdentifier
+            self?.applicationDidActivate(app)
         }
+    }
+
+    private func applicationDidActivate(_ app: NSRunningApplication) {
+        if let pending, pending.targetProcessIdentifier != app.processIdentifier {
+            cancelPending()
+        }
+        // The native switcher activates an app only as its session ends, and
+        // a click on one of its icons ends it with Command still held.
+        nativeSwitcherSessionActive = false
+        frontmostBundleIdentifier = app.bundleIdentifier
+        frontmostProcessIdentifier = app.processIdentifier
     }
 
     private func stop() {

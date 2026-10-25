@@ -17,6 +17,15 @@ import tempfile
 ROOT = Path(__file__).resolve().parents[1]
 
 MUTATIONS = [
+    ("call audio protection is absent by default", "mixer",
+     "Sources/Vorssaint/Services/Audio/MixerRoutingSupport.swift",
+     "        if !allowCallAppVolume, needsScreenSharingProtection(bundleIdentifier: bundleIdentifier) {\n"
+     "            return true\n        }\n", "",
+     "com.hnc.Discord cannot be tapped by saved gain or routing while protected"),
+    ("call audio protection accepts an old engine build", "mixer",
+     "Sources/Vorssaint/Services/Audio/AppVolumeMixer.swift",
+     "        builds.invalidate(app.id)\n", "",
+     "com.hnc.Discord rejects late reads and builds without cancelling another app's build"),
     ("Vorssaint named as the secure input lead", "repository",
      "Sources/Vorssaint/Core/SecureInputSupport.swift",
      "                guard app.pid != ownPid else { return .unknown }\n", "",
@@ -332,11 +341,17 @@ MUTATIONS = [
      "        guard running, !suspended, watchesHiddenHover, windowHost != nil else {",
      "        guard running, !suspended, hiddenUntilHover, windowHost != nil else {",
      "a simulated cutout hidden in full screen keeps one pair of movement observers"),
-    ("a simulated cutout hidden in full screen follows the pointer for click opening", "notch",
+    ("a simulated cutout hidden in full screen follows the pointer with fullscreen hover off", "notch",
      "Sources/Vorssaint/Services/Notch/NotchService.swift",
-     "captureControls == nil\n            && UserDefaults.standard.bool(forKey: DefaultsKey.notchOpenOnHover))",
+     "captureControls == nil\n            && hoverOpeningEnabled)",
      "captureControls == nil)",
      "a simulated cutout hidden in full screen waits for a shortcut when it opens on click"),
+    ("fullscreen hiding inherits the desktop hover preference", "notch",
+     "Sources/Vorssaint/Services/Notch/NotchService.swift",
+     "        hiddenInFullscreen ? UserDefaults.standard.bool(forKey: DefaultsKey.notchHoverInFullscreen)\n"
+     "            : UserDefaults.standard.bool(forKey: DefaultsKey.notchOpenOnHover)",
+     "        UserDefaults.standard.bool(forKey: DefaultsKey.notchOpenOnHover)",
+     "fullscreen hiding blocks hover unless separately enabled, on every display and opening mode"),
     ("moves over an island hidden in full screen hold its timed capture", "notch",
      "Sources/Vorssaint/Services/Notch/NotchService.swift",
      "        if !watchesHiddenHover { captureHover?(entered) }",
@@ -1522,6 +1537,21 @@ MUTATIONS = [
      "        guard !waiting else { return }\n",
      "        guard !waiting else { return }\n        commandBarHeight = measured\n        refreshPresentation()\n",
      "the bar's measured height waits for the next turn of the main loop, not the pass that drew the rows"),
+    ("quit protection keeps native switcher ownership after a click ends it", "quit-protection",
+     "Sources/Vorssaint/Services/QuitProtection/QuitProtectionService.swift",
+     "        // a click on one of its icons ends it with Command still held.\n        nativeSwitcherSessionActive = false\n",
+     "        // a click on one of its icons ends it with Command still held.\n",
+     "an app activated while Command stays held ends native switcher ownership"),
+    ("saved GIFs are readable only by their owner", "recorder",
+     "Sources/Vorssaint/Services/Recorder/RecorderGIFWriter.swift",
+     "        guard FileManager.default.createFile(atPath: url.path, contents: nil) else {\n",
+     "        guard FileManager.default.createFile(atPath: url.path, contents: nil,\n"
+     "                                            attributes: [.posixPermissions: 0o600]) else {\n",
+     "a saved GIF gets the same permissions as any other saved file"),
+    ("a backup carries app volumes as slider positions", "mixer",
+     "Sources/Vorssaint/Core/SettingsBackupSupport.swift",
+     "        settings = exportedAppVolumes(settings)\n", "",
+     "a backup saves app volumes as the gains 3.4.1 plays, at the same loudness"),
 ]
 
 

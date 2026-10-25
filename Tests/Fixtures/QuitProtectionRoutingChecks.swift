@@ -137,6 +137,16 @@ extension QuitProtectionRoutingContract.QuitProtectionService {
         suite.expect(!send(12), "a custom switcher session does not leave stale native ownership")
         send(12, .keyUp)
 
+        // A click on a native switcher icon ends the session with Command
+        // still held. The app it activates must be protected again.
+        send(48)
+        service.applicationDidActivate(Contract.NSRunningApplication(processIdentifier: 200)!)
+        suite.expect(!send(12) && service.pending != nil,
+                     "an app activated while Command stays held ends native switcher ownership")
+        send(12, .keyUp)
+        send(55, .flagsChanged, flags: [])
+        service.frontmostProcessIdentifier = 100
+
         send(48)
         service.stop()
         service.isRunning = true

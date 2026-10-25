@@ -467,12 +467,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         // monitors below dismiss it when it would block that same Settings window.
         popover.behavior = .applicationDefined
         popover.animates = true
-        // The panel paints its own glass surface, or the arrow tip would show plain
-        // system material where the surface stops, the seam users see. The visible
-        // content stays inset either way, before through the content view's frame
-        // and now through the safe area the popover publishes, so only the surface
-        // reaches the arrow. Before macOS 26 AppKit does not lay full-size content
-        // out, so the panel keeps the inset content there.
+        // On macOS 26 and later the panel paints across the balloon, including
+        // the arrow, while its controls stay inside the safe area. Older AppKit
+        // versions misplace full-size content, so keep the inset layout and let
+        // the popover draw its native material and corners there.
         popover.hasFullSizeContent = PanelSurface.popoverHostsFullSizeContent
         popover.delegate = self
         let host = NSHostingController(rootView: MenuPanelView())

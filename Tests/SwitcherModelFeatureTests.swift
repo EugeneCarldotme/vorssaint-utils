@@ -2547,22 +2547,16 @@ enum SwitcherModelFeatureTests {
         let panelGlassCode = stripCommentLines((panelThemeSource
             .components(separatedBy: "private struct PanelGlassSurface: View {").last ?? "")
             .components(separatedBy: "\n}").first ?? "")
-        suite.expect(panelGlassCode.contains("} else if PanelSurface.popoverHostsFullSizeContent {\n            surface.ignoresSafeArea()\n        } else {\n            insetSurface"),
-               "the panel surface paints past the safe area, up into the arrow, only in a full-size popover")
-        let fullSizeSurfaceCode = panelGlassCode
-            .components(separatedBy: "private var insetSurface: some View {").first ?? ""
-        let insetSurfaceCode = panelGlassCode
-            .components(separatedBy: "private var insetSurface: some View {").dropFirst().first ?? ""
-        suite.expect(!fullSizeSurfaceCode.isEmpty
-                   && !fullSizeSurfaceCode.contains("RoundedRectangle")
-                   && !fullSizeSurfaceCode.contains("cornerRadius"),
-               "the full-size surface leaves the rounding to the popover balloon that clips it")
-        suite.expect(fullSizeSurfaceCode.contains(".glassEffect(.regular, in: Rectangle())")
-                   && fullSizeSurfaceCode.contains("Rectangle()\n            .fill(.regularMaterial)"),
+        suite.expect(panelGlassCode.contains("} else if PanelSurface.popoverHostsFullSizeContent {\n            surface.ignoresSafeArea()\n        } else {\n            Color.clear"),
+               "a full-size panel fills the arrow; an inset panel leaves the native popover material visible")
+        suite.expect(!panelGlassCode.isEmpty
+                   && !panelGlassCode.contains("RoundedRectangle")
+                   && !panelGlassCode.contains("cornerRadius")
+                   && !panelGlassCode.contains("strokeBorder"),
+               "the panel leaves the corners and rim to the popover, without a second rounded outline (#2225)")
+        suite.expect(panelGlassCode.contains(".glassEffect(.regular, in: Rectangle())")
+                   && panelGlassCode.contains("Rectangle()\n            .fill(.regularMaterial)"),
                "both the standard and the Liquid Glass surface fill the whole balloon, no shape of their own")
-        suite.expect(insetSurfaceCode.contains("RoundedRectangle(cornerRadius: 18, style: .continuous)")
-                   && insetSurfaceCode.contains(".strokeBorder(PanelSurface.border(for: colorScheme)"),
-               "an inset panel is a rounded, rimmed card inside the balloon")
         let panelViewSource = (try? String(
             contentsOfFile: "Sources/Vorssaint/UI/MenuPanel/MenuPanelView.swift",
             encoding: .utf8)) ?? ""

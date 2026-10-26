@@ -8,10 +8,16 @@ private typealias ProductionNotchSupport = NotchSupport
 
 enum NotchVolumeRoutingTests {
     typealias DispatchQueue = MixerOutputAdjustmentContract.DispatchQueue
-    enum AppVolumeMixer { static var shared = MixerOutputAdjustmentContract.Mixer() }
+    enum AppVolumeMixer {
+        typealias OutputKeyResult = MixerOutputAdjustmentContract.Mixer.OutputKeyResult
+        static var shared = MixerOutputAdjustmentContract.Mixer()
+    }
     enum UserDefaults {
         static let standard = UserDefaults.self
-        static func bool(forKey key: String) -> Bool { false }
+        static var precise = false
+        static func bool(forKey key: String) -> Bool {
+            key == DefaultsKey.preciseVolumeRollerEnabled && precise
+        }
     }
     enum NotchSupport {
         enum Module { case volume }
@@ -26,7 +32,10 @@ enum NotchVolumeRoutingTests {
         let showsSystemFeedback = true
         var shownLevels: [Double] = []
         func showCurrentVolume() {
-            if let level = AppVolumeMixer.shared.systemOutputVolume { shownLevels.append(level) }
+            let mixer = AppVolumeMixer.shared
+            if let level = mixer.systemOutputVolume {
+                shownLevels.append(mixer.systemOutputMuted == true ? 0 : level)
+            }
         }
     }
     struct NSEvent { let data1: Int }
@@ -52,13 +61,9 @@ enum NotchVolumeRoutingTests {
         typealias Hardware = MixerOutputAdjustmentContract.Hardware
         func reset() -> Service {
             DispatchQueue.main = MixerOutputAdjustmentContract.Queue()
-            Hardware.device = 1
+            Hardware.reset()
+            UserDefaults.precise = false
             Hardware.volume = 0.5
-            Hardware.muted = false
-            Hardware.writes = []
-            Hardware.succeeds = true
-            Hardware.afterVolumeWrite = nil
-            Hardware.accepts = nil
             AppVolumeMixer.shared = MixerOutputAdjustmentContract.Mixer()
             AppVolumeMixer.shared.selectOutput(1, volume: 0.5, muted: false)
             Service.forwardedReleases = []
@@ -106,25 +111,144 @@ enum NotchVolumeRoutingTests {
                          && Hardware.writes.contains { $0.volume == Float(expected) },
                          "\(key) still applies its ordinary volume step")
         }
+        for initiallyMuted in [false, true] {
+            service = reset()
+            Hardware.muted = initiallyMuted
+            Hardware.accepts = { ($0 * 100).rounded() / 100 }
+            AppVolumeMixer.shared.selectOutput(1, volume: 0.5, muted: initiallyMuted)
+            let roundedKey = CGEvent()
+            _ = press(.volumeUp, service: service, event: roundedKey)
+            drain()
+            let expectedPercent = initiallyMuted ? 6.0 : 56.0
+            suite.expect(Hardware.muted == false && roundedKey.posts == 0
+                         && Hardware.writes.compactMap(\.volume).count == 1
+                         && NotchService.shared.shownLevels.map { ($0 * 100).rounded() } == [expectedPercent],
+                         "a regular output reporting whole percentages confirms its accepted level, including unmuting")
+        }
         service = reset()
         Hardware.volume = 0.3
-        Hardware.accepts = { $0 < 0.375 ? 0.3 : 0.45 }
+        Hardware.requiresQuantizedKeys = true
+        let coarse: (Float32) -> Float32 = { value in
+            let levels: [Float32] = [0, 0.05, 0.1, 0.2, 0.3, 0.45, 0.65, 1]
+            return levels.min { abs($0 - value) < abs($1 - value) }!
+        }
+        Hardware.accepts = coarse
+        Hardware.quantizes = { coarse($0) }
+        AppVolumeMixer.shared.selectOutput(1, volume: 0.3, muted: false)
+        Hardware.afterVolumeWrite = {
+            suite.expect(abs((AppVolumeMixer.shared.systemOutputVolume ?? -1) - 0.3) < 0.0001
+                         && NotchService.shared.shownLevels.isEmpty,
+                         "a volume key keeps the confirmed level until its write is read back")
+        }
         let coarseKey = CGEvent()
         _ = press(.volumeUp, service: service, event: coarseKey)
         drain()
-        suite.expect(Hardware.volume == 0.45 && coarseKey.posts == 0,
-                     "one intercepted key advances coarse USB volume without a second native press")
+        suite.expect(Hardware.volume == 0.45 && coarseKey.posts == 0
+                     && Hardware.writes.compactMap(\.volume).count == 1,
+                     "one intercepted key advances coarse USB volume with one write and no native replay")
         suite.expect(NotchService.shared.shownLevels.map { ($0 * 100).rounded() } == [45],
                      "the notch announces the device's accepted volume instead of the rounded-away request")
+
+        service = reset()
+        Hardware.requiresQuantizedKeys = true
+        Hardware.volume = 0.3
+        Hardware.muted = true
+        Hardware.accepts = coarse
+        Hardware.quantizes = { coarse($0) }
+        AppVolumeMixer.shared.selectOutput(1, volume: 0.3, muted: true)
+        let fineUnmute = CGEvent()
+        fineUnmute.flags = [.maskAlternate, .maskShift]
+        _ = press(.volumeUp, service: service, event: fineUnmute)
+        drain()
+        suite.expect(Hardware.volume == 0.05 && Hardware.muted == false && fineUnmute.posts == 0
+                     && Hardware.writes.compactMap(\.volume).count == 1
+                     && NotchService.shared.shownLevels.map { ($0 * 100).rounded() } == [5],
+                     "one fine USB key leaves muted stored volume at the first audible step and announces it")
 
         service = reset()
         Hardware.accepts = { _ in 0.5 }
         let ignoredKey = CGEvent()
         _ = press(.volumeDown, service: service, event: ignoredKey)
         drain()
-        suite.expect(ignoredKey.posts == 1 && Service.forwardedReleases == [1]
+        suite.expect(ignoredKey.posts == 0 && Service.forwardedReleases.isEmpty
+                     && Hardware.writes.compactMap(\.volume).count == 1
                      && NotchService.shared.shownLevels.isEmpty,
-                     "a driver ignoring successful writes receives a native fallback without false notch confirmation")
+                     "an unconfirmed successful write is neither escalated nor replayed and shows no false confirmation")
+        suite.expect(AppVolumeMixer.shared.systemOutputVolume == 0.5,
+                     "an ignored key leaves the last confirmed volume published")
+
+        service = reset()
+        Hardware.requiresQuantizedKeys = true
+        Hardware.supportsScalarConversion = false
+        let unsupportedPlan = CGEvent()
+        _ = press(.volumeUp, service: service, event: unsupportedPlan)
+        drain()
+        suite.expect(Hardware.writes.isEmpty && unsupportedPlan.posts == 1
+                     && Service.forwardedReleases == [PreciseVolumeMediaKey.volumeUp.rawValue]
+                     && NotchService.shared.shownLevels.isEmpty,
+                     "an output without a safe volume plan receives native handling before any hardware write")
+
+        service = reset()
+        UserDefaults.precise = true
+        Hardware.requiresQuantizedKeys = true
+        Hardware.supportsScalarConversion = false
+        let preciseFallback = CGEvent()
+        _ = press(.volumeUp, service: service, event: preciseFallback)
+        drain()
+        suite.expect(Hardware.writes.isEmpty && preciseFallback.posts == 1
+                     && preciseFallback.flags.contains([.maskAlternate, .maskShift])
+                     && Service.forwardedReleases == [PreciseVolumeMediaKey.volumeUp.rawValue]
+                     && NotchService.shared.shownLevels.isEmpty,
+                     "unsupported USB native fallback preserves a precise roller's fine step with one press and release")
+
+        service = reset()
+        UserDefaults.precise = true
+        let muteFallback = CGEvent()
+        _ = press(.mute, service: service, event: muteFallback)
+        Hardware.muted = nil
+        drain()
+        suite.expect(Hardware.writes.isEmpty && muteFallback.posts == 1
+                     && muteFallback.flags.isDisjoint(with: [.maskAlternate, .maskShift])
+                     && Service.forwardedReleases == [PreciseVolumeMediaKey.mute.rawValue],
+                     "precise roller mode adds no fine-step modifiers to a native mute fallback")
+
+        service = reset()
+        Hardware.requiresQuantizedKeys = true
+        let continuousConversion = CGEvent()
+        _ = press(.volumeUp, service: service, event: continuousConversion)
+        drain()
+        suite.expect(Hardware.writes.isEmpty && continuousConversion.posts == 1
+                     && Service.forwardedReleases == [PreciseVolumeMediaKey.volumeUp.rawValue]
+                     && NotchService.shared.shownLevels.isEmpty,
+                     "a continuous USB conversion receives native handling without treating equivalence as a hardware step")
+
+        service = reset()
+        Hardware.requiresQuantizedKeys = true
+        Hardware.quantizes = { _ in
+            Hardware.device = 2
+            Hardware.volume = 0.2
+            return nil
+        }
+        let replacedDuringPlanning = CGEvent()
+        _ = press(.volumeUp, service: service, event: replacedDuringPlanning)
+        drain()
+        suite.expect(Hardware.writes.isEmpty && Hardware.volume == 0.2
+                     && replacedDuringPlanning.posts == 0 && Service.forwardedReleases.isEmpty
+                     && NotchService.shared.shownLevels.isEmpty,
+                     "a default change that invalidates conversion consumes the old key instead of falling back on the new output")
+
+        service = reset()
+        Hardware.afterVolumeWrite = {
+            Hardware.device = 2
+            Hardware.volume = 0.2
+        }
+        let replacedOutput = CGEvent()
+        _ = press(.volumeUp, service: service, event: replacedOutput)
+        drain()
+        suite.expect(Hardware.writes.count == 1 && Hardware.writes[0].device == 1
+                     && Hardware.volume == 0.2 && replacedOutput.posts == 0
+                     && Service.forwardedReleases.isEmpty && NotchService.shared.shownLevels.isEmpty,
+                     "a default change during a write consumes the old key without replay, stale mute or feedback")
 
         service = reset()
         AppVolumeMixer.shared.systemOutputMuted = nil
